@@ -19,7 +19,6 @@ use Nexus\Mcp\Core\Schema\Implementation;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\MetaObject;
 use Nexus\Mcp\Core\Schema\ProtocolVersion;
-use Nexus\Mcp\Core\Schema\Request\InitializeRequest;
 use Nexus\Mcp\Core\Schema\Result\InitializeResult;
 use Nexus\Mcp\Core\Schema\ServerCapabilities;
 use Nexus\Mcp\Server\ServerContext;
@@ -28,7 +27,7 @@ use Nexus\Mcp\Server\ServerContext;
  * Handles the `initialize` request, returning the server's protocol version,
  * capabilities, and identification info.
  *
- * @implements RequestHandlerInterface<InitializeRequest, InitializeResult, ServerContext>
+ * @implements RequestHandlerInterface<'initialize', InitializeResult, ServerContext>
  */
 final readonly class InitializeRequestHandler implements RequestHandlerInterface
 {
