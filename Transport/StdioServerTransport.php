@@ -77,7 +77,7 @@ final class StdioServerTransport implements TransportInterface
         };
 
         $this->state = TransportState::Running;
-        $this->logger->info('Stdio transport started; reading from stdin.');
+        $this->logger->info('Stdio transport started. Reading from stdin.');
 
         EventLoop::queue($this->readLoop(...));
     }
@@ -139,14 +139,14 @@ final class StdioServerTransport implements TransportInterface
         $this->messageListeners[] = $listener;
         $id = array_key_last($this->messageListeners);
         $this->logger->debug(
-            'Stdio transport registered message listener; {count} active.',
+            'Stdio transport registered a message listener. {count} active.',
             ['count' => \count($this->messageListeners)],
         );
 
         return new Subscription(function () use ($id): void {
             unset($this->messageListeners[$id]);
             $this->logger->debug(
-                'Stdio transport disposed message listener; {count} active.',
+                'Stdio transport disposed a message listener. {count} active.',
                 ['count' => \count($this->messageListeners)],
             );
         });
@@ -158,14 +158,14 @@ final class StdioServerTransport implements TransportInterface
         $this->closeListeners[] = $listener;
         $id = array_key_last($this->closeListeners);
         $this->logger->debug(
-            'Stdio transport registered close listener; {count} active.',
+            'Stdio transport registered a close listener. {count} active.',
             ['count' => \count($this->closeListeners)],
         );
 
         return new Subscription(function () use ($id): void {
             unset($this->closeListeners[$id]);
             $this->logger->debug(
-                'Stdio transport disposed close listener; {count} active.',
+                'Stdio transport disposed a close listener. {count} active.',
                 ['count' => \count($this->closeListeners)],
             );
         });
@@ -177,14 +177,14 @@ final class StdioServerTransport implements TransportInterface
         $this->errorListeners[] = $listener;
         $id = array_key_last($this->errorListeners);
         $this->logger->debug(
-            'Stdio transport registered error listener; {count} active.',
+            'Stdio transport registered an error listener. {count} active.',
             ['count' => \count($this->errorListeners)],
         );
 
         return new Subscription(function () use ($id): void {
             unset($this->errorListeners[$id]);
             $this->logger->debug(
-                'Stdio transport disposed error listener; {count} active.',
+                'Stdio transport disposed an error listener. {count} active.',
                 ['count' => \count($this->errorListeners)],
             );
         });
@@ -201,7 +201,7 @@ final class StdioServerTransport implements TransportInterface
                 $this->processLine($line);
             }
         } catch (\Throwable $e) {
-            $this->logger->error('Stdio transport read loop failed; closing.', ['exception' => $e]);
+            $this->logger->error('Stdio transport read loop failed. Closing.', ['exception' => $e]);
             $this->emitError($e);
         } finally {
             $this->close();
@@ -288,24 +288,24 @@ final class StdioServerTransport implements TransportInterface
     {
         match (true) {
             $message instanceof JsonRpcRequest => $this->logger->error(
-                'Stdio transport failed to send "{method}" request with ID of {id}; closing.',
+                'Stdio transport failed to send "{method}" request with ID of {id}. Closing.',
                 ['exception' => $error, 'method' => $message::method(), 'id' => $message->id->id],
             ),
             $message instanceof JsonRpcNotification => $this->logger->error(
-                'Stdio transport failed to send "{method}" notification; closing.',
+                'Stdio transport failed to send "{method}" notification. Closing.',
                 ['exception' => $error, 'method' => $message::method()],
             ),
             $message instanceof JsonRpcResultResponse => $this->logger->error(
-                'Stdio transport failed to send result response for request ID of {id}; closing.',
+                'Stdio transport failed to send result response for request ID of {id}. Closing.',
                 ['exception' => $error, 'id' => $message->id->id],
             ),
             default => null === $message->id
                 ? $this->logger->error(
-                    'Stdio transport failed to send error response with no correlatable ID; closing.',
+                    'Stdio transport failed to send error response with no correlatable ID. Closing.',
                     ['exception' => $error],
                 )
                 : $this->logger->error(
-                    'Stdio transport failed to send error response for request ID of {id}; closing.',
+                    'Stdio transport failed to send error response for request ID of {id}. Closing.',
                     ['exception' => $error, 'id' => $message->id->id],
                 ),
         };
