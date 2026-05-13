@@ -39,7 +39,7 @@ final readonly class InitializeRequestHandler implements RequestHandlerInterface
         private Implementation $serverInfo,
         private ServerCapabilities $capabilities,
         private ?string $instructions = null,
-        private ?MetaObject $meta = null,
+        private MetaObject $meta = new MetaObject(),
     ) {
     }
 
