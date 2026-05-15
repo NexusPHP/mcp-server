@@ -25,7 +25,7 @@ use Nexus\Mcp\Server\ServerContext;
 /**
  * In-memory implementation of {@see ResourceStoreInterface}.
  *
- * @phpstan-type ResourceEntry array{resource: Resource, reader: \Closure(string, ServerContext): ReadResourceResult}
+ * @phpstan-type ResourceEntry array{resource: Resource, reader: ResourceReaderInterface}
  */
 final readonly class ResourceStore implements ResourceStoreInterface
 {
@@ -72,7 +72,7 @@ final readonly class ResourceStore implements ResourceStoreInterface
             throw new ResourceNotFoundException($uri, $context->requestId);
         }
 
-        return ($this->entries[$uri]['reader'])($uri, $context);
+        return $this->entries[$uri]['reader']->read($uri, $context);
     }
 
     private function startIndexFor(?Cursor $cursor): int

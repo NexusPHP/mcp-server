@@ -25,7 +25,7 @@ use Nexus\Mcp\Server\ServerContext;
 /**
  * In-memory implementation of {@see ToolStoreInterface}.
  *
- * @phpstan-type ToolEntry array{tool: Tool, executor: \Closure(?array<string, mixed>, ServerContext): CallToolResult}
+ * @phpstan-type ToolEntry array{tool: Tool, executor: ToolExecutorInterface}
  */
 final readonly class ToolStore implements ToolStoreInterface
 {
@@ -72,7 +72,7 @@ final readonly class ToolStore implements ToolStoreInterface
             throw new ToolNotFoundException($name, $context->requestId);
         }
 
-        return ($this->entries[$name]['executor'])($arguments, $context);
+        return $this->entries[$name]['executor']->execute($arguments, $context);
     }
 
     private function startIndexFor(?Cursor $cursor): int
