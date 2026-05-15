@@ -26,7 +26,6 @@ use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcMessage;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcResultResponse;
-use Nexus\Mcp\Core\Transport\ReceiveContext;
 use Nexus\Mcp\Core\Transport\SendContext;
 use Nexus\Mcp\Core\Transport\Subscription;
 use Nexus\Mcp\Core\Transport\SubscriptionInterface;
@@ -44,7 +43,7 @@ use function Amp\ByteStream\splitLines;
 final class StdioServerTransport implements TransportInterface
 {
     /**
-     * @var array<int, \Closure(array<string, mixed>, ?ReceiveContext): void>
+     * @var array<int, \Closure(array<string, mixed>): void>
      */
     private array $messageListeners = [];
 
@@ -230,7 +229,7 @@ final class StdioServerTransport implements TransportInterface
         $this->logger->debug('Stdio transport dispatching envelope.');
 
         try {
-            $this->emitMessage($decoded, null);
+            $this->emitMessage($decoded);
         } catch (\Throwable $e) {
             $this->emitError($e);
         }
@@ -239,10 +238,10 @@ final class StdioServerTransport implements TransportInterface
     /**
      * @param array<string, mixed> $envelope
      */
-    private function emitMessage(array $envelope, ?ReceiveContext $context): void
+    private function emitMessage(array $envelope): void
     {
         foreach ($this->messageListeners as $listener) {
-            $listener($envelope, $context);
+            $listener($envelope);
         }
     }
 

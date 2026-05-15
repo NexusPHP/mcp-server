@@ -1,0 +1,184 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * This file is part of the Nexus MCP SDK package.
+ *
+ * (c) 2026 John Paul E. Balandan, CPA <paulbalandan@gmail.com>
+ *
+ * For the full copyright and license information, please view
+ * the LICENSE file that was distributed with this source code.
+ */
+
+namespace Nexus\Mcp\Server\Dispatch;
+
+use Amp\Cancellation;
+use Amp\NullCancellation;
+use Nexus\Mcp\Core\Exception\AbstractJsonRpcProtocolException;
+use Nexus\Mcp\Core\Handler\NotificationHandlerRegistry;
+use Nexus\Mcp\Core\Handler\RequestHandlerRegistry;
+use Nexus\Mcp\Core\JsonRpc\JsonRpcMessageParser;
+use Nexus\Mcp\Core\Schema\Error;
+use Nexus\Mcp\Core\Schema\Error\InternalError;
+use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcErrorResponse;
+use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
+use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
+use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcResultResponse;
+use Nexus\Mcp\Core\Schema\Notification\InitializedNotification;
+use Nexus\Mcp\Core\Schema\RequestId;
+use Nexus\Mcp\Core\Transport\TransportInterface;
+use Nexus\Mcp\Server\Exception\ServerNotInitializedException;
+use Nexus\Mcp\Server\ServerContext;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
+
+use function Amp\async;
+
+/**
+ * Per-envelope inbound dispatch. Parses, classifies, gates, resolves a handler,
+ * spawns a coroutine to run it, and sends the response (or error) on the transport.
+ */
+final readonly class MessageDispatcher
+{
+    /**
+     * @param RequestHandlerRegistry<ServerContext> $requestHandlers
+     */
+    public function __construct(
+        private RequestHandlerRegistry $requestHandlers,
+        private NotificationHandlerRegistry $notificationHandlers,
+        private InitializationGate $gate,
+        private LoggerInterface $logger = new NullLogger(),
+        private JsonRpcMessageParser $parser = new JsonRpcMessageParser(),
+        private Cancellation $cancellation = new NullCancellation(),
+    ) {
+    }
+
+    /**
+     * @param array<string, mixed> $envelope
+     */
+    public function dispatch(array $envelope, TransportInterface $transport): void
+    {
+        // Inbound requests and notifications only. Response envelopes drop with a warning.
+        if (\array_key_exists('result', $envelope)) {
+            $this->logger->warning('Received unexpected success response envelope.', ['envelope' => $envelope]);
+
+            return;
+        }
+
+        try {
+            $message = $this->parser->parse($envelope);
+        } catch (AbstractJsonRpcProtocolException $e) {
+            $transport->send(self::toErrorResponse($e, null));
+
+            return;
+        }
+
+        match (true) {
+            $message instanceof JsonRpcRequest => $this->dispatchRequest($message, $transport),
+            $message instanceof JsonRpcNotification => $this->dispatchNotification($message),
+            default => $this->logger->warning('Received unexpected error response envelope.', ['envelope' => $envelope]),
+        };
+    }
+
+    /**
+     * @param JsonRpcRequest<non-empty-string> $request
+     */
+    private function dispatchRequest(JsonRpcRequest $request, TransportInterface $transport): void
+    {
+        async(function () use ($request, $transport): void {
+            $method = $request::method();
+
+            try {
+                if (! $this->gate->allowsRequest($method)) {
+                    $transport->send(self::toErrorResponse(
+                        new ServerNotInitializedException($method, $request->id),
+                        $request->id,
+                    ));
+
+                    return;
+                }
+
+                $sender = new RequestBoundSender($transport, $request->id);
+                $context = new ServerContext(
+                    $request->id,
+                    $this->cancellation,
+                    $request->params->meta,
+                    $transport->sessionId(),
+                    $sender,
+                );
+
+                try {
+                    $handler = $this->requestHandlers->get($method);
+                    $result = $handler->handle($request, $context);
+                    $transport->send(new JsonRpcResultResponse($request->id, $result));
+                } catch (AbstractJsonRpcProtocolException $e) {
+                    $transport->send(self::toErrorResponse($e, $request->id));
+                } catch (\Throwable $e) {
+                    $this->logger->error(
+                        'Uncaught request handler exception.',
+                        ['method' => $method, 'exception' => $e],
+                    );
+                    $transport->send(new JsonRpcErrorResponse(
+                        $request->id,
+                        new InternalError($e->getMessage()),
+                    ));
+                }
+            } catch (\Throwable $e) {
+                // Outer catch: a transport `send()` inside an inner catch-arm could itself throw.
+                // Without this guard the coroutine future ends in an unhandled error.
+                $this->logger->error(
+                    'Failed to deliver response to transport.',
+                    ['method' => $method, 'exception' => $e],
+                );
+            }
+        });
+    }
+
+    /**
+     * @param JsonRpcNotification<non-empty-string> $notification
+     */
+    private function dispatchNotification(JsonRpcNotification $notification): void
+    {
+        $method = $notification::method();
+
+        if (InitializedNotification::method() === $method) {
+            $this->gate->markInitialized();
+        }
+
+        if (! $this->gate->isInitialized()) {
+            $this->logger->info(
+                'Dropping notification before client has completed initialize.',
+                ['method' => $method],
+            );
+
+            return;
+        }
+
+        if (! $this->notificationHandlers->has($method)) {
+            return;
+        }
+
+        async(function () use ($notification, $method): void {
+            try {
+                $this->notificationHandlers->get($method)->handle($notification);
+            } catch (\Throwable $e) {
+                // Notifications carry no response per JSON-RPC 2.0 §4.1. Failure is logged only.
+                $this->logger->error(
+                    'Uncaught notification handler exception.',
+                    ['method' => $method, 'exception' => $e],
+                );
+            }
+        });
+    }
+
+    private static function toErrorResponse(
+        AbstractJsonRpcProtocolException $exception,
+        ?RequestId $fallbackId,
+    ): JsonRpcErrorResponse {
+        return new JsonRpcErrorResponse(
+            $exception->requestId ?? $fallbackId,
+            Error::forCode($exception::errorCode(), $exception->getMessage()),
+        );
+    }
+}
