@@ -23,7 +23,7 @@ use Nexus\Mcp\Server\Exception\ToolNotFoundException;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * In-memory implementation of {@see ToolStoreInterface}.
+ * In-memory implementation of `ToolStoreInterface`.
  *
  * @phpstan-type ToolEntry array{tool: Tool, executor: ToolExecutorInterface}
  */

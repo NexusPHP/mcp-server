@@ -22,7 +22,7 @@ use Nexus\Mcp\Server\Prompt\PromptStoreInterface;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * Handles the `prompts/list` request by delegating to a {@see PromptStoreInterface}.
+ * Handles the `prompts/list` request by delegating to a `PromptStoreInterface`.
  *
  * @implements RequestHandlerInterface<'prompts/list', ListPromptsResult, ServerContext>
  */

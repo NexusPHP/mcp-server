@@ -20,7 +20,7 @@ use Nexus\Mcp\Core\Schema\Result\CompleteResult;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * In-memory implementation of {@see CompletionStoreInterface}.
+ * In-memory implementation of `CompletionStoreInterface`.
  *
  * @phpstan-type ArgumentMap array<non-empty-string, \Closure(string, ?array<string, string>, ServerContext): CompleteResult>
  */

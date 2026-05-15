@@ -23,7 +23,7 @@ use Nexus\Mcp\Server\Exception\ResourceNotFoundException;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * In-memory implementation of {@see ResourceStoreInterface}.
+ * In-memory implementation of `ResourceStoreInterface`.
  *
  * @phpstan-type ResourceEntry array{resource: Resource, reader: ResourceReaderInterface}
  */

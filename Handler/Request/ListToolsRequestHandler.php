@@ -22,7 +22,7 @@ use Nexus\Mcp\Server\ServerContext;
 use Nexus\Mcp\Server\Tool\ToolStoreInterface;
 
 /**
- * Handles the `tools/list` request by delegating to a {@see ToolStoreInterface}.
+ * Handles the `tools/list` request by delegating to a `ToolStoreInterface`.
  *
  * @implements RequestHandlerInterface<'tools/list', ListToolsResult, ServerContext>
  */

@@ -17,7 +17,7 @@ use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * Adapts a closure to the {@see ResourceReaderInterface} contract.
+ * Adapts a closure to the `ResourceReaderInterface` contract.
  */
 final readonly class ClosureResourceReader implements ResourceReaderInterface
 {

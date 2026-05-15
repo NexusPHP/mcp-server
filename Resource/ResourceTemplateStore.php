@@ -20,7 +20,7 @@ use Nexus\Mcp\Core\Schema\Result\ListResourceTemplatesResult;
 use Nexus\Mcp\Server\Exception\InvalidCursorException;
 
 /**
- * In-memory implementation of {@see ResourceTemplateStoreInterface}.
+ * In-memory implementation of `ResourceTemplateStoreInterface`.
  */
 final readonly class ResourceTemplateStore implements ResourceTemplateStoreInterface
 {

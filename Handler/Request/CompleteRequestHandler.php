@@ -22,7 +22,7 @@ use Nexus\Mcp\Server\Completion\CompletionStoreInterface;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * Handles the `completion/complete` request by delegating to a {@see CompletionStoreInterface}.
+ * Handles the `completion/complete` request by delegating to a `CompletionStoreInterface`.
  *
  * @implements RequestHandlerInterface<'completion/complete', CompleteResult, ServerContext>
  */

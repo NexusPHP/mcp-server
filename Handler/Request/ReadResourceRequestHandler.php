@@ -22,7 +22,7 @@ use Nexus\Mcp\Server\Resource\ResourceStoreInterface;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * Handles the `resources/read` request by delegating to a {@see ResourceStoreInterface}.
+ * Handles the `resources/read` request by delegating to a `ResourceStoreInterface`.
  *
  * @implements RequestHandlerInterface<'resources/read', ReadResourceResult, ServerContext>
  */

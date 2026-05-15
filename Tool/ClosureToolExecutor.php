@@ -17,7 +17,7 @@ use Nexus\Mcp\Core\Schema\Result\CallToolResult;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * Adapts a closure to the {@see ToolExecutorInterface} contract.
+ * Adapts a closure to the `ToolExecutorInterface` contract.
  */
 final readonly class ClosureToolExecutor implements ToolExecutorInterface
 {

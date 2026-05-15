@@ -22,7 +22,7 @@ use Nexus\Mcp\Server\Resource\ResourceTemplateStoreInterface;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * Handles the `resources/templates/list` request by delegating to a {@see ResourceTemplateStoreInterface}.
+ * Handles the `resources/templates/list` request by delegating to a `ResourceTemplateStoreInterface`.
  *
  * @implements RequestHandlerInterface<'resources/templates/list', ListResourceTemplatesResult, ServerContext>
  */

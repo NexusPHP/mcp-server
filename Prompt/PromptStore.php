@@ -23,7 +23,7 @@ use Nexus\Mcp\Server\Exception\PromptNotFoundException;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * In-memory implementation of {@see PromptStoreInterface}.
+ * In-memory implementation of `PromptStoreInterface`.
  *
  * @phpstan-type PromptEntry array{prompt: Prompt, renderer: PromptRendererInterface}
  */

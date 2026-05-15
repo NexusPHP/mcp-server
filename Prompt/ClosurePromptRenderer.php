@@ -17,7 +17,7 @@ use Nexus\Mcp\Core\Schema\Result\GetPromptResult;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * Adapts a closure to the {@see PromptRendererInterface} contract.
+ * Adapts a closure to the `PromptRendererInterface` contract.
  */
 final readonly class ClosurePromptRenderer implements PromptRendererInterface
 {
