@@ -59,13 +59,6 @@ final readonly class MessageDispatcher
      */
     public function dispatch(array $envelope, TransportInterface $transport): void
     {
-        // Inbound requests and notifications only. Response envelopes drop with a warning.
-        if (\array_key_exists('result', $envelope)) {
-            $this->logger->warning('Received unexpected success response envelope.', ['envelope' => $envelope]);
-
-            return;
-        }
-
         try {
             $message = $this->parser->parse($envelope);
         } catch (AbstractJsonRpcProtocolException $e) {
@@ -77,7 +70,10 @@ final readonly class MessageDispatcher
         match (true) {
             $message instanceof JsonRpcRequest => $this->dispatchRequest($message, $transport),
             $message instanceof JsonRpcNotification => $this->dispatchNotification($message),
-            default => $this->logger->warning('Received unexpected error response envelope.', ['envelope' => $envelope]),
+            default => $this->logger->warning(
+                'Discarding response envelope (server has no outbound-request correlation).',
+                ['envelope' => $envelope],
+            ),
         };
     }
 
