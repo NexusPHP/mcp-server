@@ -40,6 +40,7 @@ use Nexus\Mcp\Core\Schema\Result\GetPromptResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Core\Schema\ServerCapabilities;
 use Nexus\Mcp\Core\Schema\Tool\Tool;
+use Nexus\Mcp\Core\UriTemplate\Validator;
 use Nexus\Mcp\Server\Completion\CompletionStoreInterface;
 use Nexus\Mcp\Server\Dispatch\InitializationGate;
 use Nexus\Mcp\Server\Dispatch\MessageDispatcher;
@@ -56,9 +57,12 @@ use Nexus\Mcp\Server\Prompt\ClosurePromptRenderer;
 use Nexus\Mcp\Server\Prompt\PromptRendererInterface;
 use Nexus\Mcp\Server\Prompt\PromptStore;
 use Nexus\Mcp\Server\Resource\ClosureResourceReader;
+use Nexus\Mcp\Server\Resource\ClosureTemplatedResourceReader;
+use Nexus\Mcp\Server\Resource\CompositeResourceStore;
 use Nexus\Mcp\Server\Resource\ResourceReaderInterface;
 use Nexus\Mcp\Server\Resource\ResourceStore;
 use Nexus\Mcp\Server\Resource\ResourceTemplateStore;
+use Nexus\Mcp\Server\Resource\TemplatedResourceReaderInterface;
 use Nexus\Mcp\Server\Tool\ClosureToolExecutor;
 use Nexus\Mcp\Server\Tool\ToolExecutorInterface;
 use Nexus\Mcp\Server\Tool\ToolStore;
@@ -96,7 +100,7 @@ final class ServerBuilder
     private array $resources = [];
 
     /**
-     * @var array<non-empty-string, ResourceTemplate>
+     * @var array<non-empty-string, array{template: ResourceTemplate, reader: TemplatedResourceReaderInterface}>
      */
     private array $resourceTemplates = [];
 
@@ -197,9 +201,21 @@ final class ServerBuilder
         return $this;
     }
 
-    public function addResourceTemplate(ResourceTemplate $template): self
-    {
-        $this->resourceTemplates[$template->uriTemplate] = $template;
+    /**
+     * @param (\Closure(string, array<string, string>, ServerContext): ReadResourceResult)|TemplatedResourceReaderInterface $reader
+     */
+    public function addResourceTemplate(
+        ResourceTemplate $template,
+        \Closure|TemplatedResourceReaderInterface $reader,
+    ): self {
+        Validator::validate($template->uriTemplate, 'ResourceTemplate');
+
+        $this->resourceTemplates[$template->uriTemplate] = [
+            'template' => $template,
+            'reader' => $reader instanceof TemplatedResourceReaderInterface
+                ? $reader
+                : new ClosureTemplatedResourceReader($reader),
+        ];
 
         return $this;
     }
@@ -285,16 +301,18 @@ final class ServerBuilder
             $defaults[GetPromptRequest::method()] = new GetPromptRequestHandler($promptStore);
         }
 
-        if ([] !== $this->resources) {
+        if ([] !== $this->resources || [] !== $this->resourceTemplates) {
             $resourceStore = new ResourceStore($this->resources);
-            $defaults[ListResourcesRequest::method()] = new ListResourcesRequestHandler($resourceStore);
-            $defaults[ReadResourceRequest::method()] = new ReadResourceRequestHandler($resourceStore);
-        }
+            $templateStore = [] !== $this->resourceTemplates ? new ResourceTemplateStore($this->resourceTemplates) : null;
 
-        if ([] !== $this->resourceTemplates) {
-            $defaults[ListResourceTemplatesRequest::method()] = new ListResourceTemplatesRequestHandler(
-                new ResourceTemplateStore($this->resourceTemplates),
+            $defaults[ListResourcesRequest::method()] = new ListResourcesRequestHandler($resourceStore);
+            $defaults[ReadResourceRequest::method()] = new ReadResourceRequestHandler(
+                null !== $templateStore ? new CompositeResourceStore($resourceStore, $templateStore) : $resourceStore,
             );
+
+            if (null !== $templateStore) {
+                $defaults[ListResourceTemplatesRequest::method()] = new ListResourceTemplatesRequestHandler($templateStore);
+            }
         }
 
         if (null !== $this->completionStore) {

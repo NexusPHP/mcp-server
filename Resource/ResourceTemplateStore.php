@@ -17,10 +17,17 @@ use Nexus\Assert\Assert;
 use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Resource\ResourceTemplate;
 use Nexus\Mcp\Core\Schema\Result\ListResourceTemplatesResult;
+use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
+use Nexus\Mcp\Core\UriTemplate\Matcher;
+use Nexus\Mcp\Core\UriTemplate\Validator;
 use Nexus\Mcp\Server\Exception\InvalidCursorException;
+use Nexus\Mcp\Server\Exception\ResourceNotFoundException;
+use Nexus\Mcp\Server\ServerContext;
 
 /**
  * In-memory implementation of `ResourceTemplateStoreInterface`.
+ *
+ * @phpstan-type TemplateEntry array{template: ResourceTemplate, reader: TemplatedResourceReaderInterface}
  */
 final readonly class ResourceTemplateStore implements ResourceTemplateStoreInterface
 {
@@ -32,11 +39,11 @@ final readonly class ResourceTemplateStore implements ResourceTemplateStoreInter
     private array $keyIndex;
 
     /**
-     * @param array<non-empty-string, ResourceTemplate> $templates
+     * @param array<non-empty-string, TemplateEntry> $entries
      */
-    public function __construct(private array $templates = [], private int $pageSize = self::DEFAULT_PAGE_SIZE)
+    public function __construct(private array $entries = [], private int $pageSize = self::DEFAULT_PAGE_SIZE)
     {
-        Assert::that($this->templates)
+        Assert::that($this->entries)
             ->keys()
             ->isNonEmptyString('Resource template store entry key must be a non-empty string.')
         ;
@@ -44,20 +51,45 @@ final readonly class ResourceTemplateStore implements ResourceTemplateStoreInter
             ->isPositiveInt('Resource template store page size must be a positive integer, {value} given.')
         ;
 
-        $this->keyIndex = array_flip(array_keys($this->templates));
+        foreach ($this->entries as $key => $entry) {
+            Validator::validate($key, 'ResourceTemplate');
+            Assert::that($entry['template']->uriTemplate)
+                ->isIdentical($key, \sprintf(
+                    'Resource template store entry key "%s" must match its template URI "%s".',
+                    $key,
+                    $entry['template']->uriTemplate,
+                ))
+            ;
+        }
+
+        $this->keyIndex = array_flip(array_keys($this->entries));
     }
 
     #[\Override]
     public function listTemplates(?Cursor $cursor): ListResourceTemplatesResult
     {
         $startIndex = $this->startIndexFor($cursor);
-        $page = \array_slice($this->templates, $startIndex, $this->pageSize);
-        $templates = array_values($page);
+        $page = \array_slice($this->entries, $startIndex, $this->pageSize);
+        $templates = array_values(array_map(static fn(array $entry): ResourceTemplate => $entry['template'], $page));
 
-        $hasMore = $startIndex + \count($page) < \count($this->templates);
+        $hasMore = $startIndex + \count($page) < \count($this->entries);
         $nextCursor = $hasMore ? new Cursor((string) array_key_last($page)) : null;
 
         return new ListResourceTemplatesResult($templates, $nextCursor);
+    }
+
+    #[\Override]
+    public function read(string $uri, ServerContext $context): ReadResourceResult
+    {
+        foreach ($this->entries as $uriTemplate => $entry) {
+            $bindings = Matcher::match($uriTemplate, $uri);
+
+            if (null !== $bindings) {
+                return $entry['reader']->read($uri, $bindings, $context);
+            }
+        }
+
+        throw new ResourceNotFoundException($uri, $context->requestId);
     }
 
     private function startIndexFor(?Cursor $cursor): int

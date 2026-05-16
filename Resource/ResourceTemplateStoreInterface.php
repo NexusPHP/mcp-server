@@ -15,7 +15,10 @@ namespace Nexus\Mcp\Server\Resource;
 
 use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Result\ListResourceTemplatesResult;
+use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Server\Exception\InvalidCursorException;
+use Nexus\Mcp\Server\Exception\ResourceNotFoundException;
+use Nexus\Mcp\Server\ServerContext;
 
 /**
  * Read surface that the built-in `resources/templates/*` request handlers depend on.
@@ -26,4 +29,12 @@ interface ResourceTemplateStoreInterface
      * @throws InvalidCursorException
      */
     public function listTemplates(?Cursor $cursor): ListResourceTemplatesResult;
+
+    /**
+     * Reads `$uri` against the registered templates, returning the result of the
+     * first template that matches.
+     *
+     * @throws ResourceNotFoundException
+     */
+    public function read(string $uri, ServerContext $context): ReadResourceResult;
 }
