@@ -26,8 +26,6 @@ use Nexus\Mcp\Server\ServerContext;
 
 /**
  * In-memory implementation of `ResourceTemplateStoreInterface`.
- *
- * @phpstan-type TemplateEntry array{template: ResourceTemplate, reader: TemplatedResourceReaderInterface}
  */
 final readonly class ResourceTemplateStore implements ResourceTemplateStoreInterface
 {
@@ -39,7 +37,7 @@ final readonly class ResourceTemplateStore implements ResourceTemplateStoreInter
     private array $keyIndex;
 
     /**
-     * @param array<non-empty-string, TemplateEntry> $entries
+     * @param array<non-empty-string, ResourceTemplateEntry> $entries
      */
     public function __construct(private array $entries = [], private int $pageSize = self::DEFAULT_PAGE_SIZE)
     {
@@ -53,12 +51,8 @@ final readonly class ResourceTemplateStore implements ResourceTemplateStoreInter
 
         foreach ($this->entries as $key => $entry) {
             Validator::validate($key, 'ResourceTemplate');
-            Assert::that($entry['template']->uriTemplate)
-                ->isIdentical($key, \sprintf(
-                    'Resource template store entry key "%s" must match its template URI "%s".',
-                    $key,
-                    $entry['template']->uriTemplate,
-                ))
+            Assert::that($entry->template->uriTemplate)
+                ->isIdentical($key, 'Resource template store entry key "{other}" must match its template URI "{value}".')
             ;
         }
 
@@ -70,7 +64,7 @@ final readonly class ResourceTemplateStore implements ResourceTemplateStoreInter
     {
         $startIndex = $this->startIndexFor($cursor);
         $page = \array_slice($this->entries, $startIndex, $this->pageSize);
-        $templates = array_values(array_map(static fn(array $entry): ResourceTemplate => $entry['template'], $page));
+        $templates = array_values(array_map(static fn(ResourceTemplateEntry $entry): ResourceTemplate => $entry->template, $page));
 
         $hasMore = $startIndex + \count($page) < \count($this->entries);
         $nextCursor = $hasMore ? new Cursor((string) array_key_last($page)) : null;
@@ -85,7 +79,7 @@ final readonly class ResourceTemplateStore implements ResourceTemplateStoreInter
             $bindings = Matcher::match($uriTemplate, $uri);
 
             if (null !== $bindings) {
-                return $entry['reader']->read($uri, $bindings, $context);
+                return $entry->reader->read($uri, $bindings, $context);
             }
         }
 

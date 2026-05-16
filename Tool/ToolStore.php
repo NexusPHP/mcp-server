@@ -24,8 +24,6 @@ use Nexus\Mcp\Server\ServerContext;
 
 /**
  * In-memory implementation of `ToolStoreInterface`.
- *
- * @phpstan-type ToolEntry array{tool: Tool, executor: ToolExecutorInterface}
  */
 final readonly class ToolStore implements ToolStoreInterface
 {
@@ -57,7 +55,7 @@ final readonly class ToolStore implements ToolStoreInterface
     {
         $startIndex = $this->startIndexFor($cursor);
         $page = \array_slice($this->entries, $startIndex, $this->pageSize);
-        $tools = array_values(array_map(static fn(array $entry): Tool => $entry['tool'], $page));
+        $tools = array_values(array_map(static fn(ToolEntry $entry): Tool => $entry->tool, $page));
 
         $hasMore = $startIndex + \count($page) < \count($this->entries);
         $nextCursor = $hasMore ? new Cursor((string) array_key_last($page)) : null;
@@ -72,7 +70,7 @@ final readonly class ToolStore implements ToolStoreInterface
             throw new ToolNotFoundException($name, $context->requestId);
         }
 
-        return $this->entries[$name]['executor']->execute($arguments, $context);
+        return $this->entries[$name]->executor->execute($arguments, $context);
     }
 
     private function startIndexFor(?Cursor $cursor): int

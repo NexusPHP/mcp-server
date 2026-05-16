@@ -24,8 +24,6 @@ use Nexus\Mcp\Server\ServerContext;
 
 /**
  * In-memory implementation of `PromptStoreInterface`.
- *
- * @phpstan-type PromptEntry array{prompt: Prompt, renderer: PromptRendererInterface}
  */
 final readonly class PromptStore implements PromptStoreInterface
 {
@@ -57,7 +55,7 @@ final readonly class PromptStore implements PromptStoreInterface
     {
         $startIndex = $this->startIndexFor($cursor);
         $page = \array_slice($this->entries, $startIndex, $this->pageSize);
-        $prompts = array_values(array_map(static fn(array $entry): Prompt => $entry['prompt'], $page));
+        $prompts = array_values(array_map(static fn(PromptEntry $entry): Prompt => $entry->prompt, $page));
 
         $hasMore = $startIndex + \count($page) < \count($this->entries);
         $nextCursor = $hasMore ? new Cursor((string) array_key_last($page)) : null;
@@ -72,7 +70,7 @@ final readonly class PromptStore implements PromptStoreInterface
             throw new PromptNotFoundException($name, $context->requestId);
         }
 
-        return $this->entries[$name]['renderer']->render($arguments, $context);
+        return $this->entries[$name]->renderer->render($arguments, $context);
     }
 
     private function startIndexFor(?Cursor $cursor): int

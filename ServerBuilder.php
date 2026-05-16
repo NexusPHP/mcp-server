@@ -54,16 +54,20 @@ use Nexus\Mcp\Server\Handler\Request\ListResourceTemplatesRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\ListToolsRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\ReadResourceRequestHandler;
 use Nexus\Mcp\Server\Prompt\ClosurePromptRenderer;
+use Nexus\Mcp\Server\Prompt\PromptEntry;
 use Nexus\Mcp\Server\Prompt\PromptRendererInterface;
 use Nexus\Mcp\Server\Prompt\PromptStore;
 use Nexus\Mcp\Server\Resource\ClosureResourceReader;
 use Nexus\Mcp\Server\Resource\ClosureTemplatedResourceReader;
 use Nexus\Mcp\Server\Resource\CompositeResourceStore;
+use Nexus\Mcp\Server\Resource\ResourceEntry;
 use Nexus\Mcp\Server\Resource\ResourceReaderInterface;
 use Nexus\Mcp\Server\Resource\ResourceStore;
+use Nexus\Mcp\Server\Resource\ResourceTemplateEntry;
 use Nexus\Mcp\Server\Resource\ResourceTemplateStore;
 use Nexus\Mcp\Server\Resource\TemplatedResourceReaderInterface;
 use Nexus\Mcp\Server\Tool\ClosureToolExecutor;
+use Nexus\Mcp\Server\Tool\ToolEntry;
 use Nexus\Mcp\Server\Tool\ToolExecutorInterface;
 use Nexus\Mcp\Server\Tool\ToolStore;
 use Psr\Log\LoggerInterface;
@@ -85,22 +89,22 @@ final class ServerBuilder
     private LoggerInterface $logger;
 
     /**
-     * @var array<non-empty-string, array{tool: Tool, executor: ToolExecutorInterface}>
+     * @var array<non-empty-string, ToolEntry>
      */
     private array $tools = [];
 
     /**
-     * @var array<non-empty-string, array{prompt: Prompt, renderer: PromptRendererInterface}>
+     * @var array<non-empty-string, PromptEntry>
      */
     private array $prompts = [];
 
     /**
-     * @var array<non-empty-string, array{resource: Resource, reader: ResourceReaderInterface}>
+     * @var array<non-empty-string, ResourceEntry>
      */
     private array $resources = [];
 
     /**
-     * @var array<non-empty-string, array{template: ResourceTemplate, reader: TemplatedResourceReaderInterface}>
+     * @var array<non-empty-string, ResourceTemplateEntry>
      */
     private array $resourceTemplates = [];
 
@@ -161,12 +165,10 @@ final class ServerBuilder
      */
     public function addTool(Tool $tool, \Closure|ToolExecutorInterface $executor): self
     {
-        $this->tools[$tool->name] = [
-            'tool' => $tool,
-            'executor' => $executor instanceof ToolExecutorInterface
-                ? $executor
-                : new ClosureToolExecutor($executor),
-        ];
+        $this->tools[$tool->name] = new ToolEntry(
+            $tool,
+            $executor instanceof ToolExecutorInterface ? $executor : new ClosureToolExecutor($executor),
+        );
 
         return $this;
     }
@@ -176,12 +178,10 @@ final class ServerBuilder
      */
     public function addPrompt(Prompt $prompt, \Closure|PromptRendererInterface $renderer): self
     {
-        $this->prompts[$prompt->name] = [
-            'prompt' => $prompt,
-            'renderer' => $renderer instanceof PromptRendererInterface
-                ? $renderer
-                : new ClosurePromptRenderer($renderer),
-        ];
+        $this->prompts[$prompt->name] = new PromptEntry(
+            $prompt,
+            $renderer instanceof PromptRendererInterface ? $renderer : new ClosurePromptRenderer($renderer),
+        );
 
         return $this;
     }
@@ -191,12 +191,10 @@ final class ServerBuilder
      */
     public function addResource(Resource $resource, \Closure|ResourceReaderInterface $reader): self
     {
-        $this->resources[$resource->uri] = [
-            'resource' => $resource,
-            'reader' => $reader instanceof ResourceReaderInterface
-                ? $reader
-                : new ClosureResourceReader($reader),
-        ];
+        $this->resources[$resource->uri] = new ResourceEntry(
+            $resource,
+            $reader instanceof ResourceReaderInterface ? $reader : new ClosureResourceReader($reader),
+        );
 
         return $this;
     }
@@ -210,12 +208,10 @@ final class ServerBuilder
     ): self {
         Validator::validate($template->uriTemplate, 'ResourceTemplate');
 
-        $this->resourceTemplates[$template->uriTemplate] = [
-            'template' => $template,
-            'reader' => $reader instanceof TemplatedResourceReaderInterface
-                ? $reader
-                : new ClosureTemplatedResourceReader($reader),
-        ];
+        $this->resourceTemplates[$template->uriTemplate] = new ResourceTemplateEntry(
+            $template,
+            $reader instanceof TemplatedResourceReaderInterface ? $reader : new ClosureTemplatedResourceReader($reader),
+        );
 
         return $this;
     }
@@ -251,7 +247,9 @@ final class ServerBuilder
 
     public function build(): Server
     {
-        Assert::that($this->serverInfo)->not()->isNull('Server info must be set before build() via setServerInfo().');
+        Assert::that($this->serverInfo)
+            ->isInstanceOf(Implementation::class, 'Server info must be set before build() via setServerInfo().')
+        ;
 
         $capabilities = $this->deriveCapabilities();
 
