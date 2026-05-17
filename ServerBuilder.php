@@ -21,17 +21,9 @@ use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
 use Nexus\Mcp\Core\Handler\RequestHandlerRegistry;
 use Nexus\Mcp\Core\Schema\Icon;
 use Nexus\Mcp\Core\Schema\Implementation;
+use Nexus\Mcp\Core\Schema\Notification;
 use Nexus\Mcp\Core\Schema\Prompt\Prompt;
-use Nexus\Mcp\Core\Schema\Request\CallToolRequest;
-use Nexus\Mcp\Core\Schema\Request\CompleteRequest;
-use Nexus\Mcp\Core\Schema\Request\GetPromptRequest;
-use Nexus\Mcp\Core\Schema\Request\InitializeRequest;
-use Nexus\Mcp\Core\Schema\Request\ListPromptsRequest;
-use Nexus\Mcp\Core\Schema\Request\ListResourcesRequest;
-use Nexus\Mcp\Core\Schema\Request\ListResourceTemplatesRequest;
-use Nexus\Mcp\Core\Schema\Request\ListToolsRequest;
-use Nexus\Mcp\Core\Schema\Request\PingRequest;
-use Nexus\Mcp\Core\Schema\Request\ReadResourceRequest;
+use Nexus\Mcp\Core\Schema\Request;
 use Nexus\Mcp\Core\Schema\Resource\Resource;
 use Nexus\Mcp\Core\Schema\Resource\ResourceTemplate;
 use Nexus\Mcp\Core\Schema\Result;
@@ -224,10 +216,38 @@ final class ServerBuilder
     }
 
     /**
+     * Registers a handler for a vendor-extension request method. Rejects
+     * methods reserved for the SDK's built-in handlers. Use
+     * `replaceRequestHandler()` to override those explicitly.
+     *
+     * @param non-empty-string                                                 $method
+     * @param RequestHandlerInterface<non-empty-string, Result, ServerContext> $handler
+     *
+     * @throws \LogicException
+     */
+    public function addRequestHandler(string $method, RequestHandlerInterface $handler): self
+    {
+        if (\in_array($method, self::specReservedRequestMethods(), true)) {
+            throw new \LogicException(\sprintf(
+                'Request method "%s" is reserved for the SDK\'s built-in handler. Use replaceRequestHandler() to override it.',
+                $method,
+            ));
+        }
+
+        $this->customRequestHandlers[$method] = $handler;
+
+        return $this;
+    }
+
+    /**
+     * Overrides the SDK's built-in handler for `$method` (including spec
+     * methods like `initialize`). Use this when you genuinely want to replace
+     * SDK behaviour. Use `addRequestHandler()` for vendor extensions.
+     *
      * @param non-empty-string                                                 $method
      * @param RequestHandlerInterface<non-empty-string, Result, ServerContext> $handler
      */
-    public function addRequestHandler(string $method, RequestHandlerInterface $handler): self
+    public function replaceRequestHandler(string $method, RequestHandlerInterface $handler): self
     {
         $this->customRequestHandlers[$method] = $handler;
 
@@ -235,10 +255,38 @@ final class ServerBuilder
     }
 
     /**
+     * Registers a handler for a vendor-extension notification method. Rejects
+     * methods reserved by the MCP spec. Use `replaceNotificationHandler()` to
+     * attach a handler to a spec method explicitly.
+     *
+     * @param non-empty-string                               $method
+     * @param NotificationHandlerInterface<non-empty-string> $handler
+     *
+     * @throws \LogicException
+     */
+    public function addNotificationHandler(string $method, NotificationHandlerInterface $handler): self
+    {
+        if (\in_array($method, self::specReservedNotificationMethods(), true)) {
+            throw new \LogicException(\sprintf(
+                'Notification method "%s" is reserved by the MCP spec. Use replaceNotificationHandler() to attach a handler to it.',
+                $method,
+            ));
+        }
+
+        $this->customNotificationHandlers[$method] = $handler;
+
+        return $this;
+    }
+
+    /**
+     * Overrides any built-in handler for `$method` (including spec
+     * notifications). Use this when attaching to a spec notification.
+     * Use `addNotificationHandler()` for vendor extensions.
+     *
      * @param non-empty-string                               $method
      * @param NotificationHandlerInterface<non-empty-string> $handler
      */
-    public function addNotificationHandler(string $method, NotificationHandlerInterface $handler): self
+    public function replaceNotificationHandler(string $method, NotificationHandlerInterface $handler): self
     {
         $this->customNotificationHandlers[$method] = $handler;
 
@@ -283,40 +331,79 @@ final class ServerBuilder
     private function buildRequestHandlers(Implementation $serverInfo, ServerCapabilities $capabilities): array
     {
         $defaults = [
-            InitializeRequest::method() => new InitializeRequestHandler($serverInfo, $capabilities, $this->instructions),
-            PingRequest::method() => new PingRequestHandler(),
+            Request\InitializeRequest::method() => new InitializeRequestHandler($serverInfo, $capabilities, $this->instructions),
+            Request\PingRequest::method() => new PingRequestHandler(),
         ];
 
         if ([] !== $this->tools) {
             $toolStore = new ToolStore($this->tools);
-            $defaults[ListToolsRequest::method()] = new ListToolsRequestHandler($toolStore);
-            $defaults[CallToolRequest::method()] = new CallToolRequestHandler($toolStore);
+            $defaults[Request\ListToolsRequest::method()] = new ListToolsRequestHandler($toolStore);
+            $defaults[Request\CallToolRequest::method()] = new CallToolRequestHandler($toolStore);
         }
 
         if ([] !== $this->prompts) {
             $promptStore = new PromptStore($this->prompts);
-            $defaults[ListPromptsRequest::method()] = new ListPromptsRequestHandler($promptStore);
-            $defaults[GetPromptRequest::method()] = new GetPromptRequestHandler($promptStore);
+            $defaults[Request\ListPromptsRequest::method()] = new ListPromptsRequestHandler($promptStore);
+            $defaults[Request\GetPromptRequest::method()] = new GetPromptRequestHandler($promptStore);
         }
 
         if ([] !== $this->resources || [] !== $this->resourceTemplates) {
             $resourceStore = new ResourceStore($this->resources);
             $templateStore = [] !== $this->resourceTemplates ? new ResourceTemplateStore($this->resourceTemplates) : null;
 
-            $defaults[ListResourcesRequest::method()] = new ListResourcesRequestHandler($resourceStore);
-            $defaults[ReadResourceRequest::method()] = new ReadResourceRequestHandler(
+            $defaults[Request\ListResourcesRequest::method()] = new ListResourcesRequestHandler($resourceStore);
+            $defaults[Request\ReadResourceRequest::method()] = new ReadResourceRequestHandler(
                 null !== $templateStore ? new CompositeResourceStore($resourceStore, $templateStore) : $resourceStore,
             );
 
             if (null !== $templateStore) {
-                $defaults[ListResourceTemplatesRequest::method()] = new ListResourceTemplatesRequestHandler($templateStore);
+                $defaults[Request\ListResourceTemplatesRequest::method()] = new ListResourceTemplatesRequestHandler($templateStore);
             }
         }
 
         if (null !== $this->completionStore) {
-            $defaults[CompleteRequest::method()] = new CompleteRequestHandler($this->completionStore);
+            $defaults[Request\CompleteRequest::method()] = new CompleteRequestHandler($this->completionStore);
         }
 
         return [...$defaults, ...$this->customRequestHandlers];
+    }
+
+    /**
+     * @return list<non-empty-string>
+     */
+    private static function specReservedRequestMethods(): array
+    {
+        return [
+            Request\CallToolRequest::method(),
+            Request\CompleteRequest::method(),
+            Request\GetPromptRequest::method(),
+            Request\InitializeRequest::method(),
+            Request\ListPromptsRequest::method(),
+            Request\ListResourcesRequest::method(),
+            Request\ListResourceTemplatesRequest::method(),
+            Request\ListToolsRequest::method(),
+            Request\PingRequest::method(),
+            Request\ReadResourceRequest::method(),
+        ];
+    }
+
+    /**
+     * @return list<non-empty-string>
+     */
+    private static function specReservedNotificationMethods(): array
+    {
+        return [
+            Notification\CancelledNotification::method(),
+            Notification\ElicitationCompleteNotification::method(),
+            Notification\InitializedNotification::method(),
+            Notification\LoggingMessageNotification::method(),
+            Notification\ProgressNotification::method(),
+            Notification\PromptListChangedNotification::method(),
+            Notification\ResourceListChangedNotification::method(),
+            Notification\ResourceUpdatedNotification::method(),
+            Notification\RootsListChangedNotification::method(),
+            Notification\TaskStatusNotification::method(),
+            Notification\ToolListChangedNotification::method(),
+        ];
     }
 }
