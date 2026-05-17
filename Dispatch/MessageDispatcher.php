@@ -60,9 +60,20 @@ final readonly class MessageDispatcher
      */
     public function dispatch(array $envelope, TransportInterface $transport): void
     {
+        $isNotification = ! \array_key_exists('id', $envelope);
+
         try {
             $message = $this->parser->parse($envelope);
         } catch (AbstractJsonRpcProtocolException $e) {
+            if ($isNotification) {
+                $this->logger->info(
+                    'Dropping malformed notification (JSON-RPC 2.0 §4.1 forbids responses to notifications).',
+                    ['envelope' => $envelope, 'exception' => $e],
+                );
+
+                return;
+            }
+
             $transport->send(self::toErrorResponse($e, null));
 
             return;
