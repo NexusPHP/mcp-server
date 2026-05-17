@@ -317,12 +317,48 @@ final class ServerBuilder
     private function deriveCapabilities(): ServerCapabilities
     {
         return new ServerCapabilities(
-            completions: null !== $this->completionStore ? [] : null,
+            completions: $this->hasCompletionsCapability() ? [] : null,
             logging: [],
-            prompts: [] !== $this->prompts ? [] : null,
-            resources: ([] !== $this->resources || [] !== $this->resourceTemplates) ? [] : null,
-            tools: [] !== $this->tools ? [] : null,
+            prompts: $this->hasPromptsCapability() ? [] : null,
+            resources: $this->hasResourcesCapability() ? [] : null,
+            tools: $this->hasToolsCapability() ? [] : null,
         );
+    }
+
+    private function hasCompletionsCapability(): bool
+    {
+        return null !== $this->completionStore
+            || isset($this->customRequestHandlers[Request\CompleteRequest::method()]);
+    }
+
+    private function hasPromptsCapability(): bool
+    {
+        if ([] !== $this->prompts) {
+            return true;
+        }
+
+        return isset($this->customRequestHandlers[Request\GetPromptRequest::method()])
+            && isset($this->customRequestHandlers[Request\ListPromptsRequest::method()]);
+    }
+
+    private function hasResourcesCapability(): bool
+    {
+        if ([] !== $this->resources || [] !== $this->resourceTemplates) {
+            return true;
+        }
+
+        return isset($this->customRequestHandlers[Request\ListResourcesRequest::method()])
+            && isset($this->customRequestHandlers[Request\ReadResourceRequest::method()]);
+    }
+
+    private function hasToolsCapability(): bool
+    {
+        if ([] !== $this->tools) {
+            return true;
+        }
+
+        return isset($this->customRequestHandlers[Request\CallToolRequest::method()])
+            && isset($this->customRequestHandlers[Request\ListToolsRequest::method()]);
     }
 
     /**
