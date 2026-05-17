@@ -136,7 +136,7 @@ final readonly class MessageDispatcher
                     );
                     $transport->send(new JsonRpcErrorResponse(
                         $request->id,
-                        new InternalError($e->getMessage()),
+                        new InternalError(),
                     ));
                 }
             } catch (\Throwable $e) {
