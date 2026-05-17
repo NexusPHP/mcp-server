@@ -32,6 +32,7 @@ use Nexus\Mcp\Core\Schema\RequestId;
 use Nexus\Mcp\Core\Transport\TransportInterface;
 use Nexus\Mcp\Server\Exception\ServerAlreadyInitializedException;
 use Nexus\Mcp\Server\Exception\ServerNotInitializedException;
+use Nexus\Mcp\Server\Logging\LoggingLevelGate;
 use Nexus\Mcp\Server\ServerContext;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -60,7 +61,8 @@ final readonly class MessageDispatcher
     public function __construct(
         private RequestHandlerRegistry $requestHandlers,
         private NotificationHandlerRegistry $notificationHandlers,
-        private InitializationGate $gate,
+        private InitializationGate $initializationGate,
+        private LoggingLevelGate $loggingLevelGate = new LoggingLevelGate(),
         private LoggerInterface $logger = new NullLogger(),
         private JsonRpcMessageParser $parser = new JsonRpcMessageParser(),
         private Cancellation $cancellation = new NullCancellation(),
@@ -137,7 +139,7 @@ final readonly class MessageDispatcher
             $method = $request::method();
 
             try {
-                if (! $this->gate->allowsRequest($method)) {
+                if (! $this->initializationGate->allowsRequest($method)) {
                     $exception = InitializeRequest::method() === $method
                         ? new ServerAlreadyInitializedException($request->id)
                         : new ServerNotInitializedException($method, $request->id);
@@ -154,6 +156,7 @@ final readonly class MessageDispatcher
                     $request->params->meta,
                     $transport->sessionId(),
                     $sender,
+                    $this->loggingLevelGate,
                 );
 
                 try {
@@ -161,7 +164,7 @@ final readonly class MessageDispatcher
                     $result = $handler->handle($request, $context);
 
                     if (InitializeRequest::method() === $method) {
-                        $this->gate->markInitializeInFlight();
+                        $this->initializationGate->markInitializeInFlight();
                     }
 
                     $transport->send(new JsonRpcResultResponse($request->id, $result));
@@ -196,7 +199,7 @@ final readonly class MessageDispatcher
         $method = $notification::method();
 
         if (InitializedNotification::method() === $method) {
-            if (! $this->gate->markInitialized()) {
+            if (! $this->initializationGate->markInitialized()) {
                 $this->logger->warning(
                     'Discarding "notifications/initialized" received outside of an in-flight "initialize" handshake.',
                     ['method' => $method],
@@ -206,7 +209,7 @@ final readonly class MessageDispatcher
             }
         }
 
-        if (! $this->gate->isInitialized()) {
+        if (! $this->initializationGate->isInitialized()) {
             $this->logger->info(
                 'Dropping notification before client has completed initialize.',
                 ['method' => $method],
