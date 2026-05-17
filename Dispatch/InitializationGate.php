@@ -13,14 +13,15 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Dispatch;
 
+use Nexus\Mcp\Core\Schema\Request\InitializeRequest;
+use Nexus\Mcp\Core\Schema\Request\PingRequest;
+
 /**
  * Tracks the client handshake lifecycle and decides which inbound request
  * methods may run before it completes.
  */
 final class InitializationGate
 {
-    private const array ALWAYS_ALLOWED_REQUESTS = ['initialize', 'ping'];
-
     private InitializationState $state = InitializationState::AwaitingInitialize;
 
     public function isInitialized(): bool
@@ -33,7 +34,11 @@ final class InitializationGate
      */
     public function allowsRequest(string $requestMethod): bool
     {
-        return $this->isInitialized() || \in_array($requestMethod, self::ALWAYS_ALLOWED_REQUESTS, true);
+        if (InitializeRequest::method() === $requestMethod) {
+            return InitializationState::AwaitingInitialize === $this->state;
+        }
+
+        return $this->isInitialized() || PingRequest::method() === $requestMethod;
     }
 
     /**

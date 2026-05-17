@@ -29,6 +29,7 @@ use Nexus\Mcp\Core\Schema\Notification\InitializedNotification;
 use Nexus\Mcp\Core\Schema\Request\InitializeRequest;
 use Nexus\Mcp\Core\Schema\RequestId;
 use Nexus\Mcp\Core\Transport\TransportInterface;
+use Nexus\Mcp\Server\Exception\ServerAlreadyInitializedException;
 use Nexus\Mcp\Server\Exception\ServerNotInitializedException;
 use Nexus\Mcp\Server\ServerContext;
 use Psr\Log\LoggerInterface;
@@ -99,10 +100,11 @@ final readonly class MessageDispatcher
 
             try {
                 if (! $this->gate->allowsRequest($method)) {
-                    $transport->send(self::toErrorResponse(
-                        new ServerNotInitializedException($method, $request->id),
-                        $request->id,
-                    ));
+                    $exception = InitializeRequest::method() === $method
+                        ? new ServerAlreadyInitializedException($request->id)
+                        : new ServerNotInitializedException($method, $request->id);
+
+                    $transport->send(self::toErrorResponse($exception, $request->id));
 
                     return;
                 }
