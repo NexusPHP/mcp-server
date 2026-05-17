@@ -14,18 +14,18 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Dispatch;
 
 /**
- * Tracks whether the client has completed the `initialize` handshake and
- * decides which inbound request methods may run before that point.
+ * Tracks the client handshake lifecycle and decides which inbound request
+ * methods may run before it completes.
  */
 final class InitializationGate
 {
     private const array ALWAYS_ALLOWED_REQUESTS = ['initialize', 'ping'];
 
-    private bool $initialized = false;
+    private InitializationState $state = InitializationState::AwaitingInitialize;
 
     public function isInitialized(): bool
     {
-        return $this->initialized;
+        return InitializationState::Initialized === $this->state;
     }
 
     /**
@@ -33,11 +33,38 @@ final class InitializationGate
      */
     public function allowsRequest(string $requestMethod): bool
     {
-        return $this->initialized || \in_array($requestMethod, self::ALWAYS_ALLOWED_REQUESTS, true);
+        return $this->isInitialized() || \in_array($requestMethod, self::ALWAYS_ALLOWED_REQUESTS, true);
     }
 
-    public function markInitialized(): void
+    /**
+     * Transitions `AwaitingInitialize` -> `InitializeInFlight`. Returns `true`
+     * if the transition fired; `false` if the gate was already past that state.
+     */
+    public function markInitializeInFlight(): bool
     {
-        $this->initialized = true;
+        if (InitializationState::AwaitingInitialize !== $this->state) {
+            return false;
+        }
+
+        $this->state = InitializationState::InitializeInFlight;
+
+        return true;
+    }
+
+    /**
+     * Transitions `InitializeInFlight` -> `Initialized`. Returns `true` if the
+     * transition fired; `false` if the gate was not awaiting an `initialized`
+     * notification (either still awaiting the `initialize` request or already
+     * past the handshake).
+     */
+    public function markInitialized(): bool
+    {
+        if (InitializationState::InitializeInFlight !== $this->state) {
+            return false;
+        }
+
+        $this->state = InitializationState::Initialized;
+
+        return true;
     }
 }

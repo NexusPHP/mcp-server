@@ -26,6 +26,7 @@ use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcResultResponse;
 use Nexus\Mcp\Core\Schema\Notification\InitializedNotification;
+use Nexus\Mcp\Core\Schema\Request\InitializeRequest;
 use Nexus\Mcp\Core\Schema\RequestId;
 use Nexus\Mcp\Core\Transport\TransportInterface;
 use Nexus\Mcp\Server\Exception\ServerNotInitializedException;
@@ -107,6 +108,11 @@ final readonly class MessageDispatcher
                 try {
                     $handler = $this->requestHandlers->get($method);
                     $result = $handler->handle($request, $context);
+
+                    if (InitializeRequest::method() === $method) {
+                        $this->gate->markInitializeInFlight();
+                    }
+
                     $transport->send(new JsonRpcResultResponse($request->id, $result));
                 } catch (AbstractJsonRpcProtocolException $e) {
                     $transport->send(self::toErrorResponse($e, $request->id));
@@ -139,7 +145,14 @@ final readonly class MessageDispatcher
         $method = $notification::method();
 
         if (InitializedNotification::method() === $method) {
-            $this->gate->markInitialized();
+            if (! $this->gate->markInitialized()) {
+                $this->logger->warning(
+                    'Discarding "notifications/initialized" received outside of an in-flight "initialize" handshake.',
+                    ['method' => $method],
+                );
+
+                return;
+            }
         }
 
         if (! $this->gate->isInitialized()) {
