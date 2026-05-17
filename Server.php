@@ -41,15 +41,18 @@ final readonly class Server
         $transport->onMessage(function (array $envelope) use ($transport): void {
             $this->dispatcher->dispatch($envelope, $transport);
         });
+        $transport->onError(function (\Throwable $e): void {
+            $this->logger->error('Transport error.', ['exception' => $e]);
+        });
+        $transport->onDrain(function (): void {
+            $this->dispatcher->flushPending();
+        });
         $transport->onClose(static function () use ($deferred): void {
             if ($deferred->isComplete()) {
                 return;
             }
 
             $deferred->complete();
-        });
-        $transport->onError(function (\Throwable $e): void {
-            $this->logger->error('Transport error.', ['exception' => $e]);
         });
 
         $transport->start();

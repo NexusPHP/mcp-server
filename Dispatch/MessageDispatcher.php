@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Dispatch;
 
 use Amp\Cancellation;
+use Amp\Future;
 use Amp\NullCancellation;
 use Nexus\Mcp\Core\Exception\AbstractJsonRpcProtocolException;
 use Nexus\Mcp\Core\Handler\NotificationHandlerRegistry;
@@ -36,6 +37,7 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 use function Amp\async;
+use function Amp\Future\awaitAll;
 
 /**
  * Per-envelope inbound dispatch. Parses, classifies, gates, resolves a handler,
@@ -43,6 +45,15 @@ use function Amp\async;
  */
 final readonly class MessageDispatcher
 {
+    /**
+     * Tracks every coroutine spawned by `dispatchRequest` / `dispatchNotification`
+     * so the transport can drain them before close. Mutated through array access.
+     * The property binding itself stays readonly.
+     *
+     * @var \SplObjectStorage<Future<mixed>, null>
+     */
+    private \SplObjectStorage $pending;
+
     /**
      * @param RequestHandlerRegistry<ServerContext> $requestHandlers
      */
@@ -54,6 +65,23 @@ final readonly class MessageDispatcher
         private JsonRpcMessageParser $parser = new JsonRpcMessageParser(),
         private Cancellation $cancellation = new NullCancellation(),
     ) {
+        $this->pending = new \SplObjectStorage();
+    }
+
+    /**
+     * Awaits every in-flight dispatch coroutine.
+     */
+    public function flushPending(): void
+    {
+        awaitAll($this->pending);
+    }
+
+    /**
+     * Number of dispatch coroutines currently in flight.
+     */
+    public function inFlightCount(): int
+    {
+        return \count($this->pending);
     }
 
     /**
@@ -105,7 +133,7 @@ final readonly class MessageDispatcher
      */
     private function dispatchRequest(JsonRpcRequest $request, TransportInterface $transport): void
     {
-        async(function () use ($request, $transport): void {
+        $this->track(async(function () use ($request, $transport): void {
             $method = $request::method();
 
             try {
@@ -157,7 +185,7 @@ final readonly class MessageDispatcher
                     ['method' => $method, 'exception' => $e],
                 );
             }
-        });
+        }));
     }
 
     /**
@@ -191,7 +219,7 @@ final readonly class MessageDispatcher
             return;
         }
 
-        async(function () use ($notification, $method): void {
+        $this->track(async(function () use ($notification, $method): void {
             try {
                 $this->notificationHandlers->get($method)->handle($notification);
             } catch (\Throwable $e) {
@@ -201,6 +229,18 @@ final readonly class MessageDispatcher
                     ['method' => $method, 'exception' => $e],
                 );
             }
+        }));
+    }
+
+    /**
+     * @param Future<mixed> $future
+     */
+    private function track(Future $future): void
+    {
+        $this->pending[$future] = null;
+
+        $future->finally(function () use ($future): void {
+            unset($this->pending[$future]);
         });
     }
 

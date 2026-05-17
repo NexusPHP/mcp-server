@@ -57,6 +57,11 @@ final class StdioServerTransport implements TransportInterface
      */
     private array $errorListeners = [];
 
+    /**
+     * @var array<int, \Closure(): void>
+     */
+    private array $drainListeners = [];
+
     private TransportState $state = TransportState::Idle;
 
     public function __construct(
@@ -189,6 +194,25 @@ final class StdioServerTransport implements TransportInterface
         });
     }
 
+    #[\Override]
+    public function onDrain(\Closure $listener): SubscriptionInterface
+    {
+        $this->drainListeners[] = $listener;
+        $id = array_key_last($this->drainListeners);
+        $this->logger->debug(
+            'Stdio transport registered a drain listener. {count} active.',
+            ['count' => \count($this->drainListeners)],
+        );
+
+        return new Subscription(function () use ($id): void {
+            unset($this->drainListeners[$id]);
+            $this->logger->debug(
+                'Stdio transport disposed a drain listener. {count} active.',
+                ['count' => \count($this->drainListeners)],
+            );
+        });
+    }
+
     private function readLoop(): void
     {
         try {
@@ -203,7 +227,11 @@ final class StdioServerTransport implements TransportInterface
             $this->logger->error('Stdio transport read loop failed. Closing.', ['exception' => $e]);
             $this->emitError($e);
         } finally {
-            $this->close();
+            try {
+                $this->emitDrain();
+            } finally {
+                $this->close();
+            }
         }
     }
 
@@ -255,6 +283,13 @@ final class StdioServerTransport implements TransportInterface
     private function emitClose(): void
     {
         foreach ($this->closeListeners as $listener) {
+            $listener();
+        }
+    }
+
+    private function emitDrain(): void
+    {
+        foreach ($this->drainListeners as $listener) {
             $listener();
         }
     }
