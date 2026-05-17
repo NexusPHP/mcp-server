@@ -62,10 +62,20 @@ final readonly class MessageDispatcher
     public function dispatch(array $envelope, TransportInterface $transport): void
     {
         $isNotification = ! \array_key_exists('id', $envelope);
+        $isResponseShape = \array_key_exists('result', $envelope) || \array_key_exists('error', $envelope);
 
         try {
             $message = $this->parser->parse($envelope);
         } catch (AbstractJsonRpcProtocolException $e) {
+            if ($isResponseShape) {
+                $this->logger->warning(
+                    'Discarding response envelope (server has no outbound-request correlation).',
+                    ['envelope' => $envelope],
+                );
+
+                return;
+            }
+
             if ($isNotification) {
                 $this->logger->info(
                     'Dropping malformed notification (JSON-RPC 2.0 §4.1 forbids responses to notifications).',
