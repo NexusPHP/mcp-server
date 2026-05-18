@@ -36,6 +36,11 @@ final readonly class Server
 
     public function run(TransportInterface $transport): void
     {
+        $this->logger->info(
+            'Starting MCP server with {transport} server transport.',
+            ['transport' => $transport->label()],
+        );
+
         $deferred = new DeferredFuture();
 
         $transport->onMessage(function (array $envelope) use ($transport): void {
@@ -56,7 +61,8 @@ final readonly class Server
         });
 
         $transport->start();
-
         $deferred->getFuture()->await();
+
+        $this->logger->info('MCP server stopped.');
     }
 }

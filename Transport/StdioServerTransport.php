@@ -114,7 +114,7 @@ final class StdioServerTransport implements TransportInterface
         }
 
         $this->logger->info(
-            'Stdio transport closing from {priorState}.',
+            'Stdio transport closing from {priorState} state.',
             ['priorState' => $this->state->name],
         );
         $this->state = TransportState::Closed;
@@ -123,12 +123,19 @@ final class StdioServerTransport implements TransportInterface
         $this->stdout->close();
 
         $this->events->emitClose();
+        $this->logger->info('Stdio transport closed.');
     }
 
     #[\Override]
     public function sessionId(): ?string
     {
         return null;
+    }
+
+    #[\Override]
+    public function label(): string
+    {
+        return 'stdio';
     }
 
     #[\Override]
@@ -180,7 +187,7 @@ final class StdioServerTransport implements TransportInterface
     private function processLine(string $line): void
     {
         try {
-            $decoded = json_decode($line, associative: true, flags: \JSON_THROW_ON_ERROR);
+            $decodedJson = json_decode($line, associative: true, flags: \JSON_THROW_ON_ERROR);
         } catch (\JsonException $e) {
             $this->logger->debug('Stdio transport skipped malformed JSON line.', ['exception' => $e]);
 
@@ -188,18 +195,18 @@ final class StdioServerTransport implements TransportInterface
         }
 
         try {
-            Assert::that($decoded)->isMap('JSON-RPC envelope must be a JSON object, {type} given.');
+            Assert::that($decodedJson)->isMap('JSON-RPC envelope must be a JSON object, {type} given.');
         } catch (\InvalidArgumentException $e) {
-            $this->logger->warning('Stdio transport rejected non-object envelope.', ['exception' => $e]);
+            $this->logger->warning('Stdio transport rejected a non-object envelope.', ['exception' => $e]);
             $this->events->emitError($e);
 
             return;
         }
 
-        $this->logger->debug('Stdio transport dispatching envelope.');
+        $this->logger->debug('Stdio transport received a JSON-RPC envelope.');
 
         try {
-            $this->events->emitMessage($decoded);
+            $this->events->emitMessage($decodedJson);
         } catch (\Throwable $e) {
             $this->events->emitError($e);
         }
@@ -209,7 +216,7 @@ final class StdioServerTransport implements TransportInterface
     {
         match (true) {
             $message instanceof JsonRpcRequest => $this->logger->debug(
-                'Stdio transport sent "{method}" request with ID of {id}.',
+                'Stdio transport sent "{method}" request with ID "{id}".',
                 ['method' => $message::method(), 'id' => $message->id->id],
             ),
             $message instanceof JsonRpcNotification => $this->logger->debug(
@@ -217,13 +224,13 @@ final class StdioServerTransport implements TransportInterface
                 ['method' => $message::method()],
             ),
             $message instanceof JsonRpcResultResponse => $this->logger->debug(
-                'Stdio transport sent result response for request ID of {id}.',
+                'Stdio transport sent a result response for request ID "{id}".',
                 ['id' => $message->id->id],
             ),
             default => null === $message->id
-                ? $this->logger->debug('Stdio transport sent error response with no correlatable ID.')
+                ? $this->logger->debug('Stdio transport sent an error response with no correlatable ID.')
                 : $this->logger->debug(
-                    'Stdio transport sent error response for request ID of {id}.',
+                    'Stdio transport sent an error response for request ID "{id}".',
                     ['id' => $message->id->id],
                 ),
         };
@@ -233,7 +240,7 @@ final class StdioServerTransport implements TransportInterface
     {
         match (true) {
             $message instanceof JsonRpcRequest => $this->logger->error(
-                'Stdio transport failed to send "{method}" request with ID of {id}. Closing.',
+                'Stdio transport failed to send "{method}" request with ID "{id}". Closing.',
                 ['exception' => $error, 'method' => $message::method(), 'id' => $message->id->id],
             ),
             $message instanceof JsonRpcNotification => $this->logger->error(
@@ -241,16 +248,16 @@ final class StdioServerTransport implements TransportInterface
                 ['exception' => $error, 'method' => $message::method()],
             ),
             $message instanceof JsonRpcResultResponse => $this->logger->error(
-                'Stdio transport failed to send result response for request ID of {id}. Closing.',
+                'Stdio transport failed to send result response for request ID "{id}". Closing.',
                 ['exception' => $error, 'id' => $message->id->id],
             ),
             default => null === $message->id
                 ? $this->logger->error(
-                    'Stdio transport failed to send error response with no correlatable ID. Closing.',
+                    'Stdio transport failed to send an error response with no correlatable ID. Closing.',
                     ['exception' => $error],
                 )
                 : $this->logger->error(
-                    'Stdio transport failed to send error response for request ID of {id}. Closing.',
+                    'Stdio transport failed to send an error response for request ID "{id}". Closing.',
                     ['exception' => $error, 'id' => $message->id->id],
                 ),
         };
