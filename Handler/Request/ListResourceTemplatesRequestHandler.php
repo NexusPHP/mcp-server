@@ -37,6 +37,6 @@ final readonly class ListResourceTemplatesRequestHandler implements RequestHandl
     {
         \assert($request instanceof ListResourceTemplatesRequest);
 
-        return $this->store->listTemplates($request->params->cursor);
+        return $this->store->list($request->params->cursor);
     }
 }

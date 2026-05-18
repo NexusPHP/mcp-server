@@ -20,34 +20,25 @@ use Nexus\Mcp\Core\Schema\Result\ListResourceTemplatesResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Core\UriTemplate\Matcher;
 use Nexus\Mcp\Core\UriTemplate\Validator;
-use Nexus\Mcp\Server\Exception\InvalidCursorException;
+use Nexus\Mcp\Server\AbstractPaginatedStore;
 use Nexus\Mcp\Server\Exception\ResourceNotFoundException;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
  * In-memory implementation of `ResourceTemplateStoreInterface`.
+ *
+ * @extends AbstractPaginatedStore<ResourceTemplateEntry>
  */
-final readonly class ResourceTemplateStore implements ResourceTemplateStoreInterface
+final readonly class ResourceTemplateStore extends AbstractPaginatedStore implements ResourceTemplateStoreInterface
 {
-    public const int DEFAULT_PAGE_SIZE = 50;
-
-    /**
-     * @var array<non-empty-string, int<0, max>>
-     */
-    private array $keyIndex;
+    protected const string STORE_LABEL = 'Resource template store';
 
     /**
      * @param array<non-empty-string, ResourceTemplateEntry> $entries
      */
-    public function __construct(private array $entries = [], private int $pageSize = self::DEFAULT_PAGE_SIZE)
+    public function __construct(array $entries = [], int $pageSize = self::DEFAULT_PAGE_SIZE)
     {
-        Assert::that($this->entries)
-            ->keys()
-            ->isNonEmptyString('Resource template store entry key must be a non-empty string.')
-        ;
-        Assert::that($this->pageSize)
-            ->isPositiveInt('Resource template store page size must be a positive integer, {value} given.')
-        ;
+        parent::__construct($entries, $pageSize);
 
         foreach ($this->entries as $key => $entry) {
             Validator::validate($key, 'ResourceTemplate');
@@ -55,21 +46,16 @@ final readonly class ResourceTemplateStore implements ResourceTemplateStoreInter
                 ->isIdentical($key, 'Resource template store entry key "{other}" must match its template URI "{value}".')
             ;
         }
-
-        $this->keyIndex = array_flip(array_keys($this->entries));
     }
 
     #[\Override]
-    public function listTemplates(?Cursor $cursor): ListResourceTemplatesResult
+    public function list(?Cursor $cursor): ListResourceTemplatesResult
     {
-        $startIndex = $this->startIndexFor($cursor);
-        $page = \array_slice($this->entries, $startIndex, $this->pageSize);
-        $templates = array_values(array_map(static fn(ResourceTemplateEntry $entry): ResourceTemplate => $entry->template, $page));
-
-        $hasMore = $startIndex + \count($page) < \count($this->entries);
-        $nextCursor = $hasMore ? new Cursor((string) array_key_last($page)) : null;
-
-        return new ListResourceTemplatesResult($templates, $nextCursor);
+        return $this->paginate(
+            $cursor,
+            static fn(ResourceTemplateEntry $entry): ResourceTemplate => $entry->template,
+            static fn(array $templates, ?Cursor $nextCursor): ListResourceTemplatesResult => new ListResourceTemplatesResult($templates, $nextCursor),
+        );
     }
 
     #[\Override]
@@ -84,20 +70,5 @@ final readonly class ResourceTemplateStore implements ResourceTemplateStoreInter
         }
 
         throw new ResourceNotFoundException($uri, $context->requestId);
-    }
-
-    private function startIndexFor(?Cursor $cursor): int
-    {
-        if (null === $cursor) {
-            return 0;
-        }
-
-        $raw = $cursor->cursor;
-
-        if (! isset($this->keyIndex[$raw])) {
-            throw new InvalidCursorException($raw);
-        }
-
-        return $this->keyIndex[$raw] + 1;
     }
 }

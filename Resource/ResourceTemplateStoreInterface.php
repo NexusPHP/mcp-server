@@ -28,7 +28,7 @@ interface ResourceTemplateStoreInterface
     /**
      * @throws InvalidCursorException
      */
-    public function listTemplates(?Cursor $cursor): ListResourceTemplatesResult;
+    public function list(?Cursor $cursor): ListResourceTemplatesResult;
 
     /**
      * Reads `$uri` against the registered templates, returning the result of the

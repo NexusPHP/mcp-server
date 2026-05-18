@@ -13,54 +13,31 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Resource;
 
-use Nexus\Assert\Assert;
 use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Resource\Resource;
 use Nexus\Mcp\Core\Schema\Result\ListResourcesResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
-use Nexus\Mcp\Server\Exception\InvalidCursorException;
+use Nexus\Mcp\Server\AbstractPaginatedStore;
 use Nexus\Mcp\Server\Exception\ResourceNotFoundException;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
  * In-memory implementation of `ResourceStoreInterface`.
+ *
+ * @extends AbstractPaginatedStore<ResourceEntry>
  */
-final readonly class ResourceStore implements ResourceStoreInterface
+final readonly class ResourceStore extends AbstractPaginatedStore implements ResourceStoreInterface
 {
-    public const int DEFAULT_PAGE_SIZE = 50;
-
-    /**
-     * @var array<non-empty-string, int<0, max>>
-     */
-    private array $keyIndex;
-
-    /**
-     * @param array<non-empty-string, ResourceEntry> $entries
-     */
-    public function __construct(private array $entries = [], private int $pageSize = self::DEFAULT_PAGE_SIZE)
-    {
-        Assert::that($this->entries)
-            ->keys()
-            ->isNonEmptyString('Resource store entry key must be a non-empty string.')
-        ;
-        Assert::that($this->pageSize)
-            ->isPositiveInt('Resource store page size must be a positive integer, {value} given.')
-        ;
-
-        $this->keyIndex = array_flip(array_keys($this->entries));
-    }
+    protected const string STORE_LABEL = 'Resource store';
 
     #[\Override]
     public function list(?Cursor $cursor): ListResourcesResult
     {
-        $startIndex = $this->startIndexFor($cursor);
-        $page = \array_slice($this->entries, $startIndex, $this->pageSize);
-        $resources = array_values(array_map(static fn(ResourceEntry $entry): Resource => $entry->resource, $page));
-
-        $hasMore = $startIndex + \count($page) < \count($this->entries);
-        $nextCursor = $hasMore ? new Cursor((string) array_key_last($page)) : null;
-
-        return new ListResourcesResult($resources, $nextCursor);
+        return $this->paginate(
+            $cursor,
+            static fn(ResourceEntry $entry): Resource => $entry->resource,
+            static fn(array $resources, ?Cursor $nextCursor): ListResourcesResult => new ListResourcesResult($resources, $nextCursor),
+        );
     }
 
     #[\Override]
@@ -71,20 +48,5 @@ final readonly class ResourceStore implements ResourceStoreInterface
         }
 
         return $this->entries[$uri]->reader->read($uri, $context);
-    }
-
-    private function startIndexFor(?Cursor $cursor): int
-    {
-        if (null === $cursor) {
-            return 0;
-        }
-
-        $raw = $cursor->cursor;
-
-        if (! isset($this->keyIndex[$raw])) {
-            throw new InvalidCursorException($raw);
-        }
-
-        return $this->keyIndex[$raw] + 1;
     }
 }
