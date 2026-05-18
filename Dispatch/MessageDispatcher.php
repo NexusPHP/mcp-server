@@ -97,10 +97,7 @@ final readonly class MessageDispatcher
             $message = $this->parser->parse($envelope);
         } catch (AbstractJsonRpcProtocolException $e) {
             if ($isResponseShape) {
-                $this->logger->warning(
-                    'Discarding response envelope (server has no outbound-request correlation).',
-                    ['envelope' => $envelope],
-                );
+                $this->discardResponseEnvelope($envelope);
 
                 return;
             }
@@ -122,11 +119,19 @@ final readonly class MessageDispatcher
         match (true) {
             $message instanceof JsonRpcRequest => $this->dispatchRequest($message, $transport),
             $message instanceof JsonRpcNotification => $this->dispatchNotification($message),
-            default => $this->logger->warning(
-                'Discarding response envelope (server has no outbound-request correlation).',
-                ['envelope' => $envelope],
-            ),
+            default => $this->discardResponseEnvelope($envelope),
         };
+    }
+
+    /**
+     * @param array<string, mixed> $envelope
+     */
+    private function discardResponseEnvelope(array $envelope): void
+    {
+        $this->logger->warning(
+            'Discarding response envelope (server has no outbound-request correlation).',
+            ['envelope' => $envelope],
+        );
     }
 
     /**
