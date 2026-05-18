@@ -18,9 +18,9 @@ use Nexus\Mcp\Core\Handler\HandlerRegistry;
 use Nexus\Mcp\Core\Handler\NotificationHandlerInterface;
 use Nexus\Mcp\Core\Handler\Request\PingRequestHandler;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
+use Nexus\Mcp\Core\JsonRpc\JsonRpcMethodRegistry;
 use Nexus\Mcp\Core\Schema\Icon;
 use Nexus\Mcp\Core\Schema\Implementation;
-use Nexus\Mcp\Core\Schema\Notification;
 use Nexus\Mcp\Core\Schema\Prompt\Prompt;
 use Nexus\Mcp\Core\Schema\Request;
 use Nexus\Mcp\Core\Schema\Resource\Resource;
@@ -228,9 +228,9 @@ final class ServerBuilder
      */
     public function addRequestHandler(string $method, RequestHandlerInterface $handler): self
     {
-        if (\in_array($method, self::specReservedRequestMethods(), true)) {
+        if (\array_key_exists($method, JsonRpcMethodRegistry::requests())) {
             throw new \LogicException(\sprintf(
-                'Request method "%s" is reserved for the SDK\'s built-in handler. Use replaceRequestHandler() to override it.',
+                'Request method "%s" is reserved by the MCP specification. Use replaceRequestHandler() to attach a handler to it.',
                 $method,
             ));
         }
@@ -246,10 +246,19 @@ final class ServerBuilder
      * @param non-empty-string                                                 $method
      * @param RequestHandlerInterface<non-empty-string, Result, ServerContext> $handler
      *
+     * @throws \LogicException
+     *
      * @see self::addRequestHandler()
      */
     public function replaceRequestHandler(string $method, RequestHandlerInterface $handler): self
     {
+        if (! \array_key_exists($method, JsonRpcMethodRegistry::requests())) {
+            throw new \LogicException(\sprintf(
+                'Request method "%s" is not reserved by the MCP specification. Use addRequestHandler() to register a vendor extension.',
+                $method,
+            ));
+        }
+
         $this->customRequestHandlers[$method] = $handler;
 
         return $this;
@@ -267,9 +276,9 @@ final class ServerBuilder
      */
     public function addNotificationHandler(string $method, NotificationHandlerInterface $handler): self
     {
-        if (\in_array($method, self::specReservedNotificationMethods(), true)) {
+        if (\array_key_exists($method, JsonRpcMethodRegistry::notifications())) {
             throw new \LogicException(\sprintf(
-                'Notification method "%s" is reserved by the MCP spec. Use replaceNotificationHandler() to attach a handler to it.',
+                'Notification method "%s" is reserved by the MCP specification. Use replaceNotificationHandler() to attach a handler to it.',
                 $method,
             ));
         }
@@ -285,10 +294,19 @@ final class ServerBuilder
      * @param non-empty-string                               $method
      * @param NotificationHandlerInterface<non-empty-string> $handler
      *
+     * @throws \LogicException
+     *
      * @see self::addNotificationHandler()
      */
     public function replaceNotificationHandler(string $method, NotificationHandlerInterface $handler): self
     {
+        if (! \array_key_exists($method, JsonRpcMethodRegistry::notifications())) {
+            throw new \LogicException(\sprintf(
+                'Notification method "%s" is not reserved by the MCP specification. Use addNotificationHandler() to register a vendor extension.',
+                $method,
+            ));
+        }
+
         $this->customNotificationHandlers[$method] = $handler;
 
         return $this;
@@ -409,45 +427,5 @@ final class ServerBuilder
         }
 
         return [...$defaults, ...$this->customRequestHandlers];
-    }
-
-    /**
-     * @return list<non-empty-string>
-     */
-    private static function specReservedRequestMethods(): array
-    {
-        return [
-            Request\CallToolRequest::method(),
-            Request\CompleteRequest::method(),
-            Request\GetPromptRequest::method(),
-            Request\InitializeRequest::method(),
-            Request\ListPromptsRequest::method(),
-            Request\ListResourcesRequest::method(),
-            Request\ListResourceTemplatesRequest::method(),
-            Request\ListToolsRequest::method(),
-            Request\PingRequest::method(),
-            Request\ReadResourceRequest::method(),
-            Request\SetLevelRequest::method(),
-        ];
-    }
-
-    /**
-     * @return list<non-empty-string>
-     */
-    private static function specReservedNotificationMethods(): array
-    {
-        return [
-            Notification\CancelledNotification::method(),
-            Notification\ElicitationCompleteNotification::method(),
-            Notification\InitializedNotification::method(),
-            Notification\LoggingMessageNotification::method(),
-            Notification\ProgressNotification::method(),
-            Notification\PromptListChangedNotification::method(),
-            Notification\ResourceListChangedNotification::method(),
-            Notification\ResourceUpdatedNotification::method(),
-            Notification\RootsListChangedNotification::method(),
-            Notification\TaskStatusNotification::method(),
-            Notification\ToolListChangedNotification::method(),
-        ];
     }
 }
