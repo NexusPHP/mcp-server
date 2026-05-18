@@ -34,18 +34,28 @@ final readonly class ResourceTemplateStore extends AbstractPaginatedStore implem
     protected const string STORE_LABEL = 'Resource template store';
 
     /**
+     * @var list<array{pattern: non-empty-string, entry: ResourceTemplateEntry}>
+     */
+    private array $compiled;
+
+    /**
      * @param array<non-empty-string, ResourceTemplateEntry> $entries
      */
     public function __construct(array $entries = [], int $pageSize = self::DEFAULT_PAGE_SIZE)
     {
         parent::__construct($entries, $pageSize);
 
+        $compiled = [];
+
         foreach ($this->entries as $key => $entry) {
             Validator::validate($key, 'ResourceTemplate');
             Assert::that($entry->template->uriTemplate)
                 ->isIdentical($key, 'Resource template store entry key "{other}" must match its template URI "{value}".')
             ;
+            $compiled[] = ['pattern' => Matcher::compile($key), 'entry' => $entry];
         }
+
+        $this->compiled = $compiled;
     }
 
     #[\Override]
@@ -61,8 +71,8 @@ final readonly class ResourceTemplateStore extends AbstractPaginatedStore implem
     #[\Override]
     public function read(string $uri, ServerContext $context): ReadResourceResult
     {
-        foreach ($this->entries as $uriTemplate => $entry) {
-            $bindings = Matcher::match($uriTemplate, $uri);
+        foreach ($this->compiled as ['pattern' => $pattern, 'entry' => $entry]) {
+            $bindings = Matcher::matchCompiled($pattern, $uri);
 
             if (null !== $bindings) {
                 return $entry->reader->read($uri, $bindings, $context);
