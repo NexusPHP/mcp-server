@@ -17,8 +17,9 @@ use Amp\Cancellation;
 use Amp\Future;
 use Amp\NullCancellation;
 use Nexus\Mcp\Core\Exception\AbstractJsonRpcProtocolException;
-use Nexus\Mcp\Core\Handler\NotificationHandlerRegistry;
-use Nexus\Mcp\Core\Handler\RequestHandlerRegistry;
+use Nexus\Mcp\Core\Handler\HandlerRegistry;
+use Nexus\Mcp\Core\Handler\NotificationHandlerInterface;
+use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
 use Nexus\Mcp\Core\JsonRpc\JsonRpcMessageParser;
 use Nexus\Mcp\Core\Schema\Error;
 use Nexus\Mcp\Core\Schema\Error\InternalError;
@@ -29,6 +30,7 @@ use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcResultResponse;
 use Nexus\Mcp\Core\Schema\Notification\InitializedNotification;
 use Nexus\Mcp\Core\Schema\Request\InitializeRequest;
 use Nexus\Mcp\Core\Schema\RequestId;
+use Nexus\Mcp\Core\Schema\Result;
 use Nexus\Mcp\Core\Transport\TransportInterface;
 use Nexus\Mcp\Server\Exception\ServerAlreadyInitializedException;
 use Nexus\Mcp\Server\Exception\ServerNotInitializedException;
@@ -52,11 +54,12 @@ final readonly class MessageDispatcher
     private \SplObjectStorage $pending;
 
     /**
-     * @param RequestHandlerRegistry<ServerContext> $requestHandlers
+     * @param HandlerRegistry<RequestHandlerInterface<non-empty-string, Result, ServerContext>> $requestHandlers
+     * @param HandlerRegistry<NotificationHandlerInterface<non-empty-string>>                   $notificationHandlers
      */
     public function __construct(
-        private RequestHandlerRegistry $requestHandlers,
-        private NotificationHandlerRegistry $notificationHandlers,
+        private HandlerRegistry $requestHandlers,
+        private HandlerRegistry $notificationHandlers,
         private InitializationGate $initializationGate,
         private LoggingLevelGate $loggingLevelGate = new LoggingLevelGate(),
         private LoggerInterface $logger = new NullLogger(),

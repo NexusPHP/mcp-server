@@ -14,11 +14,10 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server;
 
 use Nexus\Assert\Assert;
+use Nexus\Mcp\Core\Handler\HandlerRegistry;
 use Nexus\Mcp\Core\Handler\NotificationHandlerInterface;
-use Nexus\Mcp\Core\Handler\NotificationHandlerRegistry;
 use Nexus\Mcp\Core\Handler\Request\PingRequestHandler;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
-use Nexus\Mcp\Core\Handler\RequestHandlerRegistry;
 use Nexus\Mcp\Core\Schema\Icon;
 use Nexus\Mcp\Core\Schema\Implementation;
 use Nexus\Mcp\Core\Schema\Notification;
@@ -308,8 +307,8 @@ final class ServerBuilder
 
         return new Server(
             new MessageDispatcher(
-                new RequestHandlerRegistry($requestHandlers),
-                new NotificationHandlerRegistry($this->customNotificationHandlers),
+                new HandlerRegistry($requestHandlers, RequestHandlerInterface::class, 'Request handler'),
+                new HandlerRegistry($this->customNotificationHandlers, NotificationHandlerInterface::class, 'Notification handler'),
                 new InitializationGate(),
                 loggingLevelGate: $loggingLevelGate,
                 logger: $this->logger,
