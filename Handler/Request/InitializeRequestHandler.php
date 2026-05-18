@@ -46,7 +46,7 @@ final readonly class InitializeRequestHandler implements RequestHandlerInterface
     public function handle(JsonRpcRequest $request, AbstractContext $context): InitializeResult
     {
         return new InitializeResult(
-            ProtocolVersion::latest(),
+            new ProtocolVersion(ProtocolVersion::LATEST_VERSION),
             $this->capabilities,
             $this->serverInfo,
             $this->instructions,

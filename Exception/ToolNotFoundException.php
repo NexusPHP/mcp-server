@@ -28,8 +28,8 @@ final class ToolNotFoundException extends AbstractJsonRpcProtocolException
         ?\Throwable $previous = null,
     ) {
         parent::__construct(
-            \sprintf('No tool registered under name "%s".', $name),
             $requestId,
+            \sprintf('No tool registered under name "%s".', $name),
             $previous,
         );
     }

@@ -26,8 +26,8 @@ final class ServerAlreadyInitializedException extends AbstractJsonRpcProtocolExc
     public function __construct(?RequestId $requestId = null, ?\Throwable $previous = null)
     {
         parent::__construct(
-            'Cannot re-initialize: the "initialize" handshake has already started or completed for this session.',
             $requestId,
+            'Cannot re-initialize: the "initialize" handshake has already started or completed for this session.',
             $previous,
         );
     }

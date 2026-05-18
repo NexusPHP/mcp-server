@@ -28,8 +28,8 @@ final class PromptNotFoundException extends AbstractJsonRpcProtocolException
         ?\Throwable $previous = null,
     ) {
         parent::__construct(
-            \sprintf('No prompt registered under name "%s".', $name),
             $requestId,
+            \sprintf('No prompt registered under name "%s".', $name),
             $previous,
         );
     }

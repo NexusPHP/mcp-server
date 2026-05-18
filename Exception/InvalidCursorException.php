@@ -25,8 +25,8 @@ final class InvalidCursorException extends AbstractJsonRpcProtocolException
     public function __construct(string $cursor, ?RequestId $requestId = null, ?\Throwable $previous = null)
     {
         parent::__construct(
-            \sprintf('Cursor "%s" does not match any registered entry.', $cursor),
             $requestId,
+            \sprintf('Cursor "%s" does not match any registered entry.', $cursor),
             $previous,
         );
     }

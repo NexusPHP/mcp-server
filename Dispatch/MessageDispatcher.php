@@ -21,8 +21,8 @@ use Nexus\Mcp\Core\Exception\MethodNotFoundException;
 use Nexus\Mcp\Core\Handler\HandlerRegistry;
 use Nexus\Mcp\Core\Handler\NotificationHandlerInterface;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
+use Nexus\Mcp\Core\JsonRpc\ErrorFactory;
 use Nexus\Mcp\Core\JsonRpc\JsonRpcMessageParser;
-use Nexus\Mcp\Core\Schema\Error;
 use Nexus\Mcp\Core\Schema\Error\InternalError;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcErrorResponse;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
@@ -261,7 +261,7 @@ final readonly class MessageDispatcher
     ): JsonRpcErrorResponse {
         return new JsonRpcErrorResponse(
             $exception->requestId ?? $fallbackId,
-            Error::forCode($exception::errorCode(), $exception->getMessage()),
+            ErrorFactory::create($exception::errorCode(), $exception->getMessage()),
         );
     }
 }

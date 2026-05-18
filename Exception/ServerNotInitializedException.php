@@ -26,8 +26,8 @@ final class ServerNotInitializedException extends AbstractJsonRpcProtocolExcepti
     public function __construct(string $method, ?RequestId $requestId = null, ?\Throwable $previous = null)
     {
         parent::__construct(
-            \sprintf('Cannot handle "%s" before the client has sent "notifications/initialized".', $method),
             $requestId,
+            \sprintf('Cannot handle "%s" before the client has sent "notifications/initialized".', $method),
             $previous,
         );
     }

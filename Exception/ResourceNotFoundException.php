@@ -28,8 +28,8 @@ final class ResourceNotFoundException extends AbstractJsonRpcProtocolException
         ?\Throwable $previous = null,
     ) {
         parent::__construct(
-            \sprintf('No resource registered under URI "%s".', $uri),
             $requestId,
+            \sprintf('No resource registered under URI "%s".', $uri),
             $previous,
         );
     }
