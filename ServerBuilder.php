@@ -218,14 +218,14 @@ final class ServerBuilder
     }
 
     /**
-     * Registers a handler for a vendor-extension request method. Rejects
-     * methods reserved for the SDK's built-in handlers. Use
-     * `replaceRequestHandler()` to override those explicitly.
+     * Registers a handler for a vendor-extension request method.
      *
      * @param non-empty-string                                                 $method
      * @param RequestHandlerInterface<non-empty-string, Result, ServerContext> $handler
      *
      * @throws \LogicException
+     *
+     * @see self::replaceRequestHandler()
      */
     public function addRequestHandler(string $method, RequestHandlerInterface $handler): self
     {
@@ -242,12 +242,12 @@ final class ServerBuilder
     }
 
     /**
-     * Overrides the SDK's built-in handler for `$method` (including spec
-     * methods like `initialize`). Use this when you genuinely want to replace
-     * SDK behaviour. Use `addRequestHandler()` for vendor extensions.
+     * Overrides the SDK's built-in handler for `$method`.
      *
      * @param non-empty-string                                                 $method
      * @param RequestHandlerInterface<non-empty-string, Result, ServerContext> $handler
+     *
+     * @see self::addRequestHandler()
      */
     public function replaceRequestHandler(string $method, RequestHandlerInterface $handler): self
     {
@@ -257,14 +257,14 @@ final class ServerBuilder
     }
 
     /**
-     * Registers a handler for a vendor-extension notification method. Rejects
-     * methods reserved by the MCP spec. Use `replaceNotificationHandler()` to
-     * attach a handler to a spec method explicitly.
+     * Registers a handler for a vendor-extension notification method.
      *
      * @param non-empty-string                               $method
      * @param NotificationHandlerInterface<non-empty-string> $handler
      *
      * @throws \LogicException
+     *
+     * @see self::replaceNotificationHandler()
      */
     public function addNotificationHandler(string $method, NotificationHandlerInterface $handler): self
     {
@@ -281,12 +281,12 @@ final class ServerBuilder
     }
 
     /**
-     * Overrides any built-in handler for `$method` (including spec
-     * notifications). Use this when attaching to a spec notification.
-     * Use `addNotificationHandler()` for vendor extensions.
+     * Overrides any built-in handler for `$method`, including spec notifications.
      *
      * @param non-empty-string                               $method
      * @param NotificationHandlerInterface<non-empty-string> $handler
+     *
+     * @see self::addNotificationHandler()
      */
     public function replaceNotificationHandler(string $method, NotificationHandlerInterface $handler): self
     {

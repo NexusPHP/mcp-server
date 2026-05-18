@@ -47,10 +47,6 @@ use function Amp\Future\awaitAll;
 final readonly class MessageDispatcher
 {
     /**
-     * Tracks every coroutine spawned by `dispatchRequest` / `dispatchNotification`
-     * so the transport can drain them before close. Mutated through array access.
-     * The property binding itself stays readonly.
-     *
      * @var \SplObjectStorage<Future<mixed>, null>
      */
     private \SplObjectStorage $pending;

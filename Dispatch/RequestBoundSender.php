@@ -42,11 +42,7 @@ final readonly class RequestBoundSender implements SenderInterface
     }
 
     /**
-     * @todo Implement when sampling (`sampling/createMessage`) and elicitation
-     *       (`elicitation/create`) request handlers are introduced. The transport
-     *       needs an outbound-request correlation table keyed by `RequestId` so
-     *       inbound `JsonRpcResultResponse` and `JsonRpcErrorResponse` envelopes
-     *       can be routed back to the awaiting `Future`.
+     * @todo See ROADMAP.md (server-initiated requests).
      *
      * @return never
      */
