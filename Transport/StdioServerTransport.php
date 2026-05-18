@@ -27,8 +27,8 @@ use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcResultResponse;
 use Nexus\Mcp\Core\Transport\SendContext;
-use Nexus\Mcp\Core\Transport\Subscription;
 use Nexus\Mcp\Core\Transport\SubscriptionInterface;
+use Nexus\Mcp\Core\Transport\TransportEvents;
 use Nexus\Mcp\Core\Transport\TransportInterface;
 use Nexus\Mcp\Core\Transport\TransportState;
 use Psr\Log\LoggerInterface;
@@ -42,33 +42,27 @@ use function Amp\ByteStream\splitLines;
  */
 final class StdioServerTransport implements TransportInterface
 {
-    /**
-     * @var array<int, \Closure(array<string, mixed>): void>
-     */
-    private array $messageListeners = [];
-
-    /**
-     * @var array<int, \Closure(): void>
-     */
-    private array $closeListeners = [];
-
-    /**
-     * @var array<int, \Closure(\Throwable): void>
-     */
-    private array $errorListeners = [];
-
-    /**
-     * @var array<int, \Closure(): void>
-     */
-    private array $drainListeners = [];
-
     private TransportState $state = TransportState::Idle;
+    private readonly TransportEvents $events;
 
     public function __construct(
         private readonly ReadableStream $stdin = new ReadableResourceStream(\STDIN),
         private readonly WritableStream $stdout = new WritableResourceStream(\STDOUT),
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {
+        $this->events = new TransportEvents(
+            onChange: function (string $kind, string $action, int $count): void {
+                $verb = match ($action) {
+                    'register' => 'registered',
+                    'dispose' => 'disposed',
+                };
+                $article = 'error' === $kind ? 'an' : 'a';
+                $this->logger->debug(
+                    \sprintf('Stdio transport %s %s %s listener. {count} active.', $verb, $article, $kind),
+                    ['count' => $count],
+                );
+            },
+        );
     }
 
     #[\Override]
@@ -128,7 +122,7 @@ final class StdioServerTransport implements TransportInterface
         $this->stdin->close();
         $this->stdout->close();
 
-        $this->emitClose();
+        $this->events->emitClose();
     }
 
     #[\Override]
@@ -140,77 +134,25 @@ final class StdioServerTransport implements TransportInterface
     #[\Override]
     public function onMessage(\Closure $listener): SubscriptionInterface
     {
-        $this->messageListeners[] = $listener;
-        $id = array_key_last($this->messageListeners);
-        $this->logger->debug(
-            'Stdio transport registered a message listener. {count} active.',
-            ['count' => \count($this->messageListeners)],
-        );
-
-        return new Subscription(function () use ($id): void {
-            unset($this->messageListeners[$id]);
-            $this->logger->debug(
-                'Stdio transport disposed a message listener. {count} active.',
-                ['count' => \count($this->messageListeners)],
-            );
-        });
-    }
-
-    #[\Override]
-    public function onClose(\Closure $listener): SubscriptionInterface
-    {
-        $this->closeListeners[] = $listener;
-        $id = array_key_last($this->closeListeners);
-        $this->logger->debug(
-            'Stdio transport registered a close listener. {count} active.',
-            ['count' => \count($this->closeListeners)],
-        );
-
-        return new Subscription(function () use ($id): void {
-            unset($this->closeListeners[$id]);
-            $this->logger->debug(
-                'Stdio transport disposed a close listener. {count} active.',
-                ['count' => \count($this->closeListeners)],
-            );
-        });
+        return $this->events->onMessage($listener);
     }
 
     #[\Override]
     public function onError(\Closure $listener): SubscriptionInterface
     {
-        $this->errorListeners[] = $listener;
-        $id = array_key_last($this->errorListeners);
-        $this->logger->debug(
-            'Stdio transport registered an error listener. {count} active.',
-            ['count' => \count($this->errorListeners)],
-        );
-
-        return new Subscription(function () use ($id): void {
-            unset($this->errorListeners[$id]);
-            $this->logger->debug(
-                'Stdio transport disposed an error listener. {count} active.',
-                ['count' => \count($this->errorListeners)],
-            );
-        });
+        return $this->events->onError($listener);
     }
 
     #[\Override]
     public function onDrain(\Closure $listener): SubscriptionInterface
     {
-        $this->drainListeners[] = $listener;
-        $id = array_key_last($this->drainListeners);
-        $this->logger->debug(
-            'Stdio transport registered a drain listener. {count} active.',
-            ['count' => \count($this->drainListeners)],
-        );
+        return $this->events->onDrain($listener);
+    }
 
-        return new Subscription(function () use ($id): void {
-            unset($this->drainListeners[$id]);
-            $this->logger->debug(
-                'Stdio transport disposed a drain listener. {count} active.',
-                ['count' => \count($this->drainListeners)],
-            );
-        });
+    #[\Override]
+    public function onClose(\Closure $listener): SubscriptionInterface
+    {
+        return $this->events->onClose($listener);
     }
 
     private function readLoop(): void
@@ -225,10 +167,10 @@ final class StdioServerTransport implements TransportInterface
             }
         } catch (\Throwable $e) {
             $this->logger->error('Stdio transport read loop failed. Closing.', ['exception' => $e]);
-            $this->emitError($e);
+            $this->events->emitError($e);
         } finally {
             try {
-                $this->emitDrain();
+                $this->events->emitDrain();
             } finally {
                 $this->close();
             }
@@ -249,7 +191,7 @@ final class StdioServerTransport implements TransportInterface
             Assert::that($decoded)->isMap('JSON-RPC envelope must be a JSON object, {type} given.');
         } catch (\InvalidArgumentException $e) {
             $this->logger->warning('Stdio transport rejected non-object envelope.', ['exception' => $e]);
-            $this->emitError($e);
+            $this->events->emitError($e);
 
             return;
         }
@@ -257,40 +199,9 @@ final class StdioServerTransport implements TransportInterface
         $this->logger->debug('Stdio transport dispatching envelope.');
 
         try {
-            $this->emitMessage($decoded);
+            $this->events->emitMessage($decoded);
         } catch (\Throwable $e) {
-            $this->emitError($e);
-        }
-    }
-
-    /**
-     * @param array<string, mixed> $envelope
-     */
-    private function emitMessage(array $envelope): void
-    {
-        foreach ($this->messageListeners as $listener) {
-            $listener($envelope);
-        }
-    }
-
-    private function emitError(\Throwable $error): void
-    {
-        foreach ($this->errorListeners as $listener) {
-            $listener($error);
-        }
-    }
-
-    private function emitClose(): void
-    {
-        foreach ($this->closeListeners as $listener) {
-            $listener();
-        }
-    }
-
-    private function emitDrain(): void
-    {
-        foreach ($this->drainListeners as $listener) {
-            $listener();
+            $this->events->emitError($e);
         }
     }
 
