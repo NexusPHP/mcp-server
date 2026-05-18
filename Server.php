@@ -53,6 +53,8 @@ final readonly class Server
             $this->dispatcher->flushPending();
         });
         $transport->onClose(static function () use ($deferred): void {
+            // Transports may emit `close` more than once if an error raises during shutdown
+            // (e.g. stdin EOF followed by a write failure). Ignore the duplicate.
             if ($deferred->isComplete()) {
                 return;
             }
