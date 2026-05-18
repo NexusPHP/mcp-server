@@ -23,19 +23,26 @@ final class LoggingLevelGate
 {
     public private(set) LoggingLevel $level;
 
+    /**
+     * @var int<0, 7>
+     */
+    private int $levelIndex;
+
     public function __construct(LoggingLevel $level = LoggingLevel::Info)
     {
         $this->level = $level;
+        $this->levelIndex = self::severityIndex($level);
     }
 
     public function setLevel(LoggingLevel $level): void
     {
         $this->level = $level;
+        $this->levelIndex = self::severityIndex($level);
     }
 
     public function shouldEmit(LoggingLevel $messageLevel): bool
     {
-        return self::severityIndex($messageLevel) <= self::severityIndex($this->level);
+        return self::severityIndex($messageLevel) <= $this->levelIndex;
     }
 
     /**

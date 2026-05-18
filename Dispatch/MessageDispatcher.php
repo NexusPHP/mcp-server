@@ -17,6 +17,7 @@ use Amp\Cancellation;
 use Amp\Future;
 use Amp\NullCancellation;
 use Nexus\Mcp\Core\Exception\AbstractJsonRpcProtocolException;
+use Nexus\Mcp\Core\Exception\MethodNotFoundException;
 use Nexus\Mcp\Core\Handler\HandlerRegistry;
 use Nexus\Mcp\Core\Handler\NotificationHandlerInterface;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
@@ -164,7 +165,8 @@ final readonly class MessageDispatcher
                 );
 
                 try {
-                    $handler = $this->requestHandlers->get($method);
+                    $handler = $this->requestHandlers->get($method)
+                        ?? throw new MethodNotFoundException($method, $request->id);
                     $result = $handler->handle($request, $context);
 
                     if (InitializeRequest::method() === $method) {
@@ -222,13 +224,15 @@ final readonly class MessageDispatcher
             return;
         }
 
-        if (! $this->notificationHandlers->has($method)) {
+        $handler = $this->notificationHandlers->get($method);
+
+        if (null === $handler) {
             return;
         }
 
-        $this->track(async(function () use ($notification, $method): void {
+        $this->track(async(function () use ($handler, $notification, $method): void {
             try {
-                $this->notificationHandlers->get($method)->handle($notification);
+                $handler->handle($notification);
             } catch (\Throwable $e) {
                 // Notifications carry no response per JSON-RPC 2.0 §4.1. Failure is logged only.
                 $this->logger->error(
