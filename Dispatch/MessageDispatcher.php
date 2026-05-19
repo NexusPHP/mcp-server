@@ -18,6 +18,7 @@ use Amp\Future;
 use Amp\NullCancellation;
 use Nexus\Mcp\Core\Exception\AbstractJsonRpcProtocolException;
 use Nexus\Mcp\Core\Exception\MethodNotFoundException;
+use Nexus\Mcp\Core\Exception\TransportAlreadyClosedException;
 use Nexus\Mcp\Core\Handler\HandlerRegistry;
 use Nexus\Mcp\Core\Handler\NotificationHandlerInterface;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
@@ -25,6 +26,7 @@ use Nexus\Mcp\Core\JsonRpc\ErrorFactory;
 use Nexus\Mcp\Core\JsonRpc\JsonRpcMessageParser;
 use Nexus\Mcp\Core\Schema\Error\InternalError;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcErrorResponse;
+use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcMessage;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcResultResponse;
@@ -112,7 +114,7 @@ final readonly class MessageDispatcher
                 return;
             }
 
-            $transport->send(self::toErrorResponse($e, null));
+            $this->sendResponse($transport, self::toErrorResponse($e, null), 'parse-error');
 
             return;
         }
@@ -149,14 +151,7 @@ final readonly class MessageDispatcher
                 ? new ServerAlreadyInitializedException($request->id)
                 : new ServerNotInitializedException($method, $request->id);
 
-            try {
-                $transport->send(self::toErrorResponse($exception, $request->id));
-            } catch (\Throwable $e) {
-                $this->logger->error(
-                    'Failed to deliver response to transport.',
-                    ['method' => $method, 'exception' => $e],
-                );
-            }
+            $this->sendResponse($transport, self::toErrorResponse($exception, $request->id), $method);
 
             return;
         }
@@ -166,50 +161,80 @@ final readonly class MessageDispatcher
         }
 
         $this->track(async(function () use ($request, $transport, $method, $isInitializeRequest): void {
+            $sender = new RequestBoundSender($transport, $request->id);
+            $context = new ServerContext(
+                $request->id,
+                $this->cancellation,
+                $request->params->meta,
+                $transport->sessionId(),
+                $sender,
+                $this->loggingLevelGate,
+            );
+
             try {
-                $sender = new RequestBoundSender($transport, $request->id);
-                $context = new ServerContext(
-                    $request->id,
-                    $this->cancellation,
-                    $request->params->meta,
-                    $transport->sessionId(),
-                    $sender,
-                    $this->loggingLevelGate,
-                );
-
-                try {
-                    $handler = $this->requestHandlers->get($method)
-                        ?? throw new MethodNotFoundException($method, $request->id);
-                    $result = $handler->handle($request, $context);
-                    $transport->send(new JsonRpcResultResponse($request->id, $result));
-                } catch (AbstractJsonRpcProtocolException $e) {
-                    if ($isInitializeRequest) {
-                        $this->initializationGate->revertInitializeInFlight();
-                    }
-
-                    $transport->send(self::toErrorResponse($e, $request->id));
-                } catch (\Throwable $e) {
-                    if ($isInitializeRequest) {
-                        $this->initializationGate->revertInitializeInFlight();
-                    }
-
-                    $this->logger->error(
-                        'Uncaught request handler exception.',
-                        ['method' => $method, 'exception' => $e],
-                    );
-                    $transport->send(new JsonRpcErrorResponse(
-                        $request->id,
-                        new InternalError(),
-                    ));
+                $handler = $this->requestHandlers->get($method)
+                    ?? throw new MethodNotFoundException($method, $request->id);
+                $result = $handler->handle($request, $context);
+            } catch (TransportAlreadyClosedException $e) {
+                if ($isInitializeRequest) {
+                    $this->initializationGate->revertInitializeInFlight();
                 }
+
+                $this->logSkippedDelivery($method, $e);
+
+                return;
+            } catch (AbstractJsonRpcProtocolException $e) {
+                if ($isInitializeRequest) {
+                    $this->initializationGate->revertInitializeInFlight();
+                }
+
+                $this->sendResponse($transport, self::toErrorResponse($e, $request->id), $method);
+
+                return;
             } catch (\Throwable $e) {
-                // Guards against transport `send()` failures from the inner catch arms.
+                if ($isInitializeRequest) {
+                    $this->initializationGate->revertInitializeInFlight();
+                }
+
                 $this->logger->error(
-                    'Failed to deliver response to transport.',
+                    'Uncaught request handler exception.',
                     ['method' => $method, 'exception' => $e],
                 );
+                $this->sendResponse($transport, new JsonRpcErrorResponse(
+                    $request->id,
+                    new InternalError(),
+                ), $method);
+
+                return;
             }
+
+            $this->sendResponse($transport, new JsonRpcResultResponse($request->id, $result), $method);
         }));
+    }
+
+    /**
+     * Sends a response and demotes the predictable "peer hung up" failure to an info log.
+     */
+    private function sendResponse(TransportInterface $transport, JsonRpcMessage $message, string $method): void
+    {
+        try {
+            $transport->send($message);
+        } catch (TransportAlreadyClosedException $e) {
+            $this->logSkippedDelivery($method, $e);
+        } catch (\Throwable $e) {
+            $this->logger->error(
+                'Failed to deliver response to transport.',
+                ['method' => $method, 'exception' => $e],
+            );
+        }
+    }
+
+    private function logSkippedDelivery(string $method, TransportAlreadyClosedException $exception): void
+    {
+        $this->logger->info(
+            'Skipping response delivery. Transport is closed.',
+            ['method' => $method, 'exception' => $exception],
+        );
     }
 
     /**
