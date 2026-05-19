@@ -36,6 +36,7 @@ use Nexus\Mcp\Core\Schema\Request\InitializeRequest;
 use Nexus\Mcp\Core\Schema\RequestId;
 use Nexus\Mcp\Core\Schema\Result;
 use Nexus\Mcp\Core\Transport\TransportInterface;
+use Nexus\Mcp\Server\Exception\DuplicateInFlightRequestIdException;
 use Nexus\Mcp\Server\Exception\ServerAlreadyInitializedException;
 use Nexus\Mcp\Server\Exception\ServerNotInitializedException;
 use Nexus\Mcp\Server\Logging\LoggingLevelGate;
@@ -57,6 +58,8 @@ final readonly class MessageDispatcher
      */
     private \SplObjectStorage $pending;
 
+    private InFlightRequestIds $inFlightRequestIds;
+
     /**
      * @param HandlerRegistry<RequestHandlerInterface<non-empty-string, Result, ServerContext>> $requestHandlers
      * @param HandlerRegistry<NotificationHandlerInterface<non-empty-string>>                   $notificationHandlers
@@ -71,6 +74,7 @@ final readonly class MessageDispatcher
         private Cancellation $cancellation = new NullCancellation(),
     ) {
         $this->pending = new \SplObjectStorage();
+        $this->inFlightRequestIds = new InFlightRequestIds();
     }
 
     /**
@@ -164,59 +168,70 @@ final readonly class MessageDispatcher
             return;
         }
 
+        if (! $this->inFlightRequestIds->tryClaim($request->id)) {
+            $exception = new DuplicateInFlightRequestIdException($request->id);
+            $this->sendResponse($transport, self::toErrorResponse($exception, $request->id), $method);
+
+            return;
+        }
+
         if ($isInitializeRequest) {
             $this->initializationGate->markInitializeInFlight();
         }
 
         $this->track(async(function () use ($request, $transport, $method, $isInitializeRequest): void {
-            $sender = new RequestBoundSender($transport, $request->id);
-            $context = new ServerContext(
-                $request->id,
-                $this->cancellation,
-                $request->params->meta,
-                $transport->sessionId(),
-                $sender,
-                $this->loggingLevelGate,
-            );
-
             try {
-                $handler = $this->requestHandlers->get($method)
-                    ?? throw new MethodNotFoundException($method, $request->id);
-                $result = $handler->handle($request, $context);
-            } catch (TransportAlreadyClosedException $e) {
-                if ($isInitializeRequest) {
-                    $this->initializationGate->revertInitializeInFlight();
-                }
-
-                $this->logSkippedDelivery($method, $e);
-
-                return;
-            } catch (AbstractJsonRpcProtocolException $e) {
-                if ($isInitializeRequest) {
-                    $this->initializationGate->revertInitializeInFlight();
-                }
-
-                $this->sendResponse($transport, self::toErrorResponse($e, $request->id), $method);
-
-                return;
-            } catch (\Throwable $e) {
-                if ($isInitializeRequest) {
-                    $this->initializationGate->revertInitializeInFlight();
-                }
-
-                $this->logger->error(
-                    'Uncaught request handler exception.',
-                    ['method' => $method, 'exception' => $e],
-                );
-                $this->sendResponse($transport, new JsonRpcErrorResponse(
+                $sender = new RequestBoundSender($transport, $request->id);
+                $context = new ServerContext(
                     $request->id,
-                    new InternalError(),
-                ), $method);
+                    $this->cancellation,
+                    $request->params->meta,
+                    $transport->sessionId(),
+                    $sender,
+                    $this->loggingLevelGate,
+                );
 
-                return;
+                try {
+                    $handler = $this->requestHandlers->get($method)
+                        ?? throw new MethodNotFoundException($method, $request->id);
+                    $result = $handler->handle($request, $context);
+                } catch (TransportAlreadyClosedException $e) {
+                    if ($isInitializeRequest) {
+                        $this->initializationGate->revertInitializeInFlight();
+                    }
+
+                    $this->logSkippedDelivery($method, $e);
+
+                    return;
+                } catch (AbstractJsonRpcProtocolException $e) {
+                    if ($isInitializeRequest) {
+                        $this->initializationGate->revertInitializeInFlight();
+                    }
+
+                    $this->sendResponse($transport, self::toErrorResponse($e, $request->id), $method);
+
+                    return;
+                } catch (\Throwable $e) {
+                    if ($isInitializeRequest) {
+                        $this->initializationGate->revertInitializeInFlight();
+                    }
+
+                    $this->logger->error(
+                        'Uncaught request handler exception.',
+                        ['method' => $method, 'exception' => $e],
+                    );
+                    $this->sendResponse($transport, new JsonRpcErrorResponse(
+                        $request->id,
+                        new InternalError(),
+                    ), $method);
+
+                    return;
+                }
+
+                $this->sendResponse($transport, new JsonRpcResultResponse($request->id, $result), $method);
+            } finally {
+                $this->inFlightRequestIds->release($request->id);
             }
-
-            $this->sendResponse($transport, new JsonRpcResultResponse($request->id, $result), $method);
         }));
     }
 
