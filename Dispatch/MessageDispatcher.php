@@ -17,6 +17,7 @@ use Amp\Cancellation;
 use Amp\Future;
 use Amp\NullCancellation;
 use Nexus\Mcp\Core\Exception\AbstractJsonRpcProtocolException;
+use Nexus\Mcp\Core\Exception\MethodMisroutedException;
 use Nexus\Mcp\Core\Exception\MethodNotFoundException;
 use Nexus\Mcp\Core\Exception\TransportAlreadyClosedException;
 use Nexus\Mcp\Core\Handler\HandlerRegistry;
@@ -98,6 +99,14 @@ final readonly class MessageDispatcher
 
         try {
             $message = $this->parser->parse($envelope);
+        } catch (MethodMisroutedException $e) {
+            $this->logger->warning(
+                'Rejecting envelope whose method was sent under the wrong JSON-RPC shape.',
+                ['envelope' => $envelope, 'exception' => $e],
+            );
+            $this->sendResponse($transport, self::toErrorResponse($e, null), 'misrouted');
+
+            return;
         } catch (AbstractJsonRpcProtocolException $e) {
             if ($isResponseShape) {
                 $this->discardResponseEnvelope($envelope);
