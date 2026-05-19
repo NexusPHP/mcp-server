@@ -13,8 +13,10 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Handler\Request;
 
+use Nexus\Mcp\Core\Exception\AbstractJsonRpcProtocolException;
 use Nexus\Mcp\Core\Handler\AbstractContext;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
+use Nexus\Mcp\Core\Schema\ContentBlock\TextContent;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\Request\CallToolRequest;
 use Nexus\Mcp\Core\Schema\Result\CallToolResult;
@@ -37,6 +39,15 @@ final readonly class CallToolRequestHandler implements RequestHandlerInterface
     {
         \assert($request instanceof CallToolRequest);
 
-        return $this->store->call($request->params->name, $request->params->arguments, $context);
+        try {
+            return $this->store->call($request->params->name, $request->params->arguments, $context);
+        } catch (AbstractJsonRpcProtocolException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            return new CallToolResult(
+                content: [new TextContent($e->getMessage())],
+                isError: true,
+            );
+        }
     }
 }
