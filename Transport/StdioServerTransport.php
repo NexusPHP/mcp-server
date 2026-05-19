@@ -22,6 +22,9 @@ use Nexus\Assert\Assert;
 use Nexus\Mcp\Core\Exception\TransportAlreadyClosedException;
 use Nexus\Mcp\Core\Exception\TransportAlreadyStartedException;
 use Nexus\Mcp\Core\Exception\TransportNotStartedException;
+use Nexus\Mcp\Core\Schema\Error\InvalidRequestError;
+use Nexus\Mcp\Core\Schema\Error\ParseError;
+use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcErrorResponse;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcMessage;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
@@ -189,7 +192,8 @@ final class StdioServerTransport implements TransportInterface
         try {
             $decodedJson = json_decode($line, associative: true, flags: \JSON_THROW_ON_ERROR);
         } catch (\JsonException $e) {
-            $this->logger->debug('Stdio transport skipped malformed JSON line.', ['exception' => $e]);
+            $this->logger->warning('Stdio transport rejected malformed JSON line.', ['exception' => $e]);
+            $this->send(new JsonRpcErrorResponse(null, new ParseError()));
 
             return;
         }
@@ -199,13 +203,13 @@ final class StdioServerTransport implements TransportInterface
         } catch (\InvalidArgumentException $e) {
             $this->logger->warning('Stdio transport rejected a non-object envelope.', ['exception' => $e]);
             $this->events->emitError($e);
+            $this->send(new JsonRpcErrorResponse(null, new InvalidRequestError()));
 
             return;
         }
 
-        $this->logger->debug('Stdio transport received a JSON-RPC envelope.');
-
         try {
+            $this->logger->debug('Stdio transport received a JSON-RPC envelope.');
             $this->events->emitMessage($decodedJson);
         } catch (\Throwable $e) {
             $this->events->emitError($e);
