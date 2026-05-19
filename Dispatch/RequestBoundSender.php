@@ -20,6 +20,7 @@ use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcResultResponse;
 use Nexus\Mcp\Core\Schema\RequestId;
 use Nexus\Mcp\Core\Transport\SendContext;
 use Nexus\Mcp\Core\Transport\TransportInterface;
+use Nexus\Mcp\Server\Exception\OutboundRequestsNotSupportedException;
 
 /**
  * `SenderInterface` implementation scoped to a single inbound request. Tags
@@ -49,8 +50,6 @@ final readonly class RequestBoundSender implements SenderInterface
     #[\Override]
     public function sendRequest(JsonRpcRequest $request): JsonRpcResultResponse
     {
-        throw new \BadMethodCallException(
-            'Outbound server-to-client requests are not implemented yet.',
-        );
+        throw new OutboundRequestsNotSupportedException($this->requestId);
     }
 }
