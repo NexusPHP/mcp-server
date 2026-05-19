@@ -94,8 +94,13 @@ final readonly class MessageDispatcher
      */
     public function dispatch(array $envelope, TransportInterface $transport): void
     {
+        if (\array_key_exists('result', $envelope) || \array_key_exists('error', $envelope)) {
+            $this->discardResponseEnvelope($envelope);
+
+            return;
+        }
+
         $isNotification = ! \array_key_exists('id', $envelope);
-        $isResponseShape = \array_key_exists('result', $envelope) || \array_key_exists('error', $envelope);
 
         try {
             $message = $this->parser->parse($envelope);
@@ -108,12 +113,6 @@ final readonly class MessageDispatcher
 
             return;
         } catch (AbstractJsonRpcProtocolException $e) {
-            if ($isResponseShape) {
-                $this->discardResponseEnvelope($envelope);
-
-                return;
-            }
-
             if ($isNotification) {
                 $this->logger->info(
                     'Dropping malformed notification (JSON-RPC 2.0 §4.1 forbids responses to notifications).',
@@ -128,11 +127,11 @@ final readonly class MessageDispatcher
             return;
         }
 
-        match (true) {
-            $message instanceof JsonRpcRequest => $this->dispatchRequest($message, $transport),
-            $message instanceof JsonRpcNotification => $this->dispatchNotification($message),
-            default => $this->discardResponseEnvelope($envelope),
-        };
+        if ($message instanceof JsonRpcRequest) {
+            $this->dispatchRequest($message, $transport);
+        } elseif ($message instanceof JsonRpcNotification) {
+            $this->dispatchNotification($message);
+        }
     }
 
     /**
