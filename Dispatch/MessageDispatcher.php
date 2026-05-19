@@ -292,7 +292,7 @@ final readonly class MessageDispatcher
 
         $future->finally(function () use ($future): void {
             unset($this->pending[$future]);
-        });
+        })->ignore();
     }
 
     private static function toErrorResponse(
