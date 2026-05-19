@@ -29,6 +29,7 @@ use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcMessage;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcResultResponse;
+use Nexus\Mcp\Core\Transport\LineReader;
 use Nexus\Mcp\Core\Transport\SendContext;
 use Nexus\Mcp\Core\Transport\SubscriptionInterface;
 use Nexus\Mcp\Core\Transport\TransportEvents;
@@ -38,8 +39,6 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Revolt\EventLoop;
 
-use function Amp\ByteStream\splitLines;
-
 /**
  * Stdio MCP server transport over line-framed JSON-RPC on STDIN/STDOUT.
  */
@@ -47,12 +46,16 @@ final class StdioServerTransport implements TransportInterface
 {
     private TransportState $state = TransportState::Idle;
     private readonly TransportEvents $events;
+    private readonly LineReader $reader;
 
     public function __construct(
         private readonly ReadableStream $stdin = new ReadableResourceStream(\STDIN),
         private readonly WritableStream $stdout = new WritableResourceStream(\STDOUT),
         private readonly LoggerInterface $logger = new NullLogger(),
+        int $maxLineBytes = LineReader::DEFAULT_MAX_LINE_BYTES,
     ) {
+        $this->reader = new LineReader($this->stdin, $maxLineBytes);
+
         $this->events = new TransportEvents(
             onChange: function (string $kind, string $action, int $count): void {
                 $verb = match ($action) {
@@ -168,11 +171,7 @@ final class StdioServerTransport implements TransportInterface
     private function readLoop(): void
     {
         try {
-            foreach (splitLines($this->stdin) as $line) {
-                if ('' === $line) {
-                    continue;
-                }
-
+            foreach ($this->reader->lines() as $line) {
                 $this->processLine($line);
             }
         } catch (\Throwable $e) {
