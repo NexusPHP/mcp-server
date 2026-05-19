@@ -140,20 +140,33 @@ final readonly class MessageDispatcher
      */
     private function dispatchRequest(JsonRpcRequest $request, TransportInterface $transport): void
     {
-        $this->track(async(function () use ($request, $transport): void {
-            $method = $request::method();
+        $method = $request::method();
+        $isInitializeRequest = InitializeRequest::method() === $method;
+
+        // Gate is mutated sync so a same-tick `notifications/initialized` sees `InitializeInFlight`.
+        if (! $this->initializationGate->allowsRequest($method)) {
+            $exception = $isInitializeRequest
+                ? new ServerAlreadyInitializedException($request->id)
+                : new ServerNotInitializedException($method, $request->id);
 
             try {
-                if (! $this->initializationGate->allowsRequest($method)) {
-                    $exception = InitializeRequest::method() === $method
-                        ? new ServerAlreadyInitializedException($request->id)
-                        : new ServerNotInitializedException($method, $request->id);
+                $transport->send(self::toErrorResponse($exception, $request->id));
+            } catch (\Throwable $e) {
+                $this->logger->error(
+                    'Failed to deliver response to transport.',
+                    ['method' => $method, 'exception' => $e],
+                );
+            }
 
-                    $transport->send(self::toErrorResponse($exception, $request->id));
+            return;
+        }
 
-                    return;
-                }
+        if ($isInitializeRequest) {
+            $this->initializationGate->markInitializeInFlight();
+        }
 
+        $this->track(async(function () use ($request, $transport, $method, $isInitializeRequest): void {
+            try {
                 $sender = new RequestBoundSender($transport, $request->id);
                 $context = new ServerContext(
                     $request->id,
@@ -168,15 +181,18 @@ final readonly class MessageDispatcher
                     $handler = $this->requestHandlers->get($method)
                         ?? throw new MethodNotFoundException($method, $request->id);
                     $result = $handler->handle($request, $context);
-
-                    if (InitializeRequest::method() === $method) {
-                        $this->initializationGate->markInitializeInFlight();
-                    }
-
                     $transport->send(new JsonRpcResultResponse($request->id, $result));
                 } catch (AbstractJsonRpcProtocolException $e) {
+                    if ($isInitializeRequest) {
+                        $this->initializationGate->revertInitializeInFlight();
+                    }
+
                     $transport->send(self::toErrorResponse($e, $request->id));
                 } catch (\Throwable $e) {
+                    if ($isInitializeRequest) {
+                        $this->initializationGate->revertInitializeInFlight();
+                    }
+
                     $this->logger->error(
                         'Uncaught request handler exception.',
                         ['method' => $method, 'exception' => $e],
@@ -187,8 +203,7 @@ final readonly class MessageDispatcher
                     ));
                 }
             } catch (\Throwable $e) {
-                // Outer catch: a transport `send()` inside an inner catch-arm could itself throw.
-                // Without this guard the coroutine future ends in an unhandled error.
+                // Guards against transport `send()` failures from the inner catch arms.
                 $this->logger->error(
                     'Failed to deliver response to transport.',
                     ['method' => $method, 'exception' => $e],

@@ -72,4 +72,20 @@ final class InitializationGate
 
         return true;
     }
+
+    /**
+     * Reverts `InitializeInFlight` -> `AwaitingInitialize`. Returns `true` if
+     * the transition fired; `false` if the gate was no longer in flight (a
+     * `notifications/initialized` advanced it, or it was never claimed).
+     */
+    public function revertInitializeInFlight(): bool
+    {
+        if (InitializationState::InitializeInFlight !== $this->state) {
+            return false;
+        }
+
+        $this->state = InitializationState::AwaitingInitialize;
+
+        return true;
+    }
 }
