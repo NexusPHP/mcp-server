@@ -237,6 +237,10 @@ final readonly class MessageDispatcher
                     return;
                 }
 
+                if ($isInitializeRequest) {
+                    $this->initializationGate->markInitializeCompleted();
+                }
+
                 $this->sendResponse($transport, new JsonRpcResultResponse($request->id, $result), $method);
             } finally {
                 $this->inFlightRequests->release($request->id);
@@ -279,7 +283,7 @@ final readonly class MessageDispatcher
         if (InitializedNotification::method() === $method) {
             if (! $this->initializationGate->markInitialized()) {
                 $this->logger->warning(
-                    'Discarding "notifications/initialized" received outside of an in-flight "initialize" handshake.',
+                    'Discarding "notifications/initialized" received in an unexpected initialize handshake state.',
                     ['method' => $method],
                 );
 

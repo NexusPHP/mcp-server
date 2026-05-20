@@ -26,9 +26,14 @@ enum InitializationState
     case AwaitingInitialize;
 
     /**
-     * The `initialize` handler returned a result. Awaiting `notifications/initialized`.
+     * `initialize` request accepted, handler queued (may not have run yet). Blocks a second `initialize`.
      */
     case InitializeInFlight;
+
+    /**
+     * `initialize` handler returned successfully. Awaiting `notifications/initialized`.
+     */
+    case InitializeCompleted;
 
     /**
      * Client sent `notifications/initialized`. The session may proceed.

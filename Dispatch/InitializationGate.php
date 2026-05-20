@@ -42,8 +42,7 @@ final class InitializationGate
     }
 
     /**
-     * Transitions `AwaitingInitialize` -> `InitializeInFlight`. Returns `true`
-     * if the transition fired; `false` if the gate was already past that state.
+     * Transitions `AwaitingInitialize` -> `InitializeInFlight`. Returns `true` if the transition fired.
      */
     public function markInitializeInFlight(): bool
     {
@@ -57,14 +56,25 @@ final class InitializationGate
     }
 
     /**
-     * Transitions `InitializeInFlight` -> `Initialized`. Returns `true` if the
-     * transition fired; `false` if the gate was not awaiting an `initialized`
-     * notification (either still awaiting the `initialize` request or already
-     * past the handshake).
+     * Transitions `InitializeInFlight` -> `InitializeCompleted`. Returns `true` if the transition fired.
+     */
+    public function markInitializeCompleted(): bool
+    {
+        if (InitializationState::InitializeInFlight !== $this->state) {
+            return false;
+        }
+
+        $this->state = InitializationState::InitializeCompleted;
+
+        return true;
+    }
+
+    /**
+     * Transitions `InitializeCompleted` -> `Initialized`. Returns `true` if the transition fired.
      */
     public function markInitialized(): bool
     {
-        if (InitializationState::InitializeInFlight !== $this->state) {
+        if (InitializationState::InitializeCompleted !== $this->state) {
             return false;
         }
 
@@ -74,9 +84,7 @@ final class InitializationGate
     }
 
     /**
-     * Reverts `InitializeInFlight` -> `AwaitingInitialize`. Returns `true` if
-     * the transition fired; `false` if the gate was no longer in flight (a
-     * `notifications/initialized` advanced it, or it was never claimed).
+     * Reverts `InitializeInFlight` -> `AwaitingInitialize`. Returns `true` if the transition fired.
      */
     public function revertInitializeInFlight(): bool
     {
