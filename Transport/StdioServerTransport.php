@@ -105,6 +105,12 @@ final class StdioServerTransport implements TransportInterface
             $this->stdout->write(json_encode($message, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE)."\n");
             $this->logSentMessage($message);
         } catch (\Throwable $e) {
+            if (TransportState::Closed === $this->state) {
+                // Race: another fiber closed us during write(). Wrap so the dispatcher's
+                // TransportAlreadyClosedException handler demotes uniformly.
+                throw new TransportAlreadyClosedException(operation: 'send', previous: $e);
+            }
+
             $this->logSendError($message, $e);
             $this->close();
 
