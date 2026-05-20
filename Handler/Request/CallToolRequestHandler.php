@@ -22,6 +22,8 @@ use Nexus\Mcp\Core\Schema\Request\CallToolRequest;
 use Nexus\Mcp\Core\Schema\Result\CallToolResult;
 use Nexus\Mcp\Server\ServerContext;
 use Nexus\Mcp\Server\Tool\ToolStoreInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 /**
  * Handles the `tools/call` request by delegating to a `ToolStoreInterface`.
@@ -30,7 +32,7 @@ use Nexus\Mcp\Server\Tool\ToolStoreInterface;
  */
 final readonly class CallToolRequestHandler implements RequestHandlerInterface
 {
-    public function __construct(private ToolStoreInterface $store)
+    public function __construct(private ToolStoreInterface $store, private LoggerInterface $logger = new NullLogger())
     {
     }
 
@@ -44,8 +46,14 @@ final readonly class CallToolRequestHandler implements RequestHandlerInterface
         } catch (AbstractJsonRpcProtocolException $e) {
             throw $e;
         } catch (\Throwable $e) {
+            // Generic peer-facing text. Raw $e->getMessage() can carry paths or secrets.
+            $this->logger->error(
+                'Uncaught tool executor exception. Returning generic error to peer.',
+                ['tool' => $request->params->name, 'exception' => $e],
+            );
+
             return new CallToolResult(
-                content: [new TextContent($e->getMessage())],
+                content: [new TextContent('Tool execution failed.')],
                 isError: true,
             );
         }

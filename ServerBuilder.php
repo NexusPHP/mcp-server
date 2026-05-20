@@ -399,7 +399,7 @@ final class ServerBuilder
         if ([] !== $this->tools) {
             $toolStore = new ToolStore($this->tools);
             $defaults[Request\ListToolsRequest::method()] = new ListToolsRequestHandler($toolStore);
-            $defaults[Request\CallToolRequest::method()] = new CallToolRequestHandler($toolStore);
+            $defaults[Request\CallToolRequest::method()] = new CallToolRequestHandler($toolStore, $this->logger);
         }
 
         if ([] !== $this->prompts) {
