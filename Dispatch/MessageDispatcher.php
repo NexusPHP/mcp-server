@@ -113,6 +113,15 @@ final readonly class MessageDispatcher
                 'Rejecting envelope whose method was sent under the wrong JSON-RPC shape.',
                 ['envelope' => $envelope, 'exception' => $e],
             );
+
+            if (! $isNotification) {
+                // Envelope carried an id but the method is a notification method.
+                // JSON-RPC 2.0 §4.1 forbids responses to notifications. Drop silently.
+                return;
+            }
+
+            // Envelope omitted the id but the method is a request method.
+            // §5 null-id fallback. Respond so the peer can fix the malformed request.
             $this->sendResponse($transport, self::toErrorResponse($e, null), 'misrouted');
 
             return;
