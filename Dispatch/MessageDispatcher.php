@@ -58,7 +58,7 @@ final readonly class MessageDispatcher
      */
     private \SplObjectStorage $pending;
 
-    private InFlightRequestIds $inFlightRequestIds;
+    private InFlightRequests $inFlightRequests;
 
     /**
      * @param HandlerRegistry<RequestHandlerInterface<non-empty-string, Result, ServerContext>> $requestHandlers
@@ -74,7 +74,7 @@ final readonly class MessageDispatcher
         private Cancellation $cancellation = new NullCancellation(),
     ) {
         $this->pending = new \SplObjectStorage();
-        $this->inFlightRequestIds = new InFlightRequestIds();
+        $this->inFlightRequests = new InFlightRequests();
     }
 
     /**
@@ -168,7 +168,7 @@ final readonly class MessageDispatcher
             return;
         }
 
-        if (! $this->inFlightRequestIds->tryClaim($request->id)) {
+        if (! $this->inFlightRequests->claim($request->id)) {
             $exception = new DuplicateInFlightRequestIdException($request->id);
             $this->sendResponse($transport, self::toErrorResponse($exception, $request->id), $method);
 
@@ -230,7 +230,7 @@ final readonly class MessageDispatcher
 
                 $this->sendResponse($transport, new JsonRpcResultResponse($request->id, $result), $method);
             } finally {
-                $this->inFlightRequestIds->release($request->id);
+                $this->inFlightRequests->release($request->id);
             }
         }));
     }
