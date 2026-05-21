@@ -19,15 +19,15 @@ use Nexus\Mcp\Core\Schema\RequestId;
 
 /**
  * Thrown when an inbound request reuses an id whose handler coroutine is still
- * in flight on the same session.
+ * running on the same session.
  */
-final class DuplicateInFlightRequestIdException extends AbstractJsonRpcProtocolException
+final class DuplicateInboundRequestIdException extends AbstractJsonRpcProtocolException
 {
     public function __construct(RequestId $requestId, ?\Throwable $previous = null)
     {
         parent::__construct(
             $requestId,
-            'Request id is already in flight on this session.',
+            'Inbound request id is already pending on this session.',
             $previous,
         );
     }

@@ -17,6 +17,7 @@ use Amp\Cancellation;
 use Amp\Future;
 use Amp\NullCancellation;
 use Nexus\Mcp\Core\Dispatch\MessageDispatcherInterface;
+use Nexus\Mcp\Core\Dispatch\PendingInboundRequests;
 use Nexus\Mcp\Core\Exception\AbstractJsonRpcProtocolException;
 use Nexus\Mcp\Core\Exception\MethodMisroutedException;
 use Nexus\Mcp\Core\Exception\MethodNotFoundException;
@@ -37,7 +38,7 @@ use Nexus\Mcp\Core\Schema\Request\InitializeRequest;
 use Nexus\Mcp\Core\Schema\RequestId;
 use Nexus\Mcp\Core\Schema\Result;
 use Nexus\Mcp\Core\Transport\TransportInterface;
-use Nexus\Mcp\Server\Exception\DuplicateInFlightRequestIdException;
+use Nexus\Mcp\Server\Exception\DuplicateInboundRequestIdException;
 use Nexus\Mcp\Server\Exception\ServerAlreadyInitializedException;
 use Nexus\Mcp\Server\Exception\ServerNotInitializedException;
 use Nexus\Mcp\Server\Logging\LoggingLevelGate;
@@ -59,7 +60,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
      */
     private \SplObjectStorage $pending;
 
-    private InFlightRequests $inFlightRequests;
+    private PendingInboundRequests $inboundRequests;
 
     /**
      * @param HandlerRegistry<RequestHandlerInterface<non-empty-string, Result, ServerContext>> $requestHandlers
@@ -75,7 +76,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
         private Cancellation $cancellation = new NullCancellation(),
     ) {
         $this->pending = new \SplObjectStorage();
-        $this->inFlightRequests = new InFlightRequests();
+        $this->inboundRequests = new PendingInboundRequests();
     }
 
     #[\Override]
@@ -182,8 +183,8 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
             return;
         }
 
-        if (! $this->inFlightRequests->claim($request->id)) {
-            $exception = new DuplicateInFlightRequestIdException($request->id);
+        if (! $this->inboundRequests->claim($request->id)) {
+            $exception = new DuplicateInboundRequestIdException($request->id);
             $this->sendResponse($transport, self::toErrorResponse($exception, $request->id), $method);
 
             return;
@@ -248,7 +249,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
 
                 $this->sendResponse($transport, new JsonRpcResultResponse($request->id, $result), $method);
             } finally {
-                $this->inFlightRequests->release($request->id);
+                $this->inboundRequests->release($request->id);
             }
         }));
     }
