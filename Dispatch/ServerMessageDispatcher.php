@@ -16,6 +16,7 @@ namespace Nexus\Mcp\Server\Dispatch;
 use Amp\Cancellation;
 use Amp\Future;
 use Amp\NullCancellation;
+use Nexus\Mcp\Core\Dispatch\MessageDispatcherInterface;
 use Nexus\Mcp\Core\Exception\AbstractJsonRpcProtocolException;
 use Nexus\Mcp\Core\Exception\MethodMisroutedException;
 use Nexus\Mcp\Core\Exception\MethodNotFoundException;
@@ -48,10 +49,10 @@ use function Amp\async;
 use function Amp\Future\awaitAll;
 
 /**
- * Per-envelope inbound dispatch. Parses, classifies, gates, resolves a handler,
+ * Server-side per-envelope inbound dispatch. Parses, classifies, gates, resolves a handler,
  * spawns a coroutine to run it, and sends the response (or error) on the transport.
  */
-final readonly class MessageDispatcher
+final readonly class ServerMessageDispatcher implements MessageDispatcherInterface
 {
     /**
      * @var \SplObjectStorage<Future<mixed>, null>
@@ -77,16 +78,19 @@ final readonly class MessageDispatcher
         $this->inFlightRequests = new InFlightRequests();
     }
 
-    /**
-     * Awaits every in-flight dispatch coroutine.
-     */
+    #[\Override]
     public function flushPending(): void
     {
         awaitAll($this->pending);
     }
 
     /**
-     * Number of dispatch coroutines currently in flight.
+     * Test-observability helper. Exists so the cleanup-in-finally arm of
+     * `track()` has a mutation kill site that no production caller needs.
+     *
+     * @internal
+     *
+     * @return int<0, max>
      */
     public function inFlightCount(): int
     {
@@ -96,6 +100,7 @@ final readonly class MessageDispatcher
     /**
      * @param array<string, mixed> $envelope
      */
+    #[\Override]
     public function dispatch(array $envelope, TransportInterface $transport): void
     {
         if (\array_key_exists('result', $envelope) || \array_key_exists('error', $envelope)) {

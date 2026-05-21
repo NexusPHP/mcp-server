@@ -34,7 +34,7 @@ use Nexus\Mcp\Core\Schema\Tool\Tool;
 use Nexus\Mcp\Core\UriTemplate\Validator;
 use Nexus\Mcp\Server\Completion\CompletionStoreInterface;
 use Nexus\Mcp\Server\Dispatch\InitializationGate;
-use Nexus\Mcp\Server\Dispatch\MessageDispatcher;
+use Nexus\Mcp\Server\Dispatch\ServerMessageDispatcher;
 use Nexus\Mcp\Server\Handler\Request\CallToolRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\CompleteRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\GetPromptRequestHandler;
@@ -324,7 +324,7 @@ final class ServerBuilder
         $requestHandlers = $this->buildRequestHandlers($this->serverInfo, $capabilities, $loggingLevelGate);
 
         return new Server(
-            new MessageDispatcher(
+            new ServerMessageDispatcher(
                 new HandlerRegistry($requestHandlers, RequestHandlerInterface::class, 'Request handler'),
                 new HandlerRegistry($this->customNotificationHandlers, NotificationHandlerInterface::class, 'Notification handler'),
                 new InitializationGate(),
