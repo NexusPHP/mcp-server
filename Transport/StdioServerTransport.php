@@ -106,8 +106,10 @@ final class StdioServerTransport implements TransportInterface
             $this->logSentMessage($message);
         } catch (\Throwable $e) {
             if (TransportState::Closed === $this->state) {
-                // Race: another fiber closed us during write(). Wrap so the dispatcher's
-                // TransportAlreadyClosedException handler demotes uniformly.
+                // Race: another fiber closed us during write(). Audit the symptom at DEBUG
+                // (peer-hangup, not a server fault) and wrap so the dispatcher demotes uniformly.
+                $this->logSkippedSend($message, $e);
+
                 throw new TransportAlreadyClosedException(operation: 'send', previous: $e);
             }
 
@@ -241,6 +243,33 @@ final class StdioServerTransport implements TransportInterface
                 : $this->logger->debug(
                     'Stdio transport sent an error response for request ID "{id}".',
                     ['id' => $message->id->id],
+                ),
+        };
+    }
+
+    private function logSkippedSend(JsonRpcMessage $message, \Throwable $error): void
+    {
+        match (true) {
+            $message instanceof JsonRpcRequest => $this->logger->debug(
+                'Stdio transport skipped sending "{method}" request with ID "{id}". Transport was concurrently closed.',
+                ['exception' => $error, 'method' => $message::method(), 'id' => $message->id->id],
+            ),
+            $message instanceof JsonRpcNotification => $this->logger->debug(
+                'Stdio transport skipped sending "{method}" notification. Transport was concurrently closed.',
+                ['exception' => $error, 'method' => $message::method()],
+            ),
+            $message instanceof JsonRpcResultResponse => $this->logger->debug(
+                'Stdio transport skipped sending result response for request ID "{id}". Transport was concurrently closed.',
+                ['exception' => $error, 'id' => $message->id->id],
+            ),
+            default => null === $message->id
+                ? $this->logger->debug(
+                    'Stdio transport skipped sending an error response with no correlatable ID. Transport was concurrently closed.',
+                    ['exception' => $error],
+                )
+                : $this->logger->debug(
+                    'Stdio transport skipped sending an error response for request ID "{id}". Transport was concurrently closed.',
+                    ['exception' => $error, 'id' => $message->id->id],
                 ),
         };
     }
