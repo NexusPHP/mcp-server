@@ -23,6 +23,7 @@ use Nexus\Mcp\Core\Schema\Request\PingRequest;
 final class InitializationGate
 {
     private InitializationState $state = InitializationState::AwaitingInitialize;
+    private bool $pendingInitializedNotification = false;
 
     public function isInitialized(): bool
     {
@@ -56,7 +57,10 @@ final class InitializationGate
     }
 
     /**
-     * Transitions `InitializeInFlight` -> `InitializeCompleted`. Returns `true` if the transition fired.
+     * From `InitializeInFlight`: if a `notifications/initialized` was buffered while the handler was
+     * still running, transition straight to `Initialized` (consuming the pending flag). Otherwise
+     * transition to `InitializeCompleted` to wait for the notification. Returns `true` if either
+     * transition fired.
      */
     public function markInitializeCompleted(): bool
     {
@@ -64,27 +68,40 @@ final class InitializationGate
             return false;
         }
 
-        $this->state = InitializationState::InitializeCompleted;
+        $this->state = $this->pendingInitializedNotification
+            ? InitializationState::Initialized
+            : InitializationState::InitializeCompleted;
 
         return true;
     }
 
     /**
-     * Transitions `InitializeCompleted` -> `Initialized`. Returns `true` if the transition fired.
+     * From `InitializeCompleted`: transition to `Initialized`. From `InitializeInFlight`: buffer the
+     * notification (the handler has not finished yet). `markInitializeCompleted` will consume the
+     * buffered flag on success. Returns `true` if the notification was accepted (flipped the gate or
+     * got buffered). Returns `false` when there is no in-flight handshake to apply the notification
+     * to, or when a notification was already buffered (duplicate).
      */
     public function markInitialized(): bool
     {
-        if (InitializationState::InitializeCompleted !== $this->state) {
-            return false;
+        if (InitializationState::InitializeCompleted === $this->state) {
+            $this->state = InitializationState::Initialized;
+
+            return true;
         }
 
-        $this->state = InitializationState::Initialized;
+        if (InitializationState::InitializeInFlight === $this->state && ! $this->pendingInitializedNotification) {
+            $this->pendingInitializedNotification = true;
 
-        return true;
+            return true;
+        }
+
+        return false;
     }
 
     /**
-     * Reverts `InitializeInFlight` -> `AwaitingInitialize`. Returns `true` if the transition fired.
+     * Reverts `InitializeInFlight` -> `AwaitingInitialize`. Also clears any buffered notification so a
+     * retry handshake starts fresh. Returns `true` if the transition fired.
      */
     public function revertInitializeInFlight(): bool
     {
@@ -93,6 +110,7 @@ final class InitializationGate
         }
 
         $this->state = InitializationState::AwaitingInitialize;
+        $this->pendingInitializedNotification = false;
 
         return true;
     }

@@ -289,9 +289,9 @@ final readonly class MessageDispatcher
 
                 return;
             }
-        }
-
-        if (! $this->initializationGate->isInitialized()) {
+        } elseif (! $this->initializationGate->isInitialized()) {
+            // Other notifications must wait for a complete handshake. The initialized arm above
+            // intentionally falls through even when buffered (gate may still be InitializeInFlight).
             $this->logger->info(
                 'Dropping notification before client has completed initialize.',
                 ['method' => $method],
