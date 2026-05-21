@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Dispatch;
 
+use Nexus\Mcp\Core\Dispatch\InitializationState;
 use Nexus\Mcp\Core\Schema\Request\InitializeRequest;
 use Nexus\Mcp\Core\Schema\Request\PingRequest;
 
@@ -20,7 +21,7 @@ use Nexus\Mcp\Core\Schema\Request\PingRequest;
  * Tracks the client handshake lifecycle and decides which inbound request
  * methods may run before it completes.
  */
-final class InitializationGate
+final class ServerInitializationGate
 {
     private InitializationState $state = InitializationState::AwaitingInitialize;
     private bool $pendingInitializedNotification = false;

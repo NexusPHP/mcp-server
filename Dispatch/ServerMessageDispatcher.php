@@ -14,9 +14,9 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Dispatch;
 
 use Amp\Cancellation;
-use Amp\Future;
 use Amp\NullCancellation;
 use Nexus\Mcp\Core\Dispatch\MessageDispatcherInterface;
+use Nexus\Mcp\Core\Dispatch\PendingCoroutines;
 use Nexus\Mcp\Core\Dispatch\PendingInboundRequests;
 use Nexus\Mcp\Core\Dispatch\RequestBoundSender;
 use Nexus\Mcp\Core\Exception\AbstractJsonRpcProtocolException;
@@ -48,7 +48,6 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 use function Amp\async;
-use function Amp\Future\awaitAll;
 
 /**
  * Server-side per-envelope inbound dispatch. Parses, classifies, gates, resolves a handler,
@@ -56,11 +55,7 @@ use function Amp\Future\awaitAll;
  */
 final readonly class ServerMessageDispatcher implements MessageDispatcherInterface
 {
-    /**
-     * @var \SplObjectStorage<Future<mixed>, null>
-     */
-    private \SplObjectStorage $pending;
-
+    private PendingCoroutines $coroutines;
     private PendingInboundRequests $inboundRequests;
 
     /**
@@ -70,33 +65,20 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     public function __construct(
         private HandlerRegistry $requestHandlers,
         private HandlerRegistry $notificationHandlers,
-        private InitializationGate $initializationGate,
+        private ServerInitializationGate $initializationGate,
         private LoggingLevelGate $loggingLevelGate = new LoggingLevelGate(),
         private LoggerInterface $logger = new NullLogger(),
         private JsonRpcMessageParser $parser = new JsonRpcMessageParser(),
         private Cancellation $cancellation = new NullCancellation(),
     ) {
-        $this->pending = new \SplObjectStorage();
+        $this->coroutines = new PendingCoroutines();
         $this->inboundRequests = new PendingInboundRequests();
     }
 
     #[\Override]
     public function flushPending(): void
     {
-        awaitAll($this->pending);
-    }
-
-    /**
-     * Test-observability helper. Exists so the cleanup-in-finally arm of
-     * `track()` has a mutation kill site that no production caller needs.
-     *
-     * @internal
-     *
-     * @return int<0, max>
-     */
-    public function inFlightCount(): int
-    {
-        return \count($this->pending);
+        $this->coroutines->flushPending();
     }
 
     /**
@@ -195,7 +177,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
             $this->initializationGate->markInitializeInFlight();
         }
 
-        $this->track(async(function () use ($request, $transport, $method, $isInitializeRequest): void {
+        $this->coroutines->track(async(function () use ($request, $transport, $method, $isInitializeRequest): void {
             try {
                 $sender = new RequestBoundSender($transport, $request->id);
                 $context = new ServerContext(
@@ -313,7 +295,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
             return;
         }
 
-        $this->track(async(function () use ($handler, $notification, $method): void {
+        $this->coroutines->track(async(function () use ($handler, $notification, $method): void {
             try {
                 $handler->handle($notification);
             } catch (\Throwable $e) {
@@ -324,18 +306,6 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                 );
             }
         }));
-    }
-
-    /**
-     * @param Future<mixed> $future
-     */
-    private function track(Future $future): void
-    {
-        $this->pending[$future] = null;
-
-        $future->finally(function () use ($future): void {
-            unset($this->pending[$future]);
-        })->ignore();
     }
 
     private static function toErrorResponse(
