@@ -45,6 +45,9 @@ final readonly class InitializeRequestHandler implements RequestHandlerInterface
     #[\Override]
     public function handle(JsonRpcRequest $request, AbstractContext $context): InitializeResult
     {
+        // The server supports exactly one revision, so the spec's negotiation rule
+        // (echo the requested version when supported, otherwise return the latest
+        // supported) collapses to LATEST_VERSION for every request.
         return new InitializeResult(
             new ProtocolVersion(ProtocolVersion::LATEST_VERSION),
             $this->capabilities,
