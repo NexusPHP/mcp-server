@@ -20,6 +20,7 @@ use Nexus\Mcp\Core\Schema\ContentBlock\TextContent;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\Request\CallToolRequest;
 use Nexus\Mcp\Core\Schema\Result\CallToolResult;
+use Nexus\Mcp\Server\Exception\ToolOutputValidationException;
 use Nexus\Mcp\Server\ServerContext;
 use Nexus\Mcp\Server\Tool\ToolStoreInterface;
 use Psr\Log\LoggerInterface;
@@ -61,6 +62,16 @@ final readonly class CallToolRequestHandler implements RequestHandlerInterface
             return $result;
         } catch (AbstractJsonRpcProtocolException $e) {
             throw $e;
+        } catch (ToolOutputValidationException $e) {
+            $this->logger->error(
+                'Tool returned structuredContent that does not conform to its outputSchema.',
+                ['tool' => $request->params->name, 'exception' => $e],
+            );
+
+            return new CallToolResult(
+                content: [new TextContent('Tool execution failed.')],
+                isError: true,
+            );
         } catch (\Throwable $e) {
             // Generic peer-facing text. Raw $e->getMessage() can carry paths or secrets.
             $this->logger->error(

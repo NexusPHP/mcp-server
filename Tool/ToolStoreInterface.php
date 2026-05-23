@@ -13,11 +13,13 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Tool;
 
+use Nexus\Mcp\Core\Exception\InvalidParamsException;
 use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Result\CallToolResult;
 use Nexus\Mcp\Core\Schema\Result\ListToolsResult;
 use Nexus\Mcp\Server\Exception\InvalidCursorException;
 use Nexus\Mcp\Server\Exception\ToolNotFoundException;
+use Nexus\Mcp\Server\Exception\ToolOutputValidationException;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
@@ -33,7 +35,9 @@ interface ToolStoreInterface
     /**
      * @param null|array<string, mixed> $arguments
      *
+     * @throws InvalidParamsException
      * @throws ToolNotFoundException
+     * @throws ToolOutputValidationException
      */
     public function call(string $name, ?array $arguments, ServerContext $context): CallToolResult;
 }

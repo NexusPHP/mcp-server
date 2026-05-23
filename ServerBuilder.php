@@ -63,6 +63,8 @@ use Nexus\Mcp\Server\Tool\ClosureToolExecutor;
 use Nexus\Mcp\Server\Tool\ToolEntry;
 use Nexus\Mcp\Server\Tool\ToolExecutorInterface;
 use Nexus\Mcp\Server\Tool\ToolStore;
+use Nexus\Mcp\Server\Validation\OpisSchemaValidator;
+use Nexus\Mcp\Server\Validation\SchemaValidatorInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -80,6 +82,7 @@ final class ServerBuilder
     private ?string $instructions = null;
 
     private LoggerInterface $logger;
+    private SchemaValidatorInterface $schemaValidator;
 
     /**
      * @var array<non-empty-string, ToolEntry>
@@ -116,6 +119,7 @@ final class ServerBuilder
     public function __construct()
     {
         $this->logger = new NullLogger();
+        $this->schemaValidator = new OpisSchemaValidator();
     }
 
     /**
@@ -149,6 +153,13 @@ final class ServerBuilder
     public function setLogger(LoggerInterface $logger): self
     {
         $this->logger = $logger;
+
+        return $this;
+    }
+
+    public function setSchemaValidator(SchemaValidatorInterface $validator): self
+    {
+        $this->schemaValidator = $validator;
 
         return $this;
     }
@@ -398,7 +409,7 @@ final class ServerBuilder
         ];
 
         if ([] !== $this->tools) {
-            $toolStore = new ToolStore($this->tools);
+            $toolStore = new ToolStore($this->tools, validator: $this->schemaValidator);
             $defaults[Request\ListToolsRequest::method()] = new ListToolsRequestHandler($toolStore);
             $defaults[Request\CallToolRequest::method()] = new CallToolRequestHandler($toolStore, $this->logger);
         }

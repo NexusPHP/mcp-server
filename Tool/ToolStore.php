@@ -13,13 +13,17 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Tool;
 
+use Nexus\Mcp\Core\Exception\InvalidParamsException;
 use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Result\CallToolResult;
 use Nexus\Mcp\Core\Schema\Result\ListToolsResult;
 use Nexus\Mcp\Core\Schema\Tool\Tool;
 use Nexus\Mcp\Server\AbstractPaginatedStore;
 use Nexus\Mcp\Server\Exception\ToolNotFoundException;
+use Nexus\Mcp\Server\Exception\ToolOutputValidationException;
 use Nexus\Mcp\Server\ServerContext;
+use Nexus\Mcp\Server\Validation\OpisSchemaValidator;
+use Nexus\Mcp\Server\Validation\SchemaValidatorInterface;
 
 /**
  * In-memory implementation of `ToolStoreInterface`.
@@ -29,6 +33,17 @@ use Nexus\Mcp\Server\ServerContext;
 final readonly class ToolStore extends AbstractPaginatedStore implements ToolStoreInterface
 {
     protected const string STORE_LABEL = 'Tool store';
+
+    /**
+     * @param array<non-empty-string, ToolEntry> $entries
+     */
+    public function __construct(
+        array $entries = [],
+        int $pageSize = self::DEFAULT_PAGE_SIZE,
+        private SchemaValidatorInterface $validator = new OpisSchemaValidator(),
+    ) {
+        parent::__construct($entries, $pageSize);
+    }
 
     #[\Override]
     public function list(?Cursor $cursor): ListToolsResult
@@ -47,6 +62,29 @@ final readonly class ToolStore extends AbstractPaginatedStore implements ToolSto
             throw new ToolNotFoundException($name, $context->requestId);
         }
 
-        return $this->entries[$name]->executor->execute($arguments, $context);
+        $tool = $this->entries[$name]->tool;
+
+        $inputData = null === $arguments || [] === $arguments ? new \stdClass() : $arguments;
+        $inputErrors = $this->validator->validate($inputData, $tool->inputSchema);
+
+        if ([] !== $inputErrors) {
+            throw new InvalidParamsException(
+                $context->requestId,
+                \sprintf('Invalid arguments for tool "%s": %s', $name, implode('; ', $inputErrors)),
+            );
+        }
+
+        $result = $this->entries[$name]->executor->execute($arguments, $context);
+
+        if (null !== $tool->outputSchema && true !== $result->isError && null !== $result->structuredContent) {
+            $outputData = [] === $result->structuredContent ? new \stdClass() : $result->structuredContent;
+            $outputErrors = $this->validator->validate($outputData, $tool->outputSchema);
+
+            if ([] !== $outputErrors) {
+                throw new ToolOutputValidationException($name, $outputErrors);
+            }
+        }
+
+        return $result;
     }
 }
