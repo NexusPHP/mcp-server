@@ -42,7 +42,23 @@ final readonly class CallToolRequestHandler implements RequestHandlerInterface
         \assert($request instanceof CallToolRequest);
 
         try {
-            return $this->store->call($request->params->name, $request->params->arguments, $context);
+            $result = $this->store->call($request->params->name, $request->params->arguments, $context);
+
+            // Spec backwards-compat: a tool returning structuredContent and no content
+            // blocks also returns the serialised JSON as a TextContent block.
+            if (null !== $result->structuredContent && [] === $result->content) {
+                return new CallToolResult(
+                    content: [new TextContent(json_encode(
+                        $result->structuredContent,
+                        \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE,
+                    ))],
+                    structuredContent: $result->structuredContent,
+                    isError: $result->isError,
+                    meta: $result->meta,
+                );
+            }
+
+            return $result;
         } catch (AbstractJsonRpcProtocolException $e) {
             throw $e;
         } catch (\Throwable $e) {
