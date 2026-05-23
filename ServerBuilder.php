@@ -35,6 +35,8 @@ use Nexus\Mcp\Core\UriTemplate\Validator;
 use Nexus\Mcp\Server\Completion\CompletionStoreInterface;
 use Nexus\Mcp\Server\Dispatch\ServerInitializationGate;
 use Nexus\Mcp\Server\Dispatch\ServerMessageDispatcher;
+use Nexus\Mcp\Server\Exception\ReservedMethodException;
+use Nexus\Mcp\Server\Exception\UnreservedMethodException;
 use Nexus\Mcp\Server\Handler\Request\CallToolRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\CompleteRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\GetPromptRequestHandler;
@@ -233,17 +235,14 @@ final class ServerBuilder
      * @param non-empty-string                                                 $method
      * @param RequestHandlerInterface<non-empty-string, Result, ServerContext> $handler
      *
-     * @throws \LogicException
+     * @throws ReservedMethodException
      *
      * @see self::replaceRequestHandler()
      */
     public function addRequestHandler(string $method, RequestHandlerInterface $handler): self
     {
         if (\array_key_exists($method, JsonRpcMethodRegistry::requests())) {
-            throw new \LogicException(\sprintf(
-                'Request method "%s" is reserved by the MCP specification. Use replaceRequestHandler() to attach a handler to it.',
-                $method,
-            ));
+            throw new ReservedMethodException($method);
         }
 
         $this->customRequestHandlers[$method] = $handler;
@@ -257,17 +256,14 @@ final class ServerBuilder
      * @param non-empty-string                                                 $method
      * @param RequestHandlerInterface<non-empty-string, Result, ServerContext> $handler
      *
-     * @throws \LogicException
+     * @throws UnreservedMethodException
      *
      * @see self::addRequestHandler()
      */
     public function replaceRequestHandler(string $method, RequestHandlerInterface $handler): self
     {
         if (! \array_key_exists($method, JsonRpcMethodRegistry::requests())) {
-            throw new \LogicException(\sprintf(
-                'Request method "%s" is not reserved by the MCP specification. Use addRequestHandler() to register a vendor extension.',
-                $method,
-            ));
+            throw new UnreservedMethodException($method);
         }
 
         $this->customRequestHandlers[$method] = $handler;
@@ -281,17 +277,14 @@ final class ServerBuilder
      * @param non-empty-string                               $method
      * @param NotificationHandlerInterface<non-empty-string> $handler
      *
-     * @throws \LogicException
+     * @throws ReservedMethodException
      *
      * @see self::replaceNotificationHandler()
      */
     public function addNotificationHandler(string $method, NotificationHandlerInterface $handler): self
     {
         if (\array_key_exists($method, JsonRpcMethodRegistry::notifications())) {
-            throw new \LogicException(\sprintf(
-                'Notification method "%s" is reserved by the MCP specification. Use replaceNotificationHandler() to attach a handler to it.',
-                $method,
-            ));
+            throw new ReservedMethodException($method, isNotification: true);
         }
 
         $this->customNotificationHandlers[$method] = $handler;
@@ -305,17 +298,14 @@ final class ServerBuilder
      * @param non-empty-string                               $method
      * @param NotificationHandlerInterface<non-empty-string> $handler
      *
-     * @throws \LogicException
+     * @throws UnreservedMethodException
      *
      * @see self::addNotificationHandler()
      */
     public function replaceNotificationHandler(string $method, NotificationHandlerInterface $handler): self
     {
         if (! \array_key_exists($method, JsonRpcMethodRegistry::notifications())) {
-            throw new \LogicException(\sprintf(
-                'Notification method "%s" is not reserved by the MCP specification. Use addNotificationHandler() to register a vendor extension.',
-                $method,
-            ));
+            throw new UnreservedMethodException($method, isNotification: true);
         }
 
         $this->customNotificationHandlers[$method] = $handler;
