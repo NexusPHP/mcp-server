@@ -43,10 +43,8 @@ final readonly class ResourceStore extends AbstractPaginatedStore implements Res
     #[\Override]
     public function read(string $uri, ServerContext $context): ReadResourceResult
     {
-        if (! \array_key_exists($uri, $this->entries)) {
-            throw new ResourceNotFoundException($uri, $context->requestId);
-        }
+        $entry = $this->entries[$uri] ?? throw new ResourceNotFoundException($uri, $context->requestId);
 
-        return $this->entries[$uri]->reader->read($uri, $context);
+        return $entry->reader->read($uri, $context);
     }
 }

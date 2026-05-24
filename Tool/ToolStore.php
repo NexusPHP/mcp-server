@@ -58,11 +58,9 @@ final readonly class ToolStore extends AbstractPaginatedStore implements ToolSto
     #[\Override]
     public function call(string $name, ?array $arguments, ServerContext $context): CallToolResult
     {
-        if (! \array_key_exists($name, $this->entries)) {
-            throw new ToolNotFoundException($name, $context->requestId);
-        }
+        $entry = $this->entries[$name] ?? throw new ToolNotFoundException($name, $context->requestId);
 
-        $tool = $this->entries[$name]->tool;
+        $tool = $entry->tool;
 
         $inputData = null === $arguments || [] === $arguments ? new \stdClass() : $arguments;
         $inputErrors = $this->validator->validate($inputData, $tool->inputSchema);
@@ -74,7 +72,7 @@ final readonly class ToolStore extends AbstractPaginatedStore implements ToolSto
             );
         }
 
-        $result = $this->entries[$name]->executor->execute($arguments, $context);
+        $result = $entry->executor->execute($arguments, $context);
 
         if (null !== $tool->outputSchema && true !== $result->isError && null !== $result->structuredContent) {
             $outputData = [] === $result->structuredContent ? new \stdClass() : $result->structuredContent;
