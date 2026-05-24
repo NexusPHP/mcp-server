@@ -45,8 +45,8 @@ final readonly class CallToolRequestHandler implements RequestHandlerInterface
         try {
             $result = $this->store->call($request->params->name, $request->params->arguments, $context);
 
-            // Spec backwards-compat: a tool returning structuredContent and no content
-            // blocks also returns the serialised JSON as a TextContent block.
+            // Spec, "Structured Content": "For backwards compatibility, a tool that returns
+            // structured content SHOULD also return the serialized JSON in a TextContent block."
             if (null !== $result->structuredContent && [] === $result->content) {
                 return new CallToolResult(
                     content: [new TextContent(json_encode(
