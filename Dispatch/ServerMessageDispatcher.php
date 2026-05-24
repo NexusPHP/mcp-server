@@ -19,6 +19,7 @@ use Nexus\Mcp\Core\Dispatch\MessageDispatcherInterface;
 use Nexus\Mcp\Core\Dispatch\PendingCoroutines;
 use Nexus\Mcp\Core\Dispatch\PendingInboundRequests;
 use Nexus\Mcp\Core\Dispatch\RequestBoundSender;
+use Nexus\Mcp\Core\Dispatch\ResponseSender;
 use Nexus\Mcp\Core\Exception\AbstractJsonRpcProtocolException;
 use Nexus\Mcp\Core\Exception\DuplicateInboundRequestIdException;
 use Nexus\Mcp\Core\Exception\MethodMisroutedException;
@@ -27,17 +28,14 @@ use Nexus\Mcp\Core\Exception\TransportAlreadyClosedException;
 use Nexus\Mcp\Core\Handler\HandlerRegistry;
 use Nexus\Mcp\Core\Handler\NotificationHandlerInterface;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
-use Nexus\Mcp\Core\JsonRpc\ErrorFactory;
 use Nexus\Mcp\Core\JsonRpc\JsonRpcMessageParser;
 use Nexus\Mcp\Core\Schema\Error\InternalError;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcErrorResponse;
-use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcMessage;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcResultResponse;
 use Nexus\Mcp\Core\Schema\Notification\InitializedNotification;
 use Nexus\Mcp\Core\Schema\Request\InitializeRequest;
-use Nexus\Mcp\Core\Schema\RequestId;
 use Nexus\Mcp\Core\Schema\Result;
 use Nexus\Mcp\Core\Transport\TransportInterface;
 use Nexus\Mcp\Server\Exception\ServerAlreadyInitializedException;
@@ -57,6 +55,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
 {
     private PendingCoroutines $coroutines;
     private PendingInboundRequests $inboundRequests;
+    private ResponseSender $responseSender;
 
     /**
      * @param HandlerRegistry<RequestHandlerInterface<non-empty-string, Result, ServerContext>> $requestHandlers
@@ -73,6 +72,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     ) {
         $this->coroutines = new PendingCoroutines();
         $this->inboundRequests = new PendingInboundRequests();
+        $this->responseSender = new ResponseSender($this->logger);
     }
 
     #[\Override]
@@ -111,7 +111,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
 
             // Envelope omitted the id but the method is a request method.
             // §5 null-id fallback. Respond so the peer can fix the malformed request.
-            $this->sendResponse($transport, self::toErrorResponse($e, null), 'misrouted');
+            $this->responseSender->send($transport, ResponseSender::toErrorResponse($e, null), 'misrouted');
 
             return;
         } catch (AbstractJsonRpcProtocolException $e) {
@@ -124,7 +124,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                 return;
             }
 
-            $this->sendResponse($transport, self::toErrorResponse($e, null), 'parse-error');
+            $this->responseSender->send($transport, ResponseSender::toErrorResponse($e, null), 'parse-error');
 
             return;
         }
@@ -161,14 +161,14 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                 ? new ServerAlreadyInitializedException($request->id)
                 : new ServerNotInitializedException($method, $request->id);
 
-            $this->sendResponse($transport, self::toErrorResponse($exception, $request->id), $method);
+            $this->responseSender->send($transport, ResponseSender::toErrorResponse($exception, $request->id), $method);
 
             return;
         }
 
         if (! $this->inboundRequests->claim($request->id)) {
             $exception = new DuplicateInboundRequestIdException($request->id);
-            $this->sendResponse($transport, self::toErrorResponse($exception, $request->id), $method);
+            $this->responseSender->send($transport, ResponseSender::toErrorResponse($exception, $request->id), $method);
 
             return;
         }
@@ -198,7 +198,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                         $this->initializationGate->revertInitializeInFlight();
                     }
 
-                    $this->logSkippedDelivery($method, $e);
+                    $this->responseSender->logSkippedDelivery($method, $e);
 
                     return;
                 } catch (AbstractJsonRpcProtocolException $e) {
@@ -206,7 +206,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                         $this->initializationGate->revertInitializeInFlight();
                     }
 
-                    $this->sendResponse($transport, self::toErrorResponse($e, $request->id), $method);
+                    $this->responseSender->send($transport, ResponseSender::toErrorResponse($e, $request->id), $method);
 
                     return;
                 } catch (\Throwable $e) {
@@ -218,7 +218,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                         'Uncaught request handler exception.',
                         ['method' => $method, 'exception' => $e],
                     );
-                    $this->sendResponse($transport, new JsonRpcErrorResponse(
+                    $this->responseSender->send($transport, new JsonRpcErrorResponse(
                         $request->id,
                         new InternalError(),
                     ), $method);
@@ -230,36 +230,11 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                     $this->initializationGate->markInitializeCompleted();
                 }
 
-                $this->sendResponse($transport, new JsonRpcResultResponse($request->id, $result), $method);
+                $this->responseSender->send($transport, new JsonRpcResultResponse($request->id, $result), $method);
             } finally {
                 $this->inboundRequests->release($request->id);
             }
         }));
-    }
-
-    /**
-     * Sends a response and demotes the predictable "peer hung up" failure to an info log.
-     */
-    private function sendResponse(TransportInterface $transport, JsonRpcMessage $message, string $method): void
-    {
-        try {
-            $transport->send($message);
-        } catch (TransportAlreadyClosedException $e) {
-            $this->logSkippedDelivery($method, $e);
-        } catch (\Throwable $e) {
-            $this->logger->error(
-                'Failed to deliver response to transport.',
-                ['method' => $method, 'exception' => $e],
-            );
-        }
-    }
-
-    private function logSkippedDelivery(string $method, TransportAlreadyClosedException $exception): void
-    {
-        $this->logger->info(
-            'Skipping response delivery. Transport is closed.',
-            ['method' => $method, 'exception' => $exception],
-        );
     }
 
     /**
@@ -306,15 +281,5 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                 );
             }
         }));
-    }
-
-    private static function toErrorResponse(
-        AbstractJsonRpcProtocolException $exception,
-        ?RequestId $fallbackId,
-    ): JsonRpcErrorResponse {
-        return new JsonRpcErrorResponse(
-            $exception->requestId ?? $fallbackId,
-            ErrorFactory::create($exception::errorCode(), $exception->getMessage()),
-        );
     }
 }
