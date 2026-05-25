@@ -22,7 +22,17 @@ use Nexus\Mcp\Core\JsonRpc\JsonRpcMethodRegistry;
 use Nexus\Mcp\Core\Schema\Icon;
 use Nexus\Mcp\Core\Schema\Implementation;
 use Nexus\Mcp\Core\Schema\Prompt\Prompt;
-use Nexus\Mcp\Core\Schema\Request;
+use Nexus\Mcp\Core\Schema\Request\CallToolRequest;
+use Nexus\Mcp\Core\Schema\Request\CompleteRequest;
+use Nexus\Mcp\Core\Schema\Request\GetPromptRequest;
+use Nexus\Mcp\Core\Schema\Request\InitializeRequest;
+use Nexus\Mcp\Core\Schema\Request\ListPromptsRequest;
+use Nexus\Mcp\Core\Schema\Request\ListResourcesRequest;
+use Nexus\Mcp\Core\Schema\Request\ListResourceTemplatesRequest;
+use Nexus\Mcp\Core\Schema\Request\ListToolsRequest;
+use Nexus\Mcp\Core\Schema\Request\PingRequest;
+use Nexus\Mcp\Core\Schema\Request\ReadResourceRequest;
+use Nexus\Mcp\Core\Schema\Request\SetLevelRequest;
 use Nexus\Mcp\Core\Schema\Resource\Resource;
 use Nexus\Mcp\Core\Schema\Resource\ResourceTemplate;
 use Nexus\Mcp\Core\Schema\Result;
@@ -498,7 +508,7 @@ final class ServerBuilder
     private function hasCompletionsCapability(): bool
     {
         return null !== $this->completionStore
-            || isset($this->customRequestHandlers[Request\CompleteRequest::getMethod()]);
+            || isset($this->customRequestHandlers[CompleteRequest::getMethod()]);
     }
 
     private function hasPromptsCapability(): bool
@@ -507,8 +517,8 @@ final class ServerBuilder
             return true;
         }
 
-        return isset($this->customRequestHandlers[Request\GetPromptRequest::getMethod()])
-            && isset($this->customRequestHandlers[Request\ListPromptsRequest::getMethod()]);
+        return isset($this->customRequestHandlers[GetPromptRequest::getMethod()])
+            && isset($this->customRequestHandlers[ListPromptsRequest::getMethod()]);
     }
 
     private function hasResourcesCapability(): bool
@@ -522,8 +532,8 @@ final class ServerBuilder
             return true;
         }
 
-        return isset($this->customRequestHandlers[Request\ListResourcesRequest::getMethod()])
-            && isset($this->customRequestHandlers[Request\ReadResourceRequest::getMethod()]);
+        return isset($this->customRequestHandlers[ListResourcesRequest::getMethod()])
+            && isset($this->customRequestHandlers[ReadResourceRequest::getMethod()]);
     }
 
     private function hasToolsCapability(): bool
@@ -532,8 +542,8 @@ final class ServerBuilder
             return true;
         }
 
-        return isset($this->customRequestHandlers[Request\CallToolRequest::getMethod()])
-            && isset($this->customRequestHandlers[Request\ListToolsRequest::getMethod()]);
+        return isset($this->customRequestHandlers[CallToolRequest::getMethod()])
+            && isset($this->customRequestHandlers[ListToolsRequest::getMethod()]);
     }
 
     /**
@@ -545,21 +555,21 @@ final class ServerBuilder
         LoggingLevelGate $loggingLevelGate,
     ): array {
         $defaults = [
-            Request\InitializeRequest::getMethod() => new InitializeRequestHandler($serverInfo, $capabilities, $this->resolveInstructions()),
-            Request\PingRequest::getMethod() => new PingRequestHandler(),
-            Request\SetLevelRequest::getMethod() => new SetLevelRequestHandler($loggingLevelGate),
+            InitializeRequest::getMethod() => new InitializeRequestHandler($serverInfo, $capabilities, $this->resolveInstructions()),
+            PingRequest::getMethod() => new PingRequestHandler(),
+            SetLevelRequest::getMethod() => new SetLevelRequestHandler($loggingLevelGate),
         ];
 
         if (null !== $this->toolStore || [] !== $this->tools) {
             $toolStore = $this->toolStore ?? new ToolStore($this->tools, validator: $this->schemaValidator);
-            $defaults[Request\ListToolsRequest::getMethod()] = new ListToolsRequestHandler($toolStore);
-            $defaults[Request\CallToolRequest::getMethod()] = new CallToolRequestHandler($toolStore, $this->logger);
+            $defaults[ListToolsRequest::getMethod()] = new ListToolsRequestHandler($toolStore);
+            $defaults[CallToolRequest::getMethod()] = new CallToolRequestHandler($toolStore, $this->logger);
         }
 
         if (null !== $this->promptStore || [] !== $this->prompts) {
             $promptStore = $this->promptStore ?? new PromptStore($this->prompts);
-            $defaults[Request\ListPromptsRequest::getMethod()] = new ListPromptsRequestHandler($promptStore);
-            $defaults[Request\GetPromptRequest::getMethod()] = new GetPromptRequestHandler($promptStore);
+            $defaults[ListPromptsRequest::getMethod()] = new ListPromptsRequestHandler($promptStore);
+            $defaults[GetPromptRequest::getMethod()] = new GetPromptRequestHandler($promptStore);
         }
 
         $resourceTemplateStore = null;
@@ -567,20 +577,20 @@ final class ServerBuilder
         if (null !== $this->resourceTemplateStore || [] !== $this->resourceTemplates) {
             $resourceTemplateStore = $this->resourceTemplateStore ?? new ResourceTemplateStore($this->resourceTemplates);
 
-            $defaults[Request\ListResourceTemplatesRequest::getMethod()] = new ListResourceTemplatesRequestHandler($resourceTemplateStore);
+            $defaults[ListResourceTemplatesRequest::getMethod()] = new ListResourceTemplatesRequestHandler($resourceTemplateStore);
         }
 
         if (null !== $this->resourceStore || [] !== $this->resources || null !== $resourceTemplateStore) {
             $resourceStore = $this->resourceStore ?? new ResourceStore($this->resources);
 
-            $defaults[Request\ListResourcesRequest::getMethod()] = new ListResourcesRequestHandler($resourceStore);
-            $defaults[Request\ReadResourceRequest::getMethod()] = new ReadResourceRequestHandler(
+            $defaults[ListResourcesRequest::getMethod()] = new ListResourcesRequestHandler($resourceStore);
+            $defaults[ReadResourceRequest::getMethod()] = new ReadResourceRequestHandler(
                 null !== $resourceTemplateStore ? new CompositeResourceStore($resourceStore, $resourceTemplateStore) : $resourceStore,
             );
         }
 
         if (null !== $this->completionStore) {
-            $defaults[Request\CompleteRequest::getMethod()] = new CompleteRequestHandler($this->completionStore);
+            $defaults[CompleteRequest::getMethod()] = new CompleteRequestHandler($this->completionStore);
         }
 
         return [...$defaults, ...$this->customRequestHandlers];
