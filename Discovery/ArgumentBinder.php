@@ -46,10 +46,10 @@ final class ArgumentBinder
                 Assert::that($list)->isList(\sprintf('The "%s" argument must be a list, {type} given.', $name));
 
                 foreach ($list as $element) {
-                    $arguments[] = self::hydrate($parameter, $element);
+                    $arguments[] = self::bindArgument($parameter, $element);
                 }
             } elseif (\array_key_exists($name, $values)) {
-                $arguments[] = self::hydrate($parameter, $values[$name]);
+                $arguments[] = self::bindArgument($parameter, $values[$name]);
             } elseif ($parameter->isDefaultValueAvailable()) {
                 $arguments[] = $parameter->getDefaultValue();
             } else {
@@ -58,6 +58,62 @@ final class ArgumentBinder
         }
 
         return $arguments;
+    }
+
+    private static function bindArgument(\ReflectionParameter $parameter, mixed $value): mixed
+    {
+        $class = self::dtoClass($parameter);
+
+        return null !== $class ? self::construct($class, $value) : self::hydrate($parameter, $value);
+    }
+
+    /**
+     * @param class-string $class
+     *
+     * @throws ExpectationFailedException
+     */
+    private static function construct(string $class, mixed $value): object
+    {
+        Assert::that($value)->isMap(\sprintf('%s must be constructed from an object, {type} given.', $class));
+
+        $reflection = new \ReflectionClass($class);
+        $constructor = $reflection->getConstructor();
+
+        if (null === $constructor) {
+            return $reflection->newInstance();
+        }
+
+        $arguments = [];
+
+        foreach ($constructor->getParameters() as $parameter) {
+            $name = $parameter->getName();
+
+            if (\array_key_exists($name, $value)) {
+                $arguments[] = self::hydrate($parameter, $value[$name]);
+            } elseif ($parameter->isDefaultValueAvailable()) {
+                $arguments[] = $parameter->getDefaultValue();
+            } else {
+                throw new ExpectationFailedException('The "{name}" argument is required.', ['name' => $name]);
+            }
+        }
+
+        return $reflection->newInstanceArgs($arguments);
+    }
+
+    /**
+     * @return null|class-string
+     */
+    private static function dtoClass(\ReflectionParameter $parameter): ?string
+    {
+        $type = $parameter->getType();
+
+        if (! $type instanceof \ReflectionNamedType || $type->isBuiltin()) {
+            return null;
+        }
+
+        $name = $type->getName();
+
+        return InputSchemaGenerator::isExpandable($name) ? $name : null;
     }
 
     private static function isContext(\ReflectionParameter $parameter): bool

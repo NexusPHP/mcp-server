@@ -46,22 +46,11 @@ final readonly class InputSchemaGenerator
             return self::ensureDialect($methodAttribute->definition);
         }
 
-        $properties = [];
-        $required = [];
-        $paramTags = $this->resolver->paramTags($method);
-
-        foreach ($method->getParameters() as $parameter) {
-            if (self::isInjected($parameter)) {
-                continue;
-            }
-
-            $name = $parameter->getName();
-            $properties[$name] = $this->buildParameterSchema($parameter, $paramTags[$name] ?? null);
-
-            if (! $parameter->isOptional()) {
-                $required[] = $name;
-            }
-        }
+        [$properties, $required] = $this->objectMembers(
+            $method->getParameters(),
+            $this->resolver->paramTags($method),
+            true,
+        );
 
         $schema = ['type' => 'object', '$schema' => self::DIALECT];
 
@@ -77,9 +66,88 @@ final readonly class InputSchemaGenerator
     }
 
     /**
+     * Whether a class is expanded into an object input schema and constructed from its value map.
+     *
+     * @phpstan-assert-if-true class-string $class
+     */
+    public static function isExpandable(string $class): bool
+    {
+        if (! class_exists($class)) {
+            return false;
+        }
+
+        $reflection = new \ReflectionClass($class);
+
+        return $reflection->isInstantiable() && ! $reflection->isInternal();
+    }
+
+    /**
+     * @param iterable<\ReflectionParameter>   $parameters
+     * @param array<string, ParamTagValueNode> $tags
+     *
+     * @return array{0: array<string, mixed>, 1: list<string>}
+     */
+    private function objectMembers(iterable $parameters, array $tags, bool $topLevel): array
+    {
+        $properties = [];
+        $required = [];
+
+        foreach ($parameters as $parameter) {
+            if ($topLevel && self::isInjected($parameter)) {
+                continue;
+            }
+
+            $name = $parameter->getName();
+            $properties[$name] = $this->buildParameterSchema($parameter, $tags[$name] ?? null, $topLevel);
+
+            if (! $parameter->isOptional()) {
+                $required[] = $name;
+            }
+        }
+
+        return [$properties, $required];
+    }
+
+    /**
+     * Builds an object schema from a class's constructor parameters. The members are not themselves expanded,
+     * so a constructor parameter typed as another class falls through to the mapper and throws.
+     *
+     * @param class-string $class
+     *
      * @return array<string, mixed>
      */
-    private function buildParameterSchema(\ReflectionParameter $parameter, ?ParamTagValueNode $tag): array
+    private function expandClass(string $class): array
+    {
+        $reflection = new \ReflectionClass($class);
+        $constructor = $reflection->getConstructor();
+
+        if (null === $constructor) {
+            return ['type' => 'object'];
+        }
+
+        [$properties, $required] = $this->objectMembers(
+            $constructor->getParameters(),
+            $this->resolver->paramTags($constructor),
+            false,
+        );
+
+        $schema = ['type' => 'object'];
+
+        if ([] !== $properties) {
+            $schema['properties'] = $properties;
+        }
+
+        if ([] !== $required) {
+            $schema['required'] = $required;
+        }
+
+        return $schema;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildParameterSchema(\ReflectionParameter $parameter, ?ParamTagValueNode $tag, bool $topLevel): array
     {
         $attribute = self::attribute($parameter);
 
@@ -88,7 +156,15 @@ final readonly class InputSchemaGenerator
         }
 
         $explicit = $attribute?->toArray() ?? [];
-        $inferred = isset($explicit['type']) ? [] : $this->inferType($parameter, $tag?->type);
+
+        if (isset($explicit['type'])) {
+            $inferred = [];
+        } else {
+            $class = $topLevel ? self::expandableNativeClass($parameter) : null;
+            $inferred = null !== $class
+                ? $this->expandNativeClass($parameter, $class)
+                : $this->inferType($parameter, $tag?->type);
+        }
 
         if ($parameter->isVariadic()) {
             $inferred = self::asArraySchema($inferred);
@@ -128,6 +204,34 @@ final readonly class InputSchemaGenerator
         }
 
         return self::allowsNull($parameter) ? $this->mapper->nullable($schema) : $schema;
+    }
+
+    /**
+     * @param class-string $class
+     *
+     * @return array<string, mixed>
+     */
+    private function expandNativeClass(\ReflectionParameter $parameter, string $class): array
+    {
+        $schema = $this->expandClass($class);
+
+        return self::allowsNull($parameter) ? $this->mapper->nullable($schema) : $schema;
+    }
+
+    /**
+     * @return null|class-string
+     */
+    private static function expandableNativeClass(\ReflectionParameter $parameter): ?string
+    {
+        $type = $parameter->getType();
+
+        if (! $type instanceof \ReflectionNamedType || $type->isBuiltin()) {
+            return null;
+        }
+
+        $name = $type->getName();
+
+        return self::isExpandable($name) ? $name : null;
     }
 
     private static function allowsNull(\ReflectionParameter $parameter): bool
