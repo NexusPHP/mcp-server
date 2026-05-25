@@ -32,10 +32,12 @@ use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Core\Schema\ServerCapabilities;
 use Nexus\Mcp\Core\Schema\Tool\Tool;
 use Nexus\Mcp\Core\UriTemplate\Validator;
+use Nexus\Mcp\Server\Attribute\AsServer;
 use Nexus\Mcp\Server\Completion\CompletionStoreInterface;
 use Nexus\Mcp\Server\Discovery\AttributeScanner;
 use Nexus\Mcp\Server\Dispatch\ServerInitializationGate;
 use Nexus\Mcp\Server\Dispatch\ServerMessageDispatcher;
+use Nexus\Mcp\Server\Exception\DuplicateServerMetadataException;
 use Nexus\Mcp\Server\Exception\ReservedMethodException;
 use Nexus\Mcp\Server\Exception\UnreservedMethodException;
 use Nexus\Mcp\Server\Handler\Request\CallToolRequestHandler;
@@ -84,6 +86,7 @@ final class ServerBuilder
      */
     private ?string $instructions = null;
 
+    private ?AsServer $serverMetadata = null;
     private LoggerInterface $logger;
     private SchemaValidatorInterface $schemaValidator;
 
@@ -231,15 +234,29 @@ final class ServerBuilder
     }
 
     /**
-     * Registers the tools, prompts, resources, and resource templates discovered from
-     * `#[AsTool]`, `#[AsPrompt]`, `#[AsResource]`, and `#[AsResourceTemplate]` methods on
-     * each source object.
+     * Registers the server identity (`#[AsServer]`) plus the tools, prompts, resources, and
+     * resource templates discovered from `#[AsTool]`, `#[AsPrompt]`, `#[AsResource]`, and
+     * `#[AsResourceTemplate]` methods on each source object. An explicit `setServerInfo()` or
+     * `setInstructions()` call takes precedence over the matching `#[AsServer]` field, and at
+     * most one registered source may declare `#[AsServer]`.
+     *
+     * @throws DuplicateServerMetadataException
      */
     public function register(object ...$sources): self
     {
         $scanner = new AttributeScanner();
 
         foreach ($sources as $source) {
+            $metadata = self::serverMetadataOf($source);
+
+            if (null !== $metadata) {
+                if (null !== $this->serverMetadata) {
+                    throw new DuplicateServerMetadataException($source::class);
+                }
+
+                $this->serverMetadata = $metadata;
+            }
+
             foreach ($scanner->scan($source) as $entry) {
                 if ($entry instanceof ToolEntry) {
                     $this->addTool($entry->tool, $entry->executor);
@@ -342,15 +359,17 @@ final class ServerBuilder
 
     public function build(): Server
     {
-        Assert::that($this->serverInfo)->isInstanceOf(
+        $serverInfo = $this->resolveServerInfo();
+
+        Assert::that($serverInfo)->isInstanceOf(
             Implementation::class,
-            'Server information must be set before build() via setServerInfo().',
+            'Server information must be set before build() via setServerInfo() or a class-level #[AsServer].',
         );
 
         $capabilities = $this->deriveCapabilities();
         $loggingLevelGate = new LoggingLevelGate();
 
-        $requestHandlers = $this->buildRequestHandlers($this->serverInfo, $capabilities, $loggingLevelGate);
+        $requestHandlers = $this->buildRequestHandlers($serverInfo, $capabilities, $loggingLevelGate);
 
         return new Server(
             new ServerMessageDispatcher(
@@ -362,6 +381,61 @@ final class ServerBuilder
             ),
             $this->logger,
         );
+    }
+
+    /**
+     * Merges the explicit `setServerInfo()` values over the `#[AsServer]` fields, with the
+     * attribute filling only the gaps the setter left null.
+     */
+    private function resolveServerInfo(): ?Implementation
+    {
+        $metadata = $this->serverMetadata;
+
+        if (null === $metadata) {
+            return $this->serverInfo;
+        }
+
+        if (null === $this->serverInfo) {
+            return new Implementation(
+                $metadata->name,
+                $metadata->version,
+                $metadata->title,
+                $metadata->description,
+                $metadata->websiteUrl,
+                $metadata->icons,
+            );
+        }
+
+        return new Implementation(
+            $this->serverInfo->name,
+            $this->serverInfo->version,
+            $this->serverInfo->title ?? $metadata->title,
+            $this->serverInfo->description ?? $metadata->description,
+            $this->serverInfo->websiteUrl ?? $metadata->websiteUrl,
+            $this->serverInfo->icons ?? $metadata->icons,
+        );
+    }
+
+    /**
+     * @return null|non-empty-string
+     */
+    private function resolveInstructions(): ?string
+    {
+        $instructions = $this->instructions ?? $this->serverMetadata?->instructions;
+
+        Assert::that($instructions)
+            ->nullOr()
+            ->isNonEmptyString('Server instructions must be a non-empty string or null.')
+        ;
+
+        return $instructions;
+    }
+
+    private static function serverMetadataOf(object $source): ?AsServer
+    {
+        $attributes = new \ReflectionObject($source)->getAttributes(AsServer::class);
+
+        return [] === $attributes ? null : $attributes[0]->newInstance();
     }
 
     private function deriveCapabilities(): ServerCapabilities
@@ -420,7 +494,7 @@ final class ServerBuilder
         LoggingLevelGate $loggingLevelGate,
     ): array {
         $defaults = [
-            Request\InitializeRequest::method() => new InitializeRequestHandler($serverInfo, $capabilities, $this->instructions),
+            Request\InitializeRequest::method() => new InitializeRequestHandler($serverInfo, $capabilities, $this->resolveInstructions()),
             Request\PingRequest::method() => new PingRequestHandler(),
             Request\SetLevelRequest::method() => new SetLevelRequestHandler($loggingLevelGate),
         ];
