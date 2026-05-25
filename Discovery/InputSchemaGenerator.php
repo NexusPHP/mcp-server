@@ -90,6 +90,10 @@ final readonly class InputSchemaGenerator
         $explicit = $attribute?->toArray() ?? [];
         $inferred = isset($explicit['type']) ? [] : $this->inferType($parameter, $tag?->type);
 
+        if ($parameter->isVariadic()) {
+            $inferred = self::asArraySchema($inferred);
+        }
+
         if (null !== $tag && '' !== $tag->description) {
             $inferred['description'] = $tag->description;
         }
@@ -140,6 +144,20 @@ final readonly class InputSchemaGenerator
             $value instanceof \UnitEnum => $value->name,
             default => $value,
         };
+    }
+
+    /**
+     * @param array<string, mixed> $items
+     *
+     * @return array<string, mixed>
+     */
+    private static function asArraySchema(array $items): array
+    {
+        if ([] === $items) {
+            return ['type' => 'array'];
+        }
+
+        return ['type' => 'array', 'items' => $items];
     }
 
     private static function isInjected(\ReflectionParameter $parameter): bool

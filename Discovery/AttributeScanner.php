@@ -26,6 +26,7 @@ use Nexus\Mcp\Server\Attribute\AsPrompt;
 use Nexus\Mcp\Server\Attribute\AsResource;
 use Nexus\Mcp\Server\Attribute\AsResourceTemplate;
 use Nexus\Mcp\Server\Attribute\AsTool;
+use Nexus\Mcp\Server\Exception\UnsupportedVariadicParameterException;
 use Nexus\Mcp\Server\Prompt\PromptEntry;
 use Nexus\Mcp\Server\Prompt\ReflectedPromptRenderer;
 use Nexus\Mcp\Server\Resource\ReflectedResourceReader;
@@ -101,6 +102,8 @@ final readonly class AttributeScanner
 
     private function buildPrompt(\ReflectionMethod $method, AsPrompt $attribute): Prompt
     {
+        self::rejectIfVariadic($method);
+
         return new Prompt(
             $attribute->name ?? $method->getName(),
             $attribute->title,
@@ -139,6 +142,8 @@ final readonly class AttributeScanner
 
     private static function buildResource(\ReflectionMethod $method, AsResource $attribute): Resource
     {
+        self::rejectIfVariadic($method);
+
         return new Resource(
             $attribute->name ?? $method->getName(),
             $attribute->uri,
@@ -154,6 +159,8 @@ final readonly class AttributeScanner
 
     private static function buildResourceTemplate(\ReflectionMethod $method, AsResourceTemplate $attribute): ResourceTemplate
     {
+        self::rejectIfVariadic($method);
+
         return new ResourceTemplate(
             $attribute->name ?? $method->getName(),
             $attribute->uriTemplate,
@@ -171,5 +178,21 @@ final readonly class AttributeScanner
         $type = $parameter->getType();
 
         return $type instanceof \ReflectionNamedType && ServerContext::class === $type->getName();
+    }
+
+    /**
+     * @throws UnsupportedVariadicParameterException
+     */
+    private static function rejectIfVariadic(\ReflectionMethod $method): void
+    {
+        foreach ($method->getParameters() as $parameter) {
+            if ($parameter->isVariadic()) {
+                throw new UnsupportedVariadicParameterException(
+                    $method->getDeclaringClass()->getName(),
+                    $method->getName(),
+                    $parameter->getName(),
+                );
+            }
+        }
     }
 }

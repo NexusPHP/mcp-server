@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Discovery;
 
+use Nexus\Assert\Assert;
 use Nexus\Assert\ExpectationFailedException;
 use Nexus\Mcp\Core\Validation\EnumValueValidator;
 use Nexus\Mcp\Server\ServerContext;
@@ -36,27 +37,24 @@ final class ArgumentBinder
         $arguments = [];
 
         foreach ($method->getParameters() as $parameter) {
-            if (self::isContext($parameter)) {
-                $arguments[] = $context;
-
-                continue;
-            }
-
             $name = $parameter->getName();
 
-            if (\array_key_exists($name, $values)) {
+            if (self::isContext($parameter)) {
+                $arguments[] = $context;
+            } elseif ($parameter->isVariadic()) {
+                $list = $values[$name] ?? [];
+                Assert::that($list)->isList(\sprintf('The "%s" argument must be a list, {type} given.', $name));
+
+                foreach ($list as $element) {
+                    $arguments[] = self::hydrate($parameter, $element);
+                }
+            } elseif (\array_key_exists($name, $values)) {
                 $arguments[] = self::hydrate($parameter, $values[$name]);
-
-                continue;
-            }
-
-            if ($parameter->isDefaultValueAvailable()) {
+            } elseif ($parameter->isDefaultValueAvailable()) {
                 $arguments[] = $parameter->getDefaultValue();
-
-                continue;
+            } else {
+                throw new ExpectationFailedException('The "{name}" argument is required.', ['name' => $name]);
             }
-
-            throw new ExpectationFailedException('The "{name}" argument is required.', ['name' => $name]);
         }
 
         return $arguments;
