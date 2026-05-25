@@ -33,6 +33,7 @@ use Nexus\Mcp\Core\Schema\ServerCapabilities;
 use Nexus\Mcp\Core\Schema\Tool\Tool;
 use Nexus\Mcp\Core\UriTemplate\Validator;
 use Nexus\Mcp\Server\Completion\CompletionStoreInterface;
+use Nexus\Mcp\Server\Discovery\AttributeScanner;
 use Nexus\Mcp\Server\Dispatch\ServerInitializationGate;
 use Nexus\Mcp\Server\Dispatch\ServerMessageDispatcher;
 use Nexus\Mcp\Server\Exception\ReservedMethodException;
@@ -225,6 +226,32 @@ final class ServerBuilder
     public function setCompletionStore(CompletionStoreInterface $store): self
     {
         $this->completionStore = $store;
+
+        return $this;
+    }
+
+    /**
+     * Registers the tools, prompts, resources, and resource templates discovered from
+     * `#[AsTool]`, `#[AsPrompt]`, `#[AsResource]`, and `#[AsResourceTemplate]` methods on
+     * each source object.
+     */
+    public function register(object ...$sources): self
+    {
+        $scanner = new AttributeScanner();
+
+        foreach ($sources as $source) {
+            foreach ($scanner->scan($source) as $entry) {
+                if ($entry instanceof ToolEntry) {
+                    $this->addTool($entry->tool, $entry->executor);
+                } elseif ($entry instanceof PromptEntry) {
+                    $this->addPrompt($entry->prompt, $entry->renderer);
+                } elseif ($entry instanceof ResourceEntry) {
+                    $this->addResource($entry->resource, $entry->reader);
+                } else {
+                    $this->addResourceTemplate($entry->template, $entry->reader);
+                }
+            }
+        }
 
         return $this;
     }
