@@ -62,7 +62,7 @@ final class ArgumentBinder
 
     private static function bindArgument(\ReflectionParameter $parameter, mixed $value): mixed
     {
-        $class = self::dtoClass($parameter);
+        $class = self::resolveDtoClass($parameter);
 
         return null !== $class ? self::construct($class, $value) : self::hydrate($parameter, $value);
     }
@@ -103,7 +103,7 @@ final class ArgumentBinder
     /**
      * @return null|class-string
      */
-    private static function dtoClass(\ReflectionParameter $parameter): ?string
+    private static function resolveDtoClass(\ReflectionParameter $parameter): ?string
     {
         $type = $parameter->getType();
 
@@ -143,14 +143,14 @@ final class ArgumentBinder
             return EnumValueValidator::parse($name, $value, $context);
         }
 
-        return self::pureCase($name, $value, $context);
+        return self::resolvePureCase($name, $value, $context);
     }
 
     /**
      * @param class-string<\UnitEnum> $enum
      * @param non-empty-string        $context
      */
-    private static function pureCase(string $enum, mixed $value, string $context): \UnitEnum
+    private static function resolvePureCase(string $enum, mixed $value, string $context): \UnitEnum
     {
         if (\is_string($value)) {
             foreach ($enum::cases() as $case) {

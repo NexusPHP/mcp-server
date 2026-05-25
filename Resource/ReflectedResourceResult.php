@@ -44,7 +44,7 @@ final class ReflectedResourceResult
             return new ReadResourceResult(self::contentsList($result, $method));
         }
 
-        throw self::unsupported($method, $result);
+        throw self::buildUnsupportedError($method, $result);
     }
 
     /**
@@ -57,7 +57,7 @@ final class ReflectedResourceResult
         $contents = self::contents($result);
 
         if (! array_is_list($result) || [] === $result || \count($contents) !== \count($result)) {
-            throw self::unsupported($method, $result);
+            throw self::buildUnsupportedError($method, $result);
         }
 
         return $contents;
@@ -76,7 +76,7 @@ final class ReflectedResourceResult
         ));
     }
 
-    private static function unsupported(\ReflectionMethod $method, mixed $result): UnsupportedReturnValueException
+    private static function buildUnsupportedError(\ReflectionMethod $method, mixed $result): UnsupportedReturnValueException
     {
         return new UnsupportedReturnValueException(
             $method->getDeclaringClass()->getName(),

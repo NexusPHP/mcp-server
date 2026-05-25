@@ -65,7 +65,7 @@ abstract readonly class AbstractPaginatedStore
      */
     final protected function paginate(?Cursor $cursor, \Closure $transform, \Closure $resultBuilder): object
     {
-        $startIndex = $this->startIndexFor($cursor);
+        $startIndex = $this->resolveStartIndex($cursor);
         $page = \array_slice($this->entries, $startIndex, $this->pageSize);
         $items = array_values(array_map($transform, $page));
 
@@ -75,7 +75,7 @@ abstract readonly class AbstractPaginatedStore
         return $resultBuilder($items, $nextCursor);
     }
 
-    private function startIndexFor(?Cursor $cursor): int
+    private function resolveStartIndex(?Cursor $cursor): int
     {
         if (null === $cursor) {
             return 0;

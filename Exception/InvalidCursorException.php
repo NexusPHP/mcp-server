@@ -32,7 +32,7 @@ final class InvalidCursorException extends AbstractJsonRpcProtocolException
     }
 
     #[\Override]
-    public static function errorCode(): ProtocolErrorCode
+    public static function getErrorCode(): ProtocolErrorCode
     {
         return ProtocolErrorCode::InvalidParams;
     }

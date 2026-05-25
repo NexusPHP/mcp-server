@@ -52,7 +52,7 @@ final class DocBlockTypeResolver
      *
      * @return array<string, ParamTagValueNode>
      */
-    public function paramTags(\ReflectionFunctionAbstract $method): array
+    public function parseParamTags(\ReflectionFunctionAbstract $method): array
     {
         $docComment = $method->getDocComment();
 

@@ -74,7 +74,7 @@ final class StdioServerTransport implements TransportInterface
     }
 
     #[\Override]
-    public function sessionId(): ?string
+    public function getSessionId(): ?string
     {
         return null;
     }

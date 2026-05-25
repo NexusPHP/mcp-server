@@ -32,7 +32,7 @@ final class LoggingLevelGate
 
     public function shouldEmit(LoggingLevel $messageLevel): bool
     {
-        return self::severityIndex($messageLevel) <= self::severityIndex($this->level);
+        return self::resolveSeverityIndex($messageLevel) <= self::resolveSeverityIndex($this->level);
     }
 
     /**
@@ -40,7 +40,7 @@ final class LoggingLevelGate
      *
      * @return int<0, 7>
      */
-    private static function severityIndex(LoggingLevel $level): int
+    private static function resolveSeverityIndex(LoggingLevel $level): int
     {
         return match ($level) {
             LoggingLevel::Emergency => 0,

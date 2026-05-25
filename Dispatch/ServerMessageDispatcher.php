@@ -111,7 +111,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
 
             // Envelope omitted the id but the method is a request method.
             // §5 null-id fallback. Respond so the peer can fix the malformed request.
-            $this->responseSender->send($transport, ResponseSender::toErrorResponse($e, null), 'misrouted');
+            $this->responseSender->send($transport, ResponseSender::buildErrorResponse($e, null), 'misrouted');
 
             return;
         } catch (AbstractJsonRpcProtocolException $e) {
@@ -124,7 +124,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                 return;
             }
 
-            $this->responseSender->send($transport, ResponseSender::toErrorResponse($e, null), 'parse-error');
+            $this->responseSender->send($transport, ResponseSender::buildErrorResponse($e, null), 'parse-error');
 
             return;
         }
@@ -152,8 +152,8 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
      */
     private function dispatchRequest(JsonRpcRequest $request, TransportInterface $transport): void
     {
-        $method = $request::method();
-        $isInitializeRequest = InitializeRequest::method() === $method;
+        $method = $request::getMethod();
+        $isInitializeRequest = InitializeRequest::getMethod() === $method;
 
         // Gate is mutated sync so a same-tick `notifications/initialized` sees `InitializeInFlight`.
         if (! $this->initializationGate->allowsRequest($method)) {
@@ -161,14 +161,14 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                 ? new ServerAlreadyInitializedException($request->id)
                 : new ServerNotInitializedException($method, $request->id);
 
-            $this->responseSender->send($transport, ResponseSender::toErrorResponse($exception, $request->id), $method);
+            $this->responseSender->send($transport, ResponseSender::buildErrorResponse($exception, $request->id), $method);
 
             return;
         }
 
         if (! $this->inboundRequests->claim($request->id)) {
             $exception = new DuplicateInboundRequestIdException($request->id);
-            $this->responseSender->send($transport, ResponseSender::toErrorResponse($exception, $request->id), $method);
+            $this->responseSender->send($transport, ResponseSender::buildErrorResponse($exception, $request->id), $method);
 
             return;
         }
@@ -184,7 +184,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                     $request->id,
                     $this->cancellation,
                     $request->params->meta,
-                    $transport->sessionId(),
+                    $transport->getSessionId(),
                     $sender,
                     $this->loggingLevelGate,
                 );
@@ -206,7 +206,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                         $this->initializationGate->revertInitializeInFlight();
                     }
 
-                    $this->responseSender->send($transport, ResponseSender::toErrorResponse($e, $request->id), $method);
+                    $this->responseSender->send($transport, ResponseSender::buildErrorResponse($e, $request->id), $method);
 
                     return;
                 } catch (\Throwable $e) {
@@ -242,9 +242,9 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
      */
     private function dispatchNotification(JsonRpcNotification $notification): void
     {
-        $method = $notification::method();
+        $method = $notification::getMethod();
 
-        if (InitializedNotification::method() === $method) {
+        if (InitializedNotification::getMethod() === $method) {
             if (! $this->initializationGate->markInitialized()) {
                 $this->logger->warning(
                     'Discarding "notifications/initialized" received in an unexpected initialize handshake state.',

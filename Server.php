@@ -29,11 +29,6 @@ final readonly class Server
     {
     }
 
-    public static function builder(): ServerBuilder
-    {
-        return new ServerBuilder();
-    }
-
     public function run(TransportInterface $transport): void
     {
         $this->logger->info('Starting MCP server.');

@@ -36,11 +36,11 @@ final class ServerInitializationGate
      */
     public function allowsRequest(string $requestMethod): bool
     {
-        if (InitializeRequest::method() === $requestMethod) {
+        if (InitializeRequest::getMethod() === $requestMethod) {
             return InitializationState::AwaitingInitialize === $this->state;
         }
 
-        return $this->isInitialized() || PingRequest::method() === $requestMethod;
+        return $this->isInitialized() || PingRequest::getMethod() === $requestMethod;
     }
 
     /**

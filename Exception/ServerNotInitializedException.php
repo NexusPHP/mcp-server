@@ -33,7 +33,7 @@ final class ServerNotInitializedException extends AbstractJsonRpcProtocolExcepti
     }
 
     #[\Override]
-    public static function errorCode(): ProtocolErrorCode
+    public static function getErrorCode(): ProtocolErrorCode
     {
         return ProtocolErrorCode::InvalidRequest;
     }

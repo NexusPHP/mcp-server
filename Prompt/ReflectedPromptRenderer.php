@@ -56,7 +56,7 @@ final readonly class ReflectedPromptRenderer implements PromptRendererInterface
         }
 
         if (\is_array($result)) {
-            return new GetPromptResult($this->messageList($result));
+            return new GetPromptResult($this->buildMessageList($result));
         }
 
         throw new UnsupportedReturnValueException(
@@ -72,7 +72,7 @@ final readonly class ReflectedPromptRenderer implements PromptRendererInterface
      *
      * @return list<PromptMessage>
      */
-    private function messageList(array $result): array
+    private function buildMessageList(array $result): array
     {
         $messages = array_filter($result, static fn(mixed $item): bool => $item instanceof PromptMessage);
 

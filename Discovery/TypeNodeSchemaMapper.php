@@ -46,10 +46,10 @@ final class TypeNodeSchemaMapper
     {
         return match (true) {
             $node instanceof IdentifierTypeNode => self::mapIdentifier($node),
-            $node instanceof NullableTypeNode => $this->nullable($this->map($node->type)),
+            $node instanceof NullableTypeNode => $this->makeNullable($this->map($node->type)),
             $node instanceof UnionTypeNode => $this->mapUnion($node),
             $node instanceof GenericTypeNode => $this->mapGeneric($node),
-            $node instanceof ArrayTypeNode => self::arrayOf($this->map($node->type)),
+            $node instanceof ArrayTypeNode => self::buildArraySchema($this->map($node->type)),
             $node instanceof ArrayShapeNode => $this->mapArrayShape($node),
             $node instanceof ObjectShapeNode => $this->mapNamedShape($node),
             $node instanceof ConstTypeNode => self::mapConstUnion([$node], (string) $node),
@@ -84,7 +84,7 @@ final class TypeNodeSchemaMapper
      *
      * @return array<string, mixed>
      */
-    public function nullable(array $schema): array
+    public function makeNullable(array $schema): array
     {
         if (! \array_key_exists('type', $schema)) {
             return $schema;
@@ -259,7 +259,7 @@ final class TypeNodeSchemaMapper
             $schema = ['type' => self::normaliseTypeList($types)];
         }
 
-        return $hasNull ? $this->nullable($schema) : $schema;
+        return $hasNull ? $this->makeNullable($schema) : $schema;
     }
 
     /**
@@ -272,11 +272,11 @@ final class TypeNodeSchemaMapper
      */
     private static function mapConstUnion(array $members, string $label): array
     {
-        [$type, $value] = self::constMember($members[0], $label);
+        [$type, $value] = self::buildConstMember($members[0], $label);
         $enum = [$value];
 
         foreach (\array_slice($members, 1) as $member) {
-            [$memberType, $memberValue] = self::constMember($member, $label);
+            [$memberType, $memberValue] = self::buildConstMember($member, $label);
 
             if ($memberType !== $type) {
                 throw new UnsupportedSchemaTypeException($label);
@@ -291,7 +291,7 @@ final class TypeNodeSchemaMapper
     /**
      * @return array{string, int|string}
      */
-    private static function constMember(TypeNode $node, string $label): array
+    private static function buildConstMember(TypeNode $node, string $label): array
     {
         if (! $node instanceof ConstTypeNode) {
             throw new UnsupportedSchemaTypeException($label);
@@ -322,7 +322,7 @@ final class TypeNodeSchemaMapper
         $arguments = $node->genericTypes;
 
         if (isset($arguments[0]) && ! isset($arguments[1])) {
-            return self::arrayOf($this->map($arguments[0]));
+            return self::buildArraySchema($this->map($arguments[0]));
         }
 
         if (isset($arguments[0], $arguments[1]) && ! isset($arguments[2])) {
@@ -330,7 +330,7 @@ final class TypeNodeSchemaMapper
             $value = $this->map($arguments[1]);
 
             if ($keyNode instanceof IdentifierTypeNode && \in_array($keyNode->name, ['int', 'integer'], true)) {
-                return self::arrayOf($value);
+                return self::buildArraySchema($value);
             }
 
             return [] === $value
@@ -354,13 +354,13 @@ final class TypeNodeSchemaMapper
 
         $schema = ['type' => 'integer'];
 
-        $minimum = self::intBound($arguments[0], 'min', (string) $node);
+        $minimum = self::readIntBound($arguments[0], 'min', (string) $node);
 
         if (null !== $minimum) {
             $schema['minimum'] = $minimum;
         }
 
-        $maximum = self::intBound($arguments[1], 'max', (string) $node);
+        $maximum = self::readIntBound($arguments[1], 'max', (string) $node);
 
         if (null !== $maximum) {
             $schema['maximum'] = $maximum;
@@ -369,7 +369,7 @@ final class TypeNodeSchemaMapper
         return $schema;
     }
 
-    private static function intBound(TypeNode $node, string $sentinel, string $label): ?int
+    private static function readIntBound(TypeNode $node, string $sentinel, string $label): ?int
     {
         if ($node instanceof ConstTypeNode && $node->constExpr instanceof ConstExprIntegerNode) {
             return (int) $node->constExpr->value;
@@ -431,7 +431,7 @@ final class TypeNodeSchemaMapper
         $required = [];
 
         foreach ($node->items as $item) {
-            $key = self::shapeKey($item);
+            $key = self::resolveShapeKey($item);
 
             if (null === $key) {
                 throw new UnsupportedSchemaTypeException((string) $node);
@@ -453,7 +453,7 @@ final class TypeNodeSchemaMapper
         return $schema;
     }
 
-    private static function shapeKey(ArrayShapeItemNode|ObjectShapeItemNode $item): ?string
+    private static function resolveShapeKey(ArrayShapeItemNode|ObjectShapeItemNode $item): ?string
     {
         return $item->keyName instanceof IdentifierTypeNode ? $item->keyName->name : null;
     }
@@ -463,7 +463,7 @@ final class TypeNodeSchemaMapper
      *
      * @return array<string, mixed>
      */
-    private static function arrayOf(array $items): array
+    private static function buildArraySchema(array $items): array
     {
         return [] === $items ? ['type' => 'array'] : ['type' => 'array', 'items' => $items];
     }

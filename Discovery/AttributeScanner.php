@@ -108,7 +108,7 @@ final readonly class AttributeScanner
             $attribute->name ?? $method->getName(),
             $attribute->title,
             $attribute->description,
-            $this->promptArguments($method),
+            $this->buildPromptArguments($method),
             $attribute->icons,
             new MetaObject($attribute->meta ?? []),
         );
@@ -117,9 +117,9 @@ final readonly class AttributeScanner
     /**
      * @return null|list<PromptArgument>
      */
-    private function promptArguments(\ReflectionMethod $method): ?array
+    private function buildPromptArguments(\ReflectionMethod $method): ?array
     {
-        $tags = $this->resolver->paramTags($method);
+        $tags = $this->resolver->parseParamTags($method);
         $arguments = [];
 
         foreach ($method->getParameters() as $parameter) {

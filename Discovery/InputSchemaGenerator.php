@@ -40,15 +40,15 @@ final readonly class InputSchemaGenerator
      */
     public function generate(\ReflectionMethod $method): array
     {
-        $methodAttribute = self::attribute($method);
+        $methodAttribute = self::readAttribute($method);
 
         if (null !== $methodAttribute && null !== $methodAttribute->definition) {
             return self::ensureDialect($methodAttribute->definition);
         }
 
-        [$properties, $required] = $this->objectMembers(
+        [$properties, $required] = $this->buildObjectMembers(
             $method->getParameters(),
-            $this->resolver->paramTags($method),
+            $this->resolver->parseParamTags($method),
             true,
         );
 
@@ -87,7 +87,7 @@ final readonly class InputSchemaGenerator
      *
      * @return array{0: array<string, mixed>, 1: list<string>}
      */
-    private function objectMembers(iterable $parameters, array $tags, bool $topLevel): array
+    private function buildObjectMembers(iterable $parameters, array $tags, bool $topLevel): array
     {
         $properties = [];
         $required = [];
@@ -125,9 +125,9 @@ final readonly class InputSchemaGenerator
             return ['type' => 'object'];
         }
 
-        [$properties, $required] = $this->objectMembers(
+        [$properties, $required] = $this->buildObjectMembers(
             $constructor->getParameters(),
-            $this->resolver->paramTags($constructor),
+            $this->resolver->parseParamTags($constructor),
             false,
         );
 
@@ -149,7 +149,7 @@ final readonly class InputSchemaGenerator
      */
     private function buildParameterSchema(\ReflectionParameter $parameter, ?ParamTagValueNode $tag, bool $topLevel): array
     {
-        $attribute = self::attribute($parameter);
+        $attribute = self::readAttribute($parameter);
 
         if (null !== $attribute && null !== $attribute->definition) {
             return $attribute->definition;
@@ -160,14 +160,14 @@ final readonly class InputSchemaGenerator
         if (isset($explicit['type'])) {
             $inferred = [];
         } else {
-            $class = $topLevel ? self::expandableNativeClass($parameter) : null;
+            $class = $topLevel ? self::resolveExpandableNativeClass($parameter) : null;
             $inferred = null !== $class
                 ? $this->expandNativeClass($parameter, $class)
                 : $this->inferType($parameter, $tag?->type);
         }
 
         if ($parameter->isVariadic()) {
-            $inferred = self::asArraySchema($inferred);
+            $inferred = self::buildArraySchema($inferred);
         }
 
         if (null !== $tag && '' !== $tag->description) {
@@ -203,7 +203,7 @@ final readonly class InputSchemaGenerator
             throw new SchemaGenerationException($class, $function->getName(), $parameter->getName(), $exception->getMessage(), $exception);
         }
 
-        return self::allowsNull($parameter) ? $this->mapper->nullable($schema) : $schema;
+        return self::allowsNull($parameter) ? $this->mapper->makeNullable($schema) : $schema;
     }
 
     /**
@@ -215,13 +215,13 @@ final readonly class InputSchemaGenerator
     {
         $schema = $this->expandClass($class);
 
-        return self::allowsNull($parameter) ? $this->mapper->nullable($schema) : $schema;
+        return self::allowsNull($parameter) ? $this->mapper->makeNullable($schema) : $schema;
     }
 
     /**
      * @return null|class-string
      */
-    private static function expandableNativeClass(\ReflectionParameter $parameter): ?string
+    private static function resolveExpandableNativeClass(\ReflectionParameter $parameter): ?string
     {
         $type = $parameter->getType();
 
@@ -255,7 +255,7 @@ final readonly class InputSchemaGenerator
      *
      * @return array<string, mixed>
      */
-    private static function asArraySchema(array $items): array
+    private static function buildArraySchema(array $items): array
     {
         if ([] === $items) {
             return ['type' => 'array'];
@@ -285,7 +285,7 @@ final readonly class InputSchemaGenerator
         return $schema;
     }
 
-    private static function attribute(\ReflectionMethod|\ReflectionParameter $reflection): ?InputSchema
+    private static function readAttribute(\ReflectionMethod|\ReflectionParameter $reflection): ?InputSchema
     {
         $attributes = $reflection->getAttributes(InputSchema::class);
 
