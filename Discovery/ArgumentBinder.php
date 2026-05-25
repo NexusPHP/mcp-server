@@ -1,0 +1,121 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * This file is part of the Nexus MCP SDK package.
+ *
+ * (c) 2026 John Paul E. Balandan, CPA <paulbalandan@gmail.com>
+ *
+ * For the full copyright and license information, please view
+ * the LICENSE file that was distributed with this source code.
+ */
+
+namespace Nexus\Mcp\Server\Discovery;
+
+use Nexus\Assert\ExpectationFailedException;
+use Nexus\Mcp\Core\Validation\EnumValueValidator;
+use Nexus\Mcp\Server\ServerContext;
+
+/**
+ * Binds a named value map to a handler method's parameters, injecting the `ServerContext` and hydrating enums.
+ *
+ * @internal
+ */
+final class ArgumentBinder
+{
+    /**
+     * @param array<string, mixed> $values
+     *
+     * @return list<mixed>
+     *
+     * @throws ExpectationFailedException
+     */
+    public function bind(\ReflectionMethod $method, array $values, ServerContext $context): array
+    {
+        $arguments = [];
+
+        foreach ($method->getParameters() as $parameter) {
+            if (self::isContext($parameter)) {
+                $arguments[] = $context;
+
+                continue;
+            }
+
+            $name = $parameter->getName();
+
+            if (\array_key_exists($name, $values)) {
+                $arguments[] = self::hydrate($parameter, $values[$name]);
+
+                continue;
+            }
+
+            if ($parameter->isDefaultValueAvailable()) {
+                $arguments[] = $parameter->getDefaultValue();
+
+                continue;
+            }
+
+            throw new ExpectationFailedException('The "{name}" argument is required.', ['name' => $name]);
+        }
+
+        return $arguments;
+    }
+
+    private static function isContext(\ReflectionParameter $parameter): bool
+    {
+        $type = $parameter->getType();
+
+        return $type instanceof \ReflectionNamedType && ServerContext::class === $type->getName();
+    }
+
+    private static function hydrate(\ReflectionParameter $parameter, mixed $value): mixed
+    {
+        $type = $parameter->getType();
+
+        if (! $type instanceof \ReflectionNamedType || $type->isBuiltin()) {
+            return $value;
+        }
+
+        $name = $type->getName();
+
+        if (! enum_exists($name)) {
+            return $value;
+        }
+
+        $context = \sprintf('Parameter "$%s"', $parameter->getName());
+
+        if (is_subclass_of($name, \BackedEnum::class)) {
+            return EnumValueValidator::parse($name, $value, $context);
+        }
+
+        return self::pureCase($name, $value, $context);
+    }
+
+    /**
+     * @param class-string<\UnitEnum> $enum
+     * @param non-empty-string        $context
+     */
+    private static function pureCase(string $enum, mixed $value, string $context): \UnitEnum
+    {
+        if (\is_string($value)) {
+            foreach ($enum::cases() as $case) {
+                if ($case->name === $value) {
+                    return $case;
+                }
+            }
+        }
+
+        throw new ExpectationFailedException(
+            '{context} must be one of [{cases}], {value} given.',
+            [
+                'context' => $context,
+                'cases' => implode(', ', array_map(
+                    static fn(\UnitEnum $case): string => var_export($case->name, true),
+                    $enum::cases(),
+                )),
+                'value' => var_export($value, true),
+            ],
+        );
+    }
+}
