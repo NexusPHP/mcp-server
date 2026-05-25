@@ -38,6 +38,7 @@ use Nexus\Mcp\Server\Discovery\AttributeScanner;
 use Nexus\Mcp\Server\Dispatch\ServerInitializationGate;
 use Nexus\Mcp\Server\Dispatch\ServerMessageDispatcher;
 use Nexus\Mcp\Server\Exception\DuplicateServerMetadataException;
+use Nexus\Mcp\Server\Exception\MissingDiscoveryAttributeException;
 use Nexus\Mcp\Server\Exception\ReservedMethodException;
 use Nexus\Mcp\Server\Exception\UnreservedMethodException;
 use Nexus\Mcp\Server\Handler\Request\CallToolRequestHandler;
@@ -241,12 +242,14 @@ final class ServerBuilder
      * most one registered source may declare `#[AsServer]`.
      *
      * @throws DuplicateServerMetadataException
+     * @throws MissingDiscoveryAttributeException
      */
     public function register(object ...$sources): self
     {
         $scanner = new AttributeScanner();
 
         foreach ($sources as $source) {
+            $contributed = false;
             $metadata = self::serverMetadataOf($source);
 
             if (null !== $metadata) {
@@ -255,9 +258,12 @@ final class ServerBuilder
                 }
 
                 $this->serverMetadata = $metadata;
+                $contributed = true;
             }
 
             foreach ($scanner->scan($source) as $entry) {
+                $contributed = true;
+
                 if ($entry instanceof ToolEntry) {
                     $this->addTool($entry->tool, $entry->executor);
                 } elseif ($entry instanceof PromptEntry) {
@@ -267,6 +273,10 @@ final class ServerBuilder
                 } else {
                     $this->addResourceTemplate($entry->template, $entry->reader);
                 }
+            }
+
+            if (! $contributed) {
+                throw new MissingDiscoveryAttributeException($source::class);
             }
         }
 
