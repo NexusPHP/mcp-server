@@ -56,19 +56,23 @@ use Nexus\Mcp\Server\Prompt\ClosurePromptRenderer;
 use Nexus\Mcp\Server\Prompt\PromptEntry;
 use Nexus\Mcp\Server\Prompt\PromptRendererInterface;
 use Nexus\Mcp\Server\Prompt\PromptStore;
+use Nexus\Mcp\Server\Prompt\PromptStoreInterface;
 use Nexus\Mcp\Server\Resource\ClosureResourceReader;
 use Nexus\Mcp\Server\Resource\ClosureTemplatedResourceReader;
 use Nexus\Mcp\Server\Resource\CompositeResourceStore;
 use Nexus\Mcp\Server\Resource\ResourceEntry;
 use Nexus\Mcp\Server\Resource\ResourceReaderInterface;
 use Nexus\Mcp\Server\Resource\ResourceStore;
+use Nexus\Mcp\Server\Resource\ResourceStoreInterface;
 use Nexus\Mcp\Server\Resource\ResourceTemplateEntry;
 use Nexus\Mcp\Server\Resource\ResourceTemplateStore;
+use Nexus\Mcp\Server\Resource\ResourceTemplateStoreInterface;
 use Nexus\Mcp\Server\Resource\TemplatedResourceReaderInterface;
 use Nexus\Mcp\Server\Tool\ClosureToolExecutor;
 use Nexus\Mcp\Server\Tool\ToolEntry;
 use Nexus\Mcp\Server\Tool\ToolExecutorInterface;
 use Nexus\Mcp\Server\Tool\ToolStore;
+use Nexus\Mcp\Server\Tool\ToolStoreInterface;
 use Nexus\Mcp\Server\Validation\OpisSchemaValidator;
 use Nexus\Mcp\Server\Validation\SchemaValidatorInterface;
 use Psr\Log\LoggerInterface;
@@ -111,6 +115,10 @@ final class ServerBuilder
      */
     private array $resourceTemplates = [];
 
+    private ?ToolStoreInterface $toolStore = null;
+    private ?PromptStoreInterface $promptStore = null;
+    private ?ResourceStoreInterface $resourceStore = null;
+    private ?ResourceTemplateStoreInterface $resourceTemplateStore = null;
     private ?CompletionStoreInterface $completionStore = null;
 
     /**
@@ -223,6 +231,34 @@ final class ServerBuilder
             $template,
             $reader instanceof TemplatedResourceReaderInterface ? $reader : new ClosureTemplatedResourceReader($reader),
         );
+
+        return $this;
+    }
+
+    public function setToolStore(ToolStoreInterface $store): self
+    {
+        $this->toolStore = $store;
+
+        return $this;
+    }
+
+    public function setPromptStore(PromptStoreInterface $store): self
+    {
+        $this->promptStore = $store;
+
+        return $this;
+    }
+
+    public function setResourceStore(ResourceStoreInterface $store): self
+    {
+        $this->resourceStore = $store;
+
+        return $this;
+    }
+
+    public function setResourceTemplateStore(ResourceTemplateStoreInterface $store): self
+    {
+        $this->resourceTemplateStore = $store;
 
         return $this;
     }
@@ -467,7 +503,7 @@ final class ServerBuilder
 
     private function hasPromptsCapability(): bool
     {
-        if ([] !== $this->prompts) {
+        if (null !== $this->promptStore || [] !== $this->prompts) {
             return true;
         }
 
@@ -477,7 +513,12 @@ final class ServerBuilder
 
     private function hasResourcesCapability(): bool
     {
-        if ([] !== $this->resources || [] !== $this->resourceTemplates) {
+        if (
+            [] !== $this->resources
+            || null !== $this->resourceStore
+            || [] !== $this->resourceTemplates
+            || null !== $this->resourceTemplateStore
+        ) {
             return true;
         }
 
@@ -487,7 +528,7 @@ final class ServerBuilder
 
     private function hasToolsCapability(): bool
     {
-        if ([] !== $this->tools) {
+        if (null !== $this->toolStore || [] !== $this->tools) {
             return true;
         }
 
@@ -509,30 +550,33 @@ final class ServerBuilder
             Request\SetLevelRequest::getMethod() => new SetLevelRequestHandler($loggingLevelGate),
         ];
 
-        if ([] !== $this->tools) {
-            $toolStore = new ToolStore($this->tools, validator: $this->schemaValidator);
+        if (null !== $this->toolStore || [] !== $this->tools) {
+            $toolStore = $this->toolStore ?? new ToolStore($this->tools, validator: $this->schemaValidator);
             $defaults[Request\ListToolsRequest::getMethod()] = new ListToolsRequestHandler($toolStore);
             $defaults[Request\CallToolRequest::getMethod()] = new CallToolRequestHandler($toolStore, $this->logger);
         }
 
-        if ([] !== $this->prompts) {
-            $promptStore = new PromptStore($this->prompts);
+        if (null !== $this->promptStore || [] !== $this->prompts) {
+            $promptStore = $this->promptStore ?? new PromptStore($this->prompts);
             $defaults[Request\ListPromptsRequest::getMethod()] = new ListPromptsRequestHandler($promptStore);
             $defaults[Request\GetPromptRequest::getMethod()] = new GetPromptRequestHandler($promptStore);
         }
 
-        if ([] !== $this->resources || [] !== $this->resourceTemplates) {
-            $resourceStore = new ResourceStore($this->resources);
-            $templateStore = [] !== $this->resourceTemplates ? new ResourceTemplateStore($this->resourceTemplates) : null;
+        $resourceTemplateStore = null;
+
+        if (null !== $this->resourceTemplateStore || [] !== $this->resourceTemplates) {
+            $resourceTemplateStore = $this->resourceTemplateStore ?? new ResourceTemplateStore($this->resourceTemplates);
+
+            $defaults[Request\ListResourceTemplatesRequest::getMethod()] = new ListResourceTemplatesRequestHandler($resourceTemplateStore);
+        }
+
+        if (null !== $this->resourceStore || [] !== $this->resources || null !== $resourceTemplateStore) {
+            $resourceStore = $this->resourceStore ?? new ResourceStore($this->resources);
 
             $defaults[Request\ListResourcesRequest::getMethod()] = new ListResourcesRequestHandler($resourceStore);
             $defaults[Request\ReadResourceRequest::getMethod()] = new ReadResourceRequestHandler(
-                null !== $templateStore ? new CompositeResourceStore($resourceStore, $templateStore) : $resourceStore,
+                null !== $resourceTemplateStore ? new CompositeResourceStore($resourceStore, $resourceTemplateStore) : $resourceStore,
             );
-
-            if (null !== $templateStore) {
-                $defaults[Request\ListResourceTemplatesRequest::getMethod()] = new ListResourceTemplatesRequestHandler($templateStore);
-            }
         }
 
         if (null !== $this->completionStore) {
