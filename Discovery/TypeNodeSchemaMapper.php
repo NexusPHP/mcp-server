@@ -58,10 +58,10 @@ final class TypeNodeSchemaMapper
     }
 
     /**
-     * Picks the type node to map. The docblock type is used when there is no native type, or when it refines
-     * the native one. Otherwise the native type wins.
+     * Resolves the type node to map. The docblock type is used when there is no native type, or when it
+     * refines the native one. Otherwise the native type wins.
      */
-    public function chooseCore(?TypeNode $native, ?TypeNode $doc): ?TypeNode
+    public function resolveTypeNode(?TypeNode $native, ?TypeNode $doc): ?TypeNode
     {
         $nativeCore = null !== $native ? self::stripNull($native) : null;
         $docCore = null !== $doc ? self::stripNull($doc) : null;

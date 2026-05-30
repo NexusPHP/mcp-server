@@ -188,14 +188,14 @@ final readonly class InputSchemaGenerator
     {
         $native = $parameter->getType();
         $nativeNode = $native instanceof \ReflectionType ? $this->resolver->parseNativeType((string) $native) : null;
-        $core = $this->mapper->chooseCore($nativeNode, $docNode);
+        $type = $this->mapper->resolveTypeNode($nativeNode, $docNode);
 
-        if (null === $core) {
+        if (null === $type) {
             return [];
         }
 
         try {
-            $schema = $this->mapper->map($core);
+            $schema = $this->mapper->map($type);
         } catch (UnsupportedSchemaTypeException $exception) {
             $function = $parameter->getDeclaringFunction();
             $class = $function instanceof \ReflectionMethod ? $function->getDeclaringClass()->getName() : '{closure}';
