@@ -34,7 +34,6 @@ use Nexus\Mcp\Server\Resource\ReflectedResourceReader;
 use Nexus\Mcp\Server\Resource\ReflectedTemplatedResourceReader;
 use Nexus\Mcp\Server\Resource\ResourceEntry;
 use Nexus\Mcp\Server\Resource\ResourceTemplateEntry;
-use Nexus\Mcp\Server\ServerContext;
 use Nexus\Mcp\Server\Tool\ReflectedToolExecutor;
 use Nexus\Mcp\Server\Tool\ToolEntry;
 
@@ -125,7 +124,7 @@ final readonly class AttributeScanner
         $arguments = [];
 
         foreach ($method->getParameters() as $parameter) {
-            if (self::isInjected($parameter)) {
+            if (InputSchemaGenerator::isInjectedContext($parameter)) {
                 continue;
             }
 
@@ -177,20 +176,13 @@ final readonly class AttributeScanner
         );
     }
 
-    private static function isInjected(\ReflectionParameter $parameter): bool
-    {
-        $type = $parameter->getType();
-
-        return $type instanceof \ReflectionNamedType && ServerContext::class === $type->getName();
-    }
-
     /**
      * @throws UnsupportedParameterTypeException
      */
     private static function rejectUnsupportedParameterType(\ReflectionMethod $method): void
     {
         foreach ($method->getParameters() as $parameter) {
-            if (self::isInjected($parameter) || self::acceptsStringArgument($parameter->getType())) {
+            if (InputSchemaGenerator::isInjectedContext($parameter) || self::acceptsStringArgument($parameter->getType())) {
                 continue;
             }
 

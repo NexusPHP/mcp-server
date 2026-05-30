@@ -39,7 +39,7 @@ final class ArgumentBinder
         foreach ($method->getParameters() as $parameter) {
             $name = $parameter->getName();
 
-            if (self::isContext($parameter)) {
+            if (InputSchemaGenerator::isInjectedContext($parameter)) {
                 $arguments[] = $context;
             } elseif ($parameter->isVariadic()) {
                 $list = $values[$name] ?? [];
@@ -114,13 +114,6 @@ final class ArgumentBinder
         $name = $type->getName();
 
         return InputSchemaGenerator::isExpandable($name) ? $name : null;
-    }
-
-    private static function isContext(\ReflectionParameter $parameter): bool
-    {
-        $type = $parameter->getType();
-
-        return $type instanceof \ReflectionNamedType && ServerContext::class === $type->getName();
     }
 
     private static function hydrate(\ReflectionParameter $parameter, mixed $value): mixed

@@ -82,6 +82,16 @@ final readonly class InputSchemaGenerator
     }
 
     /**
+     * Whether a parameter is the dependency-injected `ServerContext`, excluded from the argument surface.
+     */
+    public static function isInjectedContext(\ReflectionParameter $parameter): bool
+    {
+        $type = $parameter->getType();
+
+        return $type instanceof \ReflectionNamedType && $type->getName() === ServerContext::class;
+    }
+
+    /**
      * @param iterable<\ReflectionParameter>   $parameters
      * @param array<string, ParamTagValueNode> $tags
      *
@@ -93,7 +103,7 @@ final readonly class InputSchemaGenerator
         $required = [];
 
         foreach ($parameters as $parameter) {
-            if ($topLevel && self::isInjected($parameter)) {
+            if ($topLevel && self::isInjectedContext($parameter)) {
                 continue;
             }
 
@@ -262,13 +272,6 @@ final readonly class InputSchemaGenerator
         }
 
         return ['type' => 'array', 'items' => $items];
-    }
-
-    private static function isInjected(\ReflectionParameter $parameter): bool
-    {
-        $type = $parameter->getType();
-
-        return $type instanceof \ReflectionNamedType && ServerContext::class === $type->getName();
     }
 
     /**
