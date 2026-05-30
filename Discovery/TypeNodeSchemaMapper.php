@@ -105,16 +105,27 @@ final class TypeNodeSchemaMapper
     }
 
     /**
-     * A docblock type refines the native type when it is an array shape or element type over a bare native
-     * `array`/`iterable`, or maps to the same base type as the native one.
+     * A docblock type refines the native type when it is a mappable array shape or element type over a bare
+     * native `array`/`iterable`, or maps to the same base type as the native one.
      */
     private function docRefinesNative(TypeNode $native, TypeNode $doc): bool
     {
         if (self::isBareArray($native) && self::isArrayLike($doc)) {
-            return true;
+            return $this->isMappable($doc);
         }
 
         return $this->sharesBaseType($native, $doc);
+    }
+
+    private function isMappable(TypeNode $node): bool
+    {
+        try {
+            $this->map($node);
+        } catch (UnsupportedSchemaTypeException) {
+            return false;
+        }
+
+        return true;
     }
 
     private function sharesBaseType(TypeNode $native, TypeNode $doc): bool
