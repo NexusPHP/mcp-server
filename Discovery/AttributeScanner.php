@@ -26,6 +26,7 @@ use Nexus\Mcp\Server\Attribute\AsPrompt;
 use Nexus\Mcp\Server\Attribute\AsResource;
 use Nexus\Mcp\Server\Attribute\AsResourceTemplate;
 use Nexus\Mcp\Server\Attribute\AsTool;
+use Nexus\Mcp\Server\Exception\UnsupportedParameterTypeException;
 use Nexus\Mcp\Server\Exception\UnsupportedVariadicParameterException;
 use Nexus\Mcp\Server\Prompt\PromptEntry;
 use Nexus\Mcp\Server\Prompt\ReflectedPromptRenderer;
@@ -103,6 +104,7 @@ final readonly class AttributeScanner
     private function buildPrompt(\ReflectionMethod $method, AsPrompt $attribute): Prompt
     {
         self::rejectIfVariadic($method);
+        self::rejectUnsupportedParameterType($method);
 
         return new Prompt(
             $attribute->name ?? $method->getName(),
@@ -143,6 +145,7 @@ final readonly class AttributeScanner
     private static function buildResource(\ReflectionMethod $method, AsResource $attribute): Resource
     {
         self::rejectIfVariadic($method);
+        self::rejectUnsupportedParameterType($method);
 
         return new Resource(
             $attribute->name ?? $method->getName(),
@@ -160,6 +163,7 @@ final readonly class AttributeScanner
     private static function buildResourceTemplate(\ReflectionMethod $method, AsResourceTemplate $attribute): ResourceTemplate
     {
         self::rejectIfVariadic($method);
+        self::rejectUnsupportedParameterType($method);
 
         return new ResourceTemplate(
             $attribute->name ?? $method->getName(),
@@ -178,6 +182,55 @@ final readonly class AttributeScanner
         $type = $parameter->getType();
 
         return $type instanceof \ReflectionNamedType && ServerContext::class === $type->getName();
+    }
+
+    /**
+     * @throws UnsupportedParameterTypeException
+     */
+    private static function rejectUnsupportedParameterType(\ReflectionMethod $method): void
+    {
+        foreach ($method->getParameters() as $parameter) {
+            if (self::isInjected($parameter) || self::acceptsStringArgument($parameter->getType())) {
+                continue;
+            }
+
+            throw new UnsupportedParameterTypeException(
+                $method->getDeclaringClass()->getName(),
+                $method->getName(),
+                $parameter->getName(),
+                (string) $parameter->getType(),
+            );
+        }
+    }
+
+    private static function acceptsStringArgument(?\ReflectionType $type): bool
+    {
+        if ($type instanceof \ReflectionUnionType) {
+            return array_any(
+                $type->getTypes(),
+                static fn(\ReflectionType $member): bool => self::acceptsStringArgument($member),
+            );
+        }
+
+        if ($type instanceof \ReflectionNamedType) {
+            return $type->isBuiltin()
+                ? $type->getName() === 'string' || $type->getName() === 'mixed'
+                : self::isStringResolvableEnum($type->getName());
+        }
+
+        // Untyped accepts the string verbatim. An intersection type cannot be a string.
+        return ! $type instanceof \ReflectionType;
+    }
+
+    private static function isStringResolvableEnum(string $name): bool
+    {
+        if (! enum_exists($name)) {
+            return false;
+        }
+
+        $backingType = new \ReflectionEnum($name)->getBackingType();
+
+        return ! $backingType instanceof \ReflectionNamedType || $backingType->getName() === 'string';
     }
 
     /**
