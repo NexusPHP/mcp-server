@@ -58,8 +58,7 @@ final class TypeNodeSchemaMapper
     }
 
     /**
-     * Resolves the type node to map. The docblock type is used when there is no native type, or when it
-     * refines the native one. Otherwise the native type wins.
+     * Resolves which of the native or docblock type nodes is mapped to JSON Schema.
      */
     public function resolveTypeNode(?TypeNode $native, ?TypeNode $doc): ?TypeNode
     {
@@ -105,8 +104,7 @@ final class TypeNodeSchemaMapper
     }
 
     /**
-     * A docblock type refines the native type when it is a mappable array shape or element type over a bare
-     * native `array`/`iterable`, or maps to the same base type as the native one.
+     * Whether the docblock type is a more specific stand-in for the native type.
      */
     private function docRefinesNative(TypeNode $native, TypeNode $doc): bool
     {
