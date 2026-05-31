@@ -20,7 +20,7 @@ namespace Nexus\Mcp\Server\Attribute;
 final readonly class InputSchema
 {
     /**
-     * @param null|array<string, mixed>      $definition           Full schema override
+     * @param null|array<string, mixed>      $definition           Explicit input schema (only its type, $schema, properties, and required keys are advertised)
      * @param null|list<mixed>               $enum
      * @param null|array<string, mixed>      $items
      * @param null|array<string, mixed>      $properties
