@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Tool;
 
 use Nexus\Assert\Assert;
+use Nexus\Assert\ExpectationFailedException;
 use Nexus\Mcp\Core\Schema\ContentBlock;
 use Nexus\Mcp\Core\Schema\ContentBlock\AudioContent;
 use Nexus\Mcp\Core\Schema\ContentBlock\EmbeddedResource;
@@ -60,31 +61,32 @@ final readonly class ReflectedToolExecutor implements ToolExecutorInterface
         }
 
         if (\is_array($result)) {
-            return self::structuredOrContent($result);
+            return self::structuredOrContent($result, $this->method);
         }
 
-        throw new UnsupportedReturnValueException(
-            $this->method->getDeclaringClass()->getName(),
-            $this->method->getName(),
-            \sprintf('a %s, a string, content blocks, or an array', CallToolResult::class),
-            $result,
-        );
+        throw self::buildUnsupportedError($this->method, $result);
     }
 
     /**
      * @param array<array-key, mixed> $result
      */
-    private static function structuredOrContent(array $result): CallToolResult
+    private static function structuredOrContent(array $result, \ReflectionMethod $method): CallToolResult
     {
         if (array_is_list($result) && [] !== $result) {
             $blocks = self::contentBlocks($result);
 
-            if (\count($blocks) === \count($result)) {
-                return new CallToolResult($blocks);
+            if (\count($blocks) !== \count($result)) {
+                throw self::buildUnsupportedError($method, $result);
             }
+
+            return new CallToolResult($blocks);
         }
 
-        Assert::that($result)->isMap('Tool structured content must be a string-keyed object.');
+        try {
+            Assert::that($result)->isMap('Tool structured content must be a string-keyed object.');
+        } catch (ExpectationFailedException) {
+            throw self::buildUnsupportedError($method, $result);
+        }
 
         return new CallToolResult([], $result);
     }
@@ -104,5 +106,15 @@ final readonly class ReflectedToolExecutor implements ToolExecutorInterface
                 || $item instanceof ResourceLink
                 || $item instanceof TextContent,
         ));
+    }
+
+    private static function buildUnsupportedError(\ReflectionMethod $method, mixed $result): UnsupportedReturnValueException
+    {
+        return new UnsupportedReturnValueException(
+            $method->getDeclaringClass()->getName(),
+            $method->getName(),
+            \sprintf('a %s, a string, content blocks, or an array', CallToolResult::class),
+            $result,
+        );
     }
 }
