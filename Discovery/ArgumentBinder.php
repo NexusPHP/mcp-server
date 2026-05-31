@@ -62,7 +62,7 @@ final class ArgumentBinder
 
     private static function bindArgument(\ReflectionParameter $parameter, mixed $value): mixed
     {
-        $class = self::resolveDtoClass($parameter);
+        $class = InputSchemaGenerator::resolveExpandableNativeClass($parameter);
 
         return null !== $class ? self::construct($class, $value) : self::hydrate($parameter, $value);
     }
@@ -98,22 +98,6 @@ final class ArgumentBinder
         }
 
         return $reflection->newInstanceArgs($arguments);
-    }
-
-    /**
-     * @return null|class-string
-     */
-    private static function resolveDtoClass(\ReflectionParameter $parameter): ?string
-    {
-        $type = $parameter->getType();
-
-        if (! $type instanceof \ReflectionNamedType || $type->isBuiltin()) {
-            return null;
-        }
-
-        $name = $type->getName();
-
-        return InputSchemaGenerator::isExpandable($name) ? $name : null;
     }
 
     private static function hydrate(\ReflectionParameter $parameter, mixed $value): mixed

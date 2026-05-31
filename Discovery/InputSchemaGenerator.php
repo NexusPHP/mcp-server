@@ -92,6 +92,24 @@ final readonly class InputSchemaGenerator
     }
 
     /**
+     * Resolves a parameter's native type to an expandable class, or null when it is not expandable.
+     *
+     * @return null|class-string
+     */
+    public static function resolveExpandableNativeClass(\ReflectionParameter $parameter): ?string
+    {
+        $type = $parameter->getType();
+
+        if (! $type instanceof \ReflectionNamedType || $type->isBuiltin()) {
+            return null;
+        }
+
+        $name = $type->getName();
+
+        return self::isExpandable($name) ? $name : null;
+    }
+
+    /**
      * @param iterable<\ReflectionParameter>   $parameters
      * @param array<string, ParamTagValueNode> $tags
      *
@@ -226,22 +244,6 @@ final readonly class InputSchemaGenerator
         $schema = $this->expandClass($class);
 
         return self::allowsNull($parameter) ? $this->mapper->makeNullable($schema) : $schema;
-    }
-
-    /**
-     * @return null|class-string
-     */
-    private static function resolveExpandableNativeClass(\ReflectionParameter $parameter): ?string
-    {
-        $type = $parameter->getType();
-
-        if (! $type instanceof \ReflectionNamedType || $type->isBuiltin()) {
-            return null;
-        }
-
-        $name = $type->getName();
-
-        return self::isExpandable($name) ? $name : null;
     }
 
     private static function allowsNull(\ReflectionParameter $parameter): bool
