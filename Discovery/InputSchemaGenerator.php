@@ -177,7 +177,7 @@ final readonly class InputSchemaGenerator
         }
 
         if ($parameter->isVariadic()) {
-            $inferred = self::buildArraySchema($inferred);
+            $inferred = TypeNodeSchemaMapper::buildArraySchema($inferred);
         }
 
         if (null !== $tag && '' !== $tag->description) {
@@ -258,20 +258,6 @@ final readonly class InputSchemaGenerator
             $value instanceof \UnitEnum => $value->name,
             default => $value,
         };
-    }
-
-    /**
-     * @param array<string, mixed> $items
-     *
-     * @return array<string, mixed>
-     */
-    private static function buildArraySchema(array $items): array
-    {
-        if ([] === $items) {
-            return ['type' => 'array'];
-        }
-
-        return ['type' => 'array', 'items' => $items];
     }
 
     /**

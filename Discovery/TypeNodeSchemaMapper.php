@@ -104,6 +104,18 @@ final class TypeNodeSchemaMapper
     }
 
     /**
+     * Builds a JSON Schema `array` fragment from an element schema.
+     *
+     * @param array<string, mixed> $items
+     *
+     * @return array<string, mixed>
+     */
+    public static function buildArraySchema(array $items): array
+    {
+        return [] === $items ? ['type' => 'array'] : ['type' => 'array', 'items' => $items];
+    }
+
+    /**
      * Whether the docblock type is a more specific stand-in for the native type.
      */
     private function docRefinesNative(TypeNode $native, TypeNode $doc): bool
@@ -465,16 +477,6 @@ final class TypeNodeSchemaMapper
     private static function resolveShapeKey(ArrayShapeItemNode|ObjectShapeItemNode $item): ?string
     {
         return $item->keyName instanceof IdentifierTypeNode ? $item->keyName->name : null;
-    }
-
-    /**
-     * @param array<string, mixed> $items
-     *
-     * @return array<string, mixed>
-     */
-    private static function buildArraySchema(array $items): array
-    {
-        return [] === $items ? ['type' => 'array'] : ['type' => 'array', 'items' => $items];
     }
 
     private static function isNull(TypeNode $node): bool
