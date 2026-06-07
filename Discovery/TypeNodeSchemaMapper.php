@@ -342,24 +342,24 @@ final class TypeNodeSchemaMapper
 
         $arguments = $node->genericTypes;
 
-        if (isset($arguments[0]) && ! isset($arguments[1])) {
+        if (! isset($arguments[0]) || isset($arguments[2])) {
+            throw new UnsupportedSchemaTypeException((string) $node);
+        }
+
+        if (! isset($arguments[1])) {
             return self::buildArraySchema($this->map($arguments[0]));
         }
 
-        if (isset($arguments[0], $arguments[1]) && ! isset($arguments[2])) {
-            $keyNode = $arguments[0];
-            $value = $this->map($arguments[1]);
+        $keyNode = $arguments[0];
+        $value = $this->map($arguments[1]);
 
-            if ($keyNode instanceof IdentifierTypeNode && \in_array($keyNode->name, ['int', 'integer'], true)) {
-                return self::buildArraySchema($value);
-            }
-
-            return [] === $value
-                ? ['type' => 'object', 'additionalProperties' => true]
-                : ['type' => 'object', 'additionalProperties' => $value];
+        if ($keyNode instanceof IdentifierTypeNode && \in_array($keyNode->name, ['int', 'integer'], true)) {
+            return self::buildArraySchema($value);
         }
 
-        throw new UnsupportedSchemaTypeException((string) $node);
+        return [] === $value
+            ? ['type' => 'object', 'additionalProperties' => true]
+            : ['type' => 'object', 'additionalProperties' => $value];
     }
 
     /**
