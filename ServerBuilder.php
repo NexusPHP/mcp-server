@@ -16,7 +16,6 @@ namespace Nexus\Mcp\Server;
 use Nexus\Assert\Assert;
 use Nexus\Mcp\Core\Handler\HandlerRegistry;
 use Nexus\Mcp\Core\Handler\NotificationHandlerInterface;
-use Nexus\Mcp\Core\Handler\Request\PingRequestHandler;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
 use Nexus\Mcp\Core\JsonRpc\JsonRpcMethodRegistry;
 use Nexus\Mcp\Core\Schema\Icon;
@@ -24,13 +23,12 @@ use Nexus\Mcp\Core\Schema\Implementation;
 use Nexus\Mcp\Core\Schema\Prompt\Prompt;
 use Nexus\Mcp\Core\Schema\Request\CallToolRequest;
 use Nexus\Mcp\Core\Schema\Request\CompleteRequest;
+use Nexus\Mcp\Core\Schema\Request\DiscoverRequest;
 use Nexus\Mcp\Core\Schema\Request\GetPromptRequest;
-use Nexus\Mcp\Core\Schema\Request\InitializeRequest;
 use Nexus\Mcp\Core\Schema\Request\ListPromptsRequest;
 use Nexus\Mcp\Core\Schema\Request\ListResourcesRequest;
 use Nexus\Mcp\Core\Schema\Request\ListResourceTemplatesRequest;
 use Nexus\Mcp\Core\Schema\Request\ListToolsRequest;
-use Nexus\Mcp\Core\Schema\Request\PingRequest;
 use Nexus\Mcp\Core\Schema\Request\ReadResourceRequest;
 use Nexus\Mcp\Core\Schema\Resource\Resource;
 use Nexus\Mcp\Core\Schema\Resource\ResourceTemplate;
@@ -44,7 +42,6 @@ use Nexus\Mcp\Core\UriTemplate\Validator;
 use Nexus\Mcp\Server\Attribute\AsServer;
 use Nexus\Mcp\Server\Completion\CompletionStoreInterface;
 use Nexus\Mcp\Server\Discovery\AttributeScanner;
-use Nexus\Mcp\Server\Dispatch\ServerInitializationGate;
 use Nexus\Mcp\Server\Dispatch\ServerMessageDispatcher;
 use Nexus\Mcp\Server\Exception\DuplicateServerMetadataException;
 use Nexus\Mcp\Server\Exception\MissingDiscoveryAttributeException;
@@ -52,8 +49,8 @@ use Nexus\Mcp\Server\Exception\ReservedMethodException;
 use Nexus\Mcp\Server\Exception\UnreservedMethodException;
 use Nexus\Mcp\Server\Handler\Request\CallToolRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\CompleteRequestHandler;
+use Nexus\Mcp\Server\Handler\Request\DiscoverRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\GetPromptRequestHandler;
-use Nexus\Mcp\Server\Handler\Request\InitializeRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\ListPromptsRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\ListResourcesRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\ListResourceTemplatesRequestHandler;
@@ -429,7 +426,6 @@ final class ServerBuilder
             new ServerMessageDispatcher(
                 new HandlerRegistry($requestHandlers, RequestHandlerInterface::class, 'Request handler'),
                 new HandlerRegistry($this->customNotificationHandlers, NotificationHandlerInterface::class, 'Notification handler'),
-                new ServerInitializationGate(),
                 loggingLevelGate: $loggingLevelGate,
                 logger: $this->logger,
             ),
@@ -550,8 +546,7 @@ final class ServerBuilder
     private function buildRequestHandlers(Implementation $serverInfo, ServerCapabilities $capabilities): array
     {
         $defaults = [
-            InitializeRequest::getMethod() => new InitializeRequestHandler($serverInfo, $capabilities, $this->resolveInstructions()),
-            PingRequest::getMethod() => new PingRequestHandler(),
+            DiscoverRequest::getMethod() => new DiscoverRequestHandler($serverInfo, $capabilities, $this->resolveInstructions()),
         ];
 
         if (null !== $this->toolStore || [] !== $this->tools) {

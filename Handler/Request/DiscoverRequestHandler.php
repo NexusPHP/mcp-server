@@ -15,21 +15,22 @@ namespace Nexus\Mcp\Server\Handler\Request;
 
 use Nexus\Mcp\Core\Handler\AbstractContext;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
+use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Implementation;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\MetaObject;
 use Nexus\Mcp\Core\Schema\ProtocolVersion;
-use Nexus\Mcp\Core\Schema\Result\InitializeResult;
+use Nexus\Mcp\Core\Schema\Result\DiscoverResult;
 use Nexus\Mcp\Core\Schema\ServerCapabilities;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * Handles the `initialize` request, returning the server's protocol version,
- * capabilities, and identification info.
+ * Handles the `server/discover` request, advertising the server's supported
+ * protocol versions, capabilities, and identification info.
  *
- * @implements RequestHandlerInterface<'initialize', InitializeResult, ServerContext>
+ * @implements RequestHandlerInterface<'server/discover', DiscoverResult, ServerContext>
  */
-final readonly class InitializeRequestHandler implements RequestHandlerInterface
+final readonly class DiscoverRequestHandler implements RequestHandlerInterface
 {
     /**
      * @param null|non-empty-string $instructions
@@ -38,20 +39,21 @@ final readonly class InitializeRequestHandler implements RequestHandlerInterface
         private Implementation $serverInfo,
         private ServerCapabilities $capabilities,
         private ?string $instructions = null,
+        private int $ttlMs = 0,
+        private CacheScope $cacheScope = CacheScope::Private,
         private MetaObject $meta = new MetaObject(),
     ) {
     }
 
     #[\Override]
-    public function handle(JsonRpcRequest $request, AbstractContext $context): InitializeResult
+    public function handle(JsonRpcRequest $request, AbstractContext $context): DiscoverResult
     {
-        // The server supports exactly one revision, so the spec's negotiation rule
-        // (echo the requested version when supported, otherwise return the latest
-        // supported) collapses to LATEST_VERSION for every request.
-        return new InitializeResult(
-            new ProtocolVersion(ProtocolVersion::LATEST_VERSION),
+        return new DiscoverResult(
+            [ProtocolVersion::LATEST_VERSION],
             $this->capabilities,
             $this->serverInfo,
+            $this->ttlMs,
+            $this->cacheScope,
             $this->instructions,
             $this->meta,
         );

@@ -34,12 +34,10 @@ use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcErrorResponse;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcResultResponse;
-use Nexus\Mcp\Core\Schema\Notification\InitializedNotification;
-use Nexus\Mcp\Core\Schema\Request\InitializeRequest;
+use Nexus\Mcp\Core\Schema\Request\ClientRequest;
+use Nexus\Mcp\Core\Schema\RequestParams;
 use Nexus\Mcp\Core\Schema\Result;
 use Nexus\Mcp\Core\Transport\TransportInterface;
-use Nexus\Mcp\Server\Exception\ServerAlreadyInitializedException;
-use Nexus\Mcp\Server\Exception\ServerNotInitializedException;
 use Nexus\Mcp\Server\Logging\LoggingLevelGate;
 use Nexus\Mcp\Server\ServerContext;
 use Psr\Log\LoggerInterface;
@@ -48,7 +46,7 @@ use Psr\Log\NullLogger;
 use function Amp\async;
 
 /**
- * Server-side per-envelope inbound dispatch. Parses, classifies, gates, resolves a handler,
+ * Server-side per-envelope inbound dispatch. Parses, classifies, resolves a handler,
  * spawns a coroutine to run it, and sends the response (or error) on the transport.
  */
 final readonly class ServerMessageDispatcher implements MessageDispatcherInterface
@@ -64,7 +62,6 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     public function __construct(
         private HandlerRegistry $requestHandlers,
         private HandlerRegistry $notificationHandlers,
-        private ServerInitializationGate $initializationGate,
         private LoggingLevelGate $loggingLevelGate = new LoggingLevelGate(),
         private LoggerInterface $logger = new NullLogger(),
         private JsonRpcMessageParser $parser = new JsonRpcMessageParser(),
@@ -153,18 +150,6 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     private function dispatchRequest(JsonRpcRequest $request, TransportInterface $transport): void
     {
         $method = $request::getMethod();
-        $isInitializeRequest = InitializeRequest::getMethod() === $method;
-
-        // Gate is mutated sync so a same-tick `notifications/initialized` sees `InitializeInFlight`.
-        if (! $this->initializationGate->allowsRequest($method)) {
-            $exception = $isInitializeRequest
-                ? new ServerAlreadyInitializedException($request->id)
-                : new ServerNotInitializedException($method, $request->id);
-
-            $this->responseSender->send($transport, ResponseSender::buildErrorResponse($exception, $request->id), $method);
-
-            return;
-        }
 
         if (! $this->inboundRequests->claim($request->id)) {
             $exception = new DuplicateInboundRequestIdException($request->id);
@@ -173,47 +158,40 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
             return;
         }
 
-        if ($isInitializeRequest) {
-            $this->initializationGate->markInitializeInFlight();
-        }
-
-        $this->coroutines->track(async(function () use ($request, $transport, $method, $isInitializeRequest): void {
+        $this->coroutines->track(async(function () use ($request, $transport, $method): void {
             try {
-                $sender = new RequestBoundSender($transport, $request->id);
-                $context = new ServerContext(
-                    $request->id,
-                    $this->cancellation,
-                    $request->params->meta,
-                    $transport->getSessionId(),
-                    $sender,
-                    $this->loggingLevelGate,
-                );
-
                 try {
-                    $handler = $this->requestHandlers->get($method)
-                        ?? throw new MethodNotFoundException($method, $request->id);
-                    $result = $handler->handle($request, $context);
-                } catch (TransportAlreadyClosedException $e) {
-                    if ($isInitializeRequest) {
-                        $this->initializationGate->revertInitializeInFlight();
+                    if (! $request instanceof ClientRequest) {
+                        // The server services only ClientRequest methods. A server-to-client method is
+                        // one the server does not implement, so it answers MethodNotFound.
+                        throw new MethodNotFoundException($method, $request->id);
                     }
 
+                    $handler = $this->requestHandlers->get($method)
+                        ?? throw new MethodNotFoundException($method, $request->id);
+
+                    // A ClientRequest always carries the heavy RequestParams (the required _meta).
+                    \assert($request->params instanceof RequestParams);
+
+                    $sender = new RequestBoundSender($transport, $request->id);
+                    $context = new ServerContext(
+                        $request->id,
+                        $this->cancellation,
+                        $request->params->meta,
+                        $transport->getSessionId(),
+                        $sender,
+                        $this->loggingLevelGate,
+                    );
+                    $result = $handler->handle($request, $context);
+                } catch (TransportAlreadyClosedException $e) {
                     $this->responseSender->logSkippedDelivery($method, $e);
 
                     return;
                 } catch (AbstractJsonRpcProtocolException $e) {
-                    if ($isInitializeRequest) {
-                        $this->initializationGate->revertInitializeInFlight();
-                    }
-
                     $this->responseSender->send($transport, ResponseSender::buildErrorResponse($e, $request->id), $method);
 
                     return;
                 } catch (\Throwable $e) {
-                    if ($isInitializeRequest) {
-                        $this->initializationGate->revertInitializeInFlight();
-                    }
-
                     $this->logger->error(
                         'Uncaught request handler exception.',
                         ['method' => $method, 'exception' => $e],
@@ -224,10 +202,6 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                     ), $method);
 
                     return;
-                }
-
-                if ($isInitializeRequest) {
-                    $this->initializationGate->markInitializeCompleted();
                 }
 
                 $this->responseSender->send($transport, new JsonRpcResultResponse($request->id, $result), $method);
@@ -243,26 +217,6 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     private function dispatchNotification(JsonRpcNotification $notification): void
     {
         $method = $notification::getMethod();
-
-        if (InitializedNotification::getMethod() === $method) {
-            if (! $this->initializationGate->markInitialized()) {
-                $this->logger->warning(
-                    'Discarding "notifications/initialized" received in an unexpected initialize handshake state.',
-                    ['method' => $method],
-                );
-
-                return;
-            }
-        } elseif (! $this->initializationGate->isInitialized()) {
-            // Other notifications must wait for a complete handshake. The initialized arm above
-            // intentionally falls through even when buffered (gate may still be InitializeInFlight).
-            $this->logger->info(
-                'Dropping notification before client has completed initialize.',
-                ['method' => $method],
-            );
-
-            return;
-        }
 
         $handler = $this->notificationHandlers->get($method);
 

@@ -31,12 +31,12 @@ final readonly class ServerContext extends AbstractContext
     public function __construct(
         RequestId $requestId,
         Cancellation $cancellation,
-        RequestMetaObject $meta,
+        public RequestMetaObject $meta,
         ?string $sessionId,
         SenderInterface $sender,
         private LoggingLevelGate $gate = new LoggingLevelGate(),
     ) {
-        parent::__construct($requestId, $cancellation, $meta, $sessionId, $sender);
+        parent::__construct($requestId, $cancellation, $meta->progressToken, $sessionId, $sender);
     }
 
     public function log(LoggingLevel $level, mixed $data, ?string $logger = null): void
