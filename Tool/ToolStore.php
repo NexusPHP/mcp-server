@@ -15,6 +15,7 @@ namespace Nexus\Mcp\Server\Tool;
 
 use Nexus\Mcp\Core\Exception\InvalidParamsException;
 use Nexus\Mcp\Core\Schema\Cursor;
+use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Result\CallToolResult;
 use Nexus\Mcp\Core\Schema\Result\ListToolsResult;
 use Nexus\Mcp\Core\Schema\Tool\Tool;
@@ -41,8 +42,10 @@ final readonly class ToolStore extends AbstractPaginatedStore implements ToolSto
         array $entries = [],
         int $pageSize = self::DEFAULT_PAGE_SIZE,
         private SchemaValidatorInterface $validator = new OpisSchemaValidator(),
+        int $ttlMs = 0,
+        CacheScope $cacheScope = CacheScope::Private,
     ) {
-        parent::__construct($entries, $pageSize);
+        parent::__construct($entries, $pageSize, $ttlMs, $cacheScope);
     }
 
     #[\Override]
@@ -51,7 +54,7 @@ final readonly class ToolStore extends AbstractPaginatedStore implements ToolSto
         return $this->paginate(
             $cursor,
             static fn(ToolEntry $entry): Tool => $entry->tool,
-            static fn(array $tools, ?Cursor $nextCursor): ListToolsResult => new ListToolsResult($tools, $nextCursor),
+            static fn(array $tools, ?Cursor $nextCursor, int $ttlMs, CacheScope $cacheScope): ListToolsResult => new ListToolsResult($tools, $ttlMs, $cacheScope, $nextCursor),
         );
     }
 

@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Resource;
 
+use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Resource\BlobResourceContents;
 use Nexus\Mcp\Core\Schema\Resource\ResourceContents;
 use Nexus\Mcp\Core\Schema\Resource\TextResourceContents;
@@ -33,15 +34,15 @@ final class ReflectedResourceResult
         }
 
         if (\is_string($result)) {
-            return new ReadResourceResult([new TextResourceContents($uri, $result)]);
+            return new ReadResourceResult([new TextResourceContents($uri, $result)], 0, CacheScope::Private);
         }
 
         if ($result instanceof ResourceContents) {
-            return new ReadResourceResult(self::contents([$result]));
+            return new ReadResourceResult(self::contents([$result]), 0, CacheScope::Private);
         }
 
         if (\is_array($result)) {
-            return new ReadResourceResult(self::contentsList($result, $method));
+            return new ReadResourceResult(self::contentsList($result, $method), 0, CacheScope::Private);
         }
 
         throw self::buildUnsupportedError($method, $result);

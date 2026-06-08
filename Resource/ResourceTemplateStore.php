@@ -15,6 +15,7 @@ namespace Nexus\Mcp\Server\Resource;
 
 use Nexus\Assert\Assert;
 use Nexus\Mcp\Core\Schema\Cursor;
+use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Resource\ResourceTemplate;
 use Nexus\Mcp\Core\Schema\Result\ListResourceTemplatesResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
@@ -41,9 +42,13 @@ final readonly class ResourceTemplateStore extends AbstractPaginatedStore implem
     /**
      * @param array<non-empty-string, ResourceTemplateEntry> $entries
      */
-    public function __construct(array $entries = [], int $pageSize = self::DEFAULT_PAGE_SIZE)
-    {
-        parent::__construct($entries, $pageSize);
+    public function __construct(
+        array $entries = [],
+        int $pageSize = self::DEFAULT_PAGE_SIZE,
+        int $ttlMs = 0,
+        CacheScope $cacheScope = CacheScope::Private,
+    ) {
+        parent::__construct($entries, $pageSize, $ttlMs, $cacheScope);
 
         $compiled = [];
 
@@ -64,7 +69,7 @@ final readonly class ResourceTemplateStore extends AbstractPaginatedStore implem
         return $this->paginate(
             $cursor,
             static fn(ResourceTemplateEntry $entry): ResourceTemplate => $entry->template,
-            static fn(array $templates, ?Cursor $nextCursor): ListResourceTemplatesResult => new ListResourceTemplatesResult($templates, $nextCursor),
+            static fn(array $templates, ?Cursor $nextCursor, int $ttlMs, CacheScope $cacheScope): ListResourceTemplatesResult => new ListResourceTemplatesResult($templates, $ttlMs, $cacheScope, $nextCursor),
         );
     }
 

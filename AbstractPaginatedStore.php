@@ -15,6 +15,7 @@ namespace Nexus\Mcp\Server;
 
 use Nexus\Assert\Assert;
 use Nexus\Mcp\Core\Schema\Cursor;
+use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Server\Exception\InvalidCursorException;
 
 /**
@@ -39,14 +40,21 @@ abstract readonly class AbstractPaginatedStore
     /**
      * @param array<non-empty-string, TEntry> $entries
      */
-    public function __construct(protected array $entries = [], protected int $pageSize = self::DEFAULT_PAGE_SIZE)
-    {
+    public function __construct(
+        protected array $entries = [],
+        protected int $pageSize = self::DEFAULT_PAGE_SIZE,
+        protected int $ttlMs = 0,
+        protected CacheScope $cacheScope = CacheScope::Private,
+    ) {
         Assert::that($entries)
             ->keys()
             ->isNonEmptyString(\sprintf('%s entry key must be a non-empty string.', static::STORE_LABEL))
         ;
         Assert::that($pageSize)
             ->isPositiveInt(\sprintf('%s page size must be a positive integer, {value} given.', static::STORE_LABEL))
+        ;
+        Assert::that($ttlMs)
+            ->isNaturalInt(\sprintf('%s TTL must be a non-negative integer, {value} given.', static::STORE_LABEL))
         ;
 
         $this->keyIndex = array_flip(array_keys($entries));
@@ -56,8 +64,8 @@ abstract readonly class AbstractPaginatedStore
      * @template TItem of object
      * @template TResult of object
      *
-     * @param \Closure(TEntry): TItem                 $transform
-     * @param \Closure(list<TItem>, ?Cursor): TResult $resultBuilder
+     * @param \Closure(TEntry): TItem                                  $transform
+     * @param \Closure(list<TItem>, ?Cursor, int, CacheScope): TResult $resultBuilder
      *
      * @return TResult
      *
@@ -72,7 +80,7 @@ abstract readonly class AbstractPaginatedStore
         $hasMore = $startIndex + \count($page) < \count($this->entries);
         $nextCursor = $hasMore ? new Cursor((string) array_key_last($page)) : null;
 
-        return $resultBuilder($items, $nextCursor);
+        return $resultBuilder($items, $nextCursor, $this->ttlMs, $this->cacheScope);
     }
 
     private function resolveStartIndex(?Cursor $cursor): int

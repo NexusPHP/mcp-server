@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Resource;
 
 use Nexus\Mcp\Core\Schema\Cursor;
+use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Resource\Resource;
 use Nexus\Mcp\Core\Schema\Result\ListResourcesResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
@@ -36,7 +37,7 @@ final readonly class ResourceStore extends AbstractPaginatedStore implements Res
         return $this->paginate(
             $cursor,
             static fn(ResourceEntry $entry): Resource => $entry->resource,
-            static fn(array $resources, ?Cursor $nextCursor): ListResourcesResult => new ListResourcesResult($resources, $nextCursor),
+            static fn(array $resources, ?Cursor $nextCursor, int $ttlMs, CacheScope $cacheScope): ListResourcesResult => new ListResourcesResult($resources, $ttlMs, $cacheScope, $nextCursor),
         );
     }
 

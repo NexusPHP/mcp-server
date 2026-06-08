@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Prompt;
 
 use Nexus\Mcp\Core\Schema\Cursor;
+use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Prompt\Prompt;
 use Nexus\Mcp\Core\Schema\Result\GetPromptResult;
 use Nexus\Mcp\Core\Schema\Result\ListPromptsResult;
@@ -36,7 +37,7 @@ final readonly class PromptStore extends AbstractPaginatedStore implements Promp
         return $this->paginate(
             $cursor,
             static fn(PromptEntry $entry): Prompt => $entry->prompt,
-            static fn(array $prompts, ?Cursor $nextCursor): ListPromptsResult => new ListPromptsResult($prompts, $nextCursor),
+            static fn(array $prompts, ?Cursor $nextCursor, int $ttlMs, CacheScope $cacheScope): ListPromptsResult => new ListPromptsResult($prompts, $ttlMs, $cacheScope, $nextCursor),
         );
     }
 
