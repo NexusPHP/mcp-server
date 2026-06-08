@@ -15,7 +15,6 @@ namespace Nexus\Mcp\Server\Attribute;
 
 use Nexus\Mcp\Core\Schema\Icon;
 use Nexus\Mcp\Core\Schema\Tool\ToolAnnotations;
-use Nexus\Mcp\Core\Schema\Tool\ToolExecution;
 
 /**
  * Marks a method as an MCP tool, registered through `ServerBuilder::register()`.
@@ -33,7 +32,6 @@ final readonly class AsTool
         public ?string $title = null,
         public ?string $description = null,
         public ?ToolAnnotations $annotations = null,
-        public ?ToolExecution $execution = null,
         public ?array $icons = null,
         public ?array $outputSchema = null,
         public ?array $meta = null,

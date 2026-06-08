@@ -21,7 +21,6 @@ use Nexus\Mcp\Core\Schema\Resource\Resource;
 use Nexus\Mcp\Core\Schema\Resource\ResourceTemplate;
 use Nexus\Mcp\Core\Schema\Tool\Tool;
 use Nexus\Mcp\Core\Schema\Tool\ToolAnnotations;
-use Nexus\Mcp\Core\Schema\Tool\ToolExecution;
 use Nexus\Mcp\Server\Attribute\AsPrompt;
 use Nexus\Mcp\Server\Attribute\AsResource;
 use Nexus\Mcp\Server\Attribute\AsResourceTemplate;
@@ -94,7 +93,6 @@ final readonly class AttributeScanner
             $attribute->description,
             $attribute->outputSchema,
             $attribute->annotations ?? new ToolAnnotations(),
-            $attribute->execution ?? new ToolExecution(),
             $attribute->icons,
             new MetaObject($attribute->meta ?? []),
         );
