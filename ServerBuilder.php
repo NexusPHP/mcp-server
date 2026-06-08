@@ -32,7 +32,6 @@ use Nexus\Mcp\Core\Schema\Request\ListResourceTemplatesRequest;
 use Nexus\Mcp\Core\Schema\Request\ListToolsRequest;
 use Nexus\Mcp\Core\Schema\Request\PingRequest;
 use Nexus\Mcp\Core\Schema\Request\ReadResourceRequest;
-use Nexus\Mcp\Core\Schema\Request\SetLevelRequest;
 use Nexus\Mcp\Core\Schema\Resource\Resource;
 use Nexus\Mcp\Core\Schema\Resource\ResourceTemplate;
 use Nexus\Mcp\Core\Schema\Result;
@@ -60,7 +59,6 @@ use Nexus\Mcp\Server\Handler\Request\ListResourcesRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\ListResourceTemplatesRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\ListToolsRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\ReadResourceRequestHandler;
-use Nexus\Mcp\Server\Handler\Request\SetLevelRequestHandler;
 use Nexus\Mcp\Server\Logging\LoggingLevelGate;
 use Nexus\Mcp\Server\Prompt\ClosurePromptRenderer;
 use Nexus\Mcp\Server\Prompt\PromptEntry;
@@ -425,7 +423,7 @@ final class ServerBuilder
         $capabilities = $this->deriveCapabilities();
         $loggingLevelGate = new LoggingLevelGate();
 
-        $requestHandlers = $this->buildRequestHandlers($serverInfo, $capabilities, $loggingLevelGate);
+        $requestHandlers = $this->buildRequestHandlers($serverInfo, $capabilities);
 
         return new Server(
             new ServerMessageDispatcher(
@@ -549,15 +547,11 @@ final class ServerBuilder
     /**
      * @return array<non-empty-string, RequestHandlerInterface<non-empty-string, Result, ServerContext>>
      */
-    private function buildRequestHandlers(
-        Implementation $serverInfo,
-        ServerCapabilities $capabilities,
-        LoggingLevelGate $loggingLevelGate,
-    ): array {
+    private function buildRequestHandlers(Implementation $serverInfo, ServerCapabilities $capabilities): array
+    {
         $defaults = [
             InitializeRequest::getMethod() => new InitializeRequestHandler($serverInfo, $capabilities, $this->resolveInstructions()),
             PingRequest::getMethod() => new PingRequestHandler(),
-            SetLevelRequest::getMethod() => new SetLevelRequestHandler($loggingLevelGate),
         ];
 
         if (null !== $this->toolStore || [] !== $this->tools) {

@@ -16,18 +16,13 @@ namespace Nexus\Mcp\Server\Logging;
 use Nexus\Mcp\Core\Schema\Enum\LoggingLevel;
 
 /**
- * Holds the minimum `LoggingLevel` for server-emitted log notifications.
- * Updated by `logging/setLevel` and consulted by `ServerContext::log()`.
+ * Holds the minimum `LoggingLevel` for server-emitted log notifications,
+ * consulted by `ServerContext::log()`.
  */
 final class LoggingLevelGate
 {
     public function __construct(public private(set) LoggingLevel $level = LoggingLevel::Info)
     {
-    }
-
-    public function setLevel(LoggingLevel $level): void
-    {
-        $this->level = $level;
     }
 
     public function shouldEmit(LoggingLevel $messageLevel): bool
