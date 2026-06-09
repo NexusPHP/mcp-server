@@ -127,7 +127,7 @@ final class ServerBuilder
     private ?CompletionStoreInterface $completionStore = null;
 
     /**
-     * @var array<non-empty-string, RequestHandlerInterface<non-empty-string, Result, ServerContext>>
+     * @var array<non-empty-string, RequestHandlerInterface<non-empty-string, Result<array<string, mixed>>, ServerContext>>
      */
     private array $customRequestHandlers = [];
 
@@ -334,8 +334,8 @@ final class ServerBuilder
     /**
      * Registers a handler for a vendor-extension request method.
      *
-     * @param non-empty-string                                                 $method
-     * @param RequestHandlerInterface<non-empty-string, Result, ServerContext> $handler
+     * @param non-empty-string                                                                       $method
+     * @param RequestHandlerInterface<non-empty-string, Result<array<string, mixed>>, ServerContext> $handler
      *
      * @throws ReservedMethodException
      *
@@ -355,8 +355,8 @@ final class ServerBuilder
     /**
      * Overrides the SDK's built-in handler for `$method`.
      *
-     * @param non-empty-string                                                 $method
-     * @param RequestHandlerInterface<non-empty-string, Result, ServerContext> $handler
+     * @param non-empty-string                                                                       $method
+     * @param RequestHandlerInterface<non-empty-string, Result<array<string, mixed>>, ServerContext> $handler
      *
      * @throws UnreservedMethodException
      *
@@ -548,7 +548,7 @@ final class ServerBuilder
     }
 
     /**
-     * @return array<non-empty-string, RequestHandlerInterface<non-empty-string, Result, ServerContext>>
+     * @return array<non-empty-string, RequestHandlerInterface<non-empty-string, Result<array<string, mixed>>, ServerContext>>
      */
     private function buildRequestHandlers(Implementation $serverInfo, ServerCapabilities $capabilities): array
     {
