@@ -46,7 +46,7 @@ final readonly class ServerContext extends AbstractContext
         }
 
         $this->sender->sendNotification(new LoggingMessageNotification(
-            new LoggingMessageNotificationParams($level, $data, $logger),
+            params: new LoggingMessageNotificationParams(level: $level, data: $data, logger: $logger),
         ));
     }
 }

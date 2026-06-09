@@ -153,7 +153,14 @@ final class ServerBuilder
         ?string $websiteUrl = null,
         ?array $icons = null,
     ): self {
-        $this->serverInfo = new Implementation($name, $version, $title, $description, $websiteUrl, $icons);
+        $this->serverInfo = new Implementation(
+            name: $name,
+            version: $version,
+            title: $title,
+            description: $description,
+            websiteUrl: $websiteUrl,
+            icons: $icons,
+        );
 
         return $this;
     }
@@ -447,22 +454,22 @@ final class ServerBuilder
 
         if (null === $this->serverInfo) {
             return new Implementation(
-                $metadata->name,
-                $metadata->version,
-                $metadata->title,
-                $metadata->description,
-                $metadata->websiteUrl,
-                $metadata->icons,
+                name: $metadata->name,
+                version: $metadata->version,
+                title: $metadata->title,
+                description: $metadata->description,
+                websiteUrl: $metadata->websiteUrl,
+                icons: $metadata->icons,
             );
         }
 
         return new Implementation(
-            $this->serverInfo->name,
-            $this->serverInfo->version,
-            $this->serverInfo->title ?? $metadata->title,
-            $this->serverInfo->description ?? $metadata->description,
-            $this->serverInfo->websiteUrl ?? $metadata->websiteUrl,
-            $this->serverInfo->icons ?? $metadata->icons,
+            name: $this->serverInfo->name,
+            version: $this->serverInfo->version,
+            title: $this->serverInfo->title ?? $metadata->title,
+            description: $this->serverInfo->description ?? $metadata->description,
+            websiteUrl: $this->serverInfo->websiteUrl ?? $metadata->websiteUrl,
+            icons: $this->serverInfo->icons ?? $metadata->icons,
         );
     }
 

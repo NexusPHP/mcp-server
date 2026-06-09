@@ -37,7 +37,7 @@ final readonly class ResourceStore extends AbstractPaginatedStore implements Res
         return $this->paginate(
             $cursor,
             static fn(ResourceEntry $entry): Resource => $entry->resource,
-            static fn(array $resources, ?Cursor $nextCursor, int $ttlMs, CacheScope $cacheScope): ListResourcesResult => new ListResourcesResult($resources, $ttlMs, $cacheScope, $nextCursor),
+            self::buildResult(...),
         );
     }
 
@@ -47,5 +47,18 @@ final readonly class ResourceStore extends AbstractPaginatedStore implements Res
         $entry = $this->entries[$uri] ?? throw new ResourceNotFoundException($uri, $context->requestId);
 
         return $entry->reader->read($uri, $context);
+    }
+
+    /**
+     * @param list<Resource> $resources
+     */
+    private static function buildResult(array $resources, ?Cursor $nextCursor, int $ttlMs, CacheScope $cacheScope): ListResourcesResult
+    {
+        return new ListResourcesResult(
+            resources: $resources,
+            ttlMs: $ttlMs,
+            cacheScope: $cacheScope,
+            nextCursor: $nextCursor,
+        );
     }
 }

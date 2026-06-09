@@ -54,7 +54,7 @@ final readonly class ToolStore extends AbstractPaginatedStore implements ToolSto
         return $this->paginate(
             $cursor,
             static fn(ToolEntry $entry): Tool => $entry->tool,
-            static fn(array $tools, ?Cursor $nextCursor, int $ttlMs, CacheScope $cacheScope): ListToolsResult => new ListToolsResult($tools, $ttlMs, $cacheScope, $nextCursor),
+            self::buildResult(...),
         );
     }
 
@@ -87,5 +87,13 @@ final readonly class ToolStore extends AbstractPaginatedStore implements ToolSto
         }
 
         return $result;
+    }
+
+    /**
+     * @param list<Tool> $tools
+     */
+    private static function buildResult(array $tools, ?Cursor $nextCursor, int $ttlMs, CacheScope $cacheScope): ListToolsResult
+    {
+        return new ListToolsResult(tools: $tools, ttlMs: $ttlMs, cacheScope: $cacheScope, nextCursor: $nextCursor);
     }
 }

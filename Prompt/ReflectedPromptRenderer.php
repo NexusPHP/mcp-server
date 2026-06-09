@@ -48,15 +48,17 @@ final readonly class ReflectedPromptRenderer implements PromptRendererInterface
         }
 
         if (\is_string($result)) {
-            return new GetPromptResult([new PromptMessage(Role::User, new TextContent($result))]);
+            return new GetPromptResult(messages: [
+                new PromptMessage(role: Role::User, content: new TextContent(text: $result)),
+            ]);
         }
 
         if ($result instanceof PromptMessage) {
-            return new GetPromptResult([$result]);
+            return new GetPromptResult(messages: [$result]);
         }
 
         if (\is_array($result)) {
-            return new GetPromptResult($this->buildMessageList($result));
+            return new GetPromptResult(messages: $this->buildMessageList($result));
         }
 
         throw new UnsupportedReturnValueException(

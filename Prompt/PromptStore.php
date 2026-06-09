@@ -37,7 +37,7 @@ final readonly class PromptStore extends AbstractPaginatedStore implements Promp
         return $this->paginate(
             $cursor,
             static fn(PromptEntry $entry): Prompt => $entry->prompt,
-            static fn(array $prompts, ?Cursor $nextCursor, int $ttlMs, CacheScope $cacheScope): ListPromptsResult => new ListPromptsResult($prompts, $ttlMs, $cacheScope, $nextCursor),
+            self::buildResult(...),
         );
     }
 
@@ -49,5 +49,13 @@ final readonly class PromptStore extends AbstractPaginatedStore implements Promp
         }
 
         return $this->entries[$name]->renderer->render($arguments, $context);
+    }
+
+    /**
+     * @param list<Prompt> $prompts
+     */
+    private static function buildResult(array $prompts, ?Cursor $nextCursor, int $ttlMs, CacheScope $cacheScope): ListPromptsResult
+    {
+        return new ListPromptsResult(prompts: $prompts, ttlMs: $ttlMs, cacheScope: $cacheScope, nextCursor: $nextCursor);
     }
 }

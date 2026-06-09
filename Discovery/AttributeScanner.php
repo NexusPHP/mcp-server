@@ -87,14 +87,14 @@ final readonly class AttributeScanner
     private function buildTool(\ReflectionMethod $method, AsTool $attribute): Tool
     {
         return new Tool(
-            $attribute->name ?? $method->getName(),
-            $this->schemaGenerator->generate($method),
-            $attribute->title,
-            $attribute->description,
-            $attribute->outputSchema,
-            $attribute->annotations ?? new ToolAnnotations(),
-            $attribute->icons,
-            new MetaObject($attribute->meta ?? []),
+            name: $attribute->name ?? $method->getName(),
+            inputSchema: $this->schemaGenerator->generate($method),
+            title: $attribute->title,
+            description: $attribute->description,
+            outputSchema: $attribute->outputSchema,
+            annotations: $attribute->annotations ?? new ToolAnnotations(),
+            icons: $attribute->icons,
+            meta: new MetaObject(extras: $attribute->meta ?? []),
         );
     }
 
@@ -104,12 +104,12 @@ final readonly class AttributeScanner
         self::rejectUnsupportedParameterType($method);
 
         return new Prompt(
-            $attribute->name ?? $method->getName(),
-            $attribute->title,
-            $attribute->description,
-            $this->buildPromptArguments($method),
-            $attribute->icons,
-            new MetaObject($attribute->meta ?? []),
+            name: $attribute->name ?? $method->getName(),
+            title: $attribute->title,
+            description: $attribute->description,
+            arguments: $this->buildPromptArguments($method),
+            icons: $attribute->icons,
+            meta: new MetaObject(extras: $attribute->meta ?? []),
         );
     }
 
@@ -129,10 +129,10 @@ final readonly class AttributeScanner
             $description = $tags[$parameter->getName()]->description ?? '';
 
             $arguments[] = new PromptArgument(
-                $parameter->getName(),
-                null,
-                '' === $description ? null : $description,
-                ! $parameter->isOptional(),
+                name: $parameter->getName(),
+                title: null,
+                description: '' === $description ? null : $description,
+                required: ! $parameter->isOptional(),
             );
         }
 
@@ -145,15 +145,15 @@ final readonly class AttributeScanner
         self::rejectUnsupportedParameterType($method);
 
         return new Resource(
-            $attribute->name ?? $method->getName(),
-            $attribute->uri,
-            $attribute->title,
-            $attribute->description,
-            $attribute->mimeType,
-            $attribute->annotations ?? new Annotations(),
-            $attribute->size,
-            $attribute->icons,
-            new MetaObject($attribute->meta ?? []),
+            name: $attribute->name ?? $method->getName(),
+            uri: $attribute->uri,
+            title: $attribute->title,
+            description: $attribute->description,
+            mimeType: $attribute->mimeType,
+            annotations: $attribute->annotations ?? new Annotations(),
+            size: $attribute->size,
+            icons: $attribute->icons,
+            meta: new MetaObject(extras: $attribute->meta ?? []),
         );
     }
 
@@ -163,14 +163,14 @@ final readonly class AttributeScanner
         self::rejectUnsupportedParameterType($method);
 
         return new ResourceTemplate(
-            $attribute->name ?? $method->getName(),
-            $attribute->uriTemplate,
-            $attribute->title,
-            $attribute->description,
-            $attribute->mimeType,
-            $attribute->annotations ?? new Annotations(),
-            $attribute->icons,
-            new MetaObject($attribute->meta ?? []),
+            name: $attribute->name ?? $method->getName(),
+            uriTemplate: $attribute->uriTemplate,
+            title: $attribute->title,
+            description: $attribute->description,
+            mimeType: $attribute->mimeType,
+            annotations: $attribute->annotations ?? new Annotations(),
+            icons: $attribute->icons,
+            meta: new MetaObject(extras: $attribute->meta ?? []),
         );
     }
 

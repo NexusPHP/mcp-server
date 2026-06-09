@@ -53,11 +53,11 @@ final readonly class ReflectedToolExecutor implements ToolExecutorInterface
         }
 
         if (\is_string($result)) {
-            return new CallToolResult([new TextContent($result)]);
+            return new CallToolResult(content: [new TextContent(text: $result)]);
         }
 
         if ($result instanceof ContentBlock) {
-            return new CallToolResult(self::contentBlocks([$result]));
+            return new CallToolResult(content: self::contentBlocks([$result]));
         }
 
         if (\is_array($result)) {
@@ -79,7 +79,7 @@ final readonly class ReflectedToolExecutor implements ToolExecutorInterface
                 throw self::buildUnsupportedError($method, $result);
             }
 
-            return new CallToolResult($blocks);
+            return new CallToolResult(content: $blocks);
         }
 
         try {
@@ -88,7 +88,7 @@ final readonly class ReflectedToolExecutor implements ToolExecutorInterface
             throw self::buildUnsupportedError($method, $result);
         }
 
-        return new CallToolResult([], $result);
+        return new CallToolResult(content: [], structuredContent: $result);
     }
 
     /**

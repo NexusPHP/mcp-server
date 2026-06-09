@@ -34,15 +34,27 @@ final class ReflectedResourceResult
         }
 
         if (\is_string($result)) {
-            return new ReadResourceResult([new TextResourceContents($uri, $result)], 0, CacheScope::Private);
+            return new ReadResourceResult(
+                contents: [new TextResourceContents(uri: $uri, text: $result)],
+                ttlMs: 0,
+                cacheScope: CacheScope::Private,
+            );
         }
 
         if ($result instanceof ResourceContents) {
-            return new ReadResourceResult(self::contents([$result]), 0, CacheScope::Private);
+            return new ReadResourceResult(
+                contents: self::contents([$result]),
+                ttlMs: 0,
+                cacheScope: CacheScope::Private,
+            );
         }
 
         if (\is_array($result)) {
-            return new ReadResourceResult(self::contentsList($result, $method), 0, CacheScope::Private);
+            return new ReadResourceResult(
+                contents: self::contentsList($result, $method),
+                ttlMs: 0,
+                cacheScope: CacheScope::Private,
+            );
         }
 
         throw self::buildUnsupportedError($method, $result);

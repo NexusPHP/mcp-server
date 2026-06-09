@@ -78,7 +78,7 @@ abstract readonly class AbstractPaginatedStore
         $items = array_values(array_map($transform, $page));
 
         $hasMore = $startIndex + \count($page) < \count($this->entries);
-        $nextCursor = $hasMore ? new Cursor((string) array_key_last($page)) : null;
+        $nextCursor = $hasMore ? new Cursor(cursor: (string) array_key_last($page)) : null;
 
         return $resultBuilder($items, $nextCursor, $this->ttlMs, $this->cacheScope);
     }

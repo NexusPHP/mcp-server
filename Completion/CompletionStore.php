@@ -57,7 +57,7 @@ final readonly class CompletionStore implements CompletionStoreInterface
         }
 
         if (null === $providers || ! isset($providers[$argumentName])) {
-            return new CompleteResult(['values' => []]);
+            return new CompleteResult(completion: ['values' => []]);
         }
 
         return ($providers[$argumentName])($argumentValue, $contextArguments, $context);

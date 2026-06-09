@@ -69,7 +69,7 @@ final readonly class ResourceTemplateStore extends AbstractPaginatedStore implem
         return $this->paginate(
             $cursor,
             static fn(ResourceTemplateEntry $entry): ResourceTemplate => $entry->template,
-            static fn(array $templates, ?Cursor $nextCursor, int $ttlMs, CacheScope $cacheScope): ListResourceTemplatesResult => new ListResourceTemplatesResult($templates, $ttlMs, $cacheScope, $nextCursor),
+            self::buildResult(...),
         );
     }
 
@@ -85,5 +85,18 @@ final readonly class ResourceTemplateStore extends AbstractPaginatedStore implem
         }
 
         throw new ResourceNotFoundException($uri, $context->requestId);
+    }
+
+    /**
+     * @param list<ResourceTemplate> $templates
+     */
+    private static function buildResult(array $templates, ?Cursor $nextCursor, int $ttlMs, CacheScope $cacheScope): ListResourceTemplatesResult
+    {
+        return new ListResourceTemplatesResult(
+            resourceTemplates: $templates,
+            ttlMs: $ttlMs,
+            cacheScope: $cacheScope,
+            nextCursor: $nextCursor,
+        );
     }
 }

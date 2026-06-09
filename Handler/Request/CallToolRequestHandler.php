@@ -41,6 +41,7 @@ final readonly class CallToolRequestHandler implements RequestHandlerInterface
     public function handle(JsonRpcRequest $request, AbstractContext $context): CallToolResult
     {
         \assert($request instanceof CallToolRequest);
+        \assert($context instanceof ServerContext);
 
         try {
             $result = $this->store->call($request->params->name, $request->params->arguments, $context);
@@ -49,7 +50,7 @@ final readonly class CallToolRequestHandler implements RequestHandlerInterface
             // structured content SHOULD also return the serialized JSON in a TextContent block."
             if (null !== $result->structuredContent && [] === $result->content) {
                 return new CallToolResult(
-                    content: [new TextContent(json_encode(
+                    content: [new TextContent(text: json_encode(
                         $result->structuredContent,
                         \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE,
                     ))],
@@ -69,7 +70,7 @@ final readonly class CallToolRequestHandler implements RequestHandlerInterface
             );
 
             return new CallToolResult(
-                content: [new TextContent('Tool execution failed.')],
+                content: [new TextContent(text: 'Tool execution failed.')],
                 isError: true,
             );
         } catch (\Throwable $e) {
@@ -80,7 +81,7 @@ final readonly class CallToolRequestHandler implements RequestHandlerInterface
             );
 
             return new CallToolResult(
-                content: [new TextContent('Tool execution failed.')],
+                content: [new TextContent(text: 'Tool execution failed.')],
                 isError: true,
             );
         }
