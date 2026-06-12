@@ -56,7 +56,6 @@ use Nexus\Mcp\Server\Handler\Request\ListResourcesRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\ListResourceTemplatesRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\ListToolsRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\ReadResourceRequestHandler;
-use Nexus\Mcp\Server\Logging\LoggingLevelGate;
 use Nexus\Mcp\Server\Prompt\ClosurePromptRenderer;
 use Nexus\Mcp\Server\Prompt\PromptEntry;
 use Nexus\Mcp\Server\Prompt\PromptRendererInterface;
@@ -425,7 +424,6 @@ final class ServerBuilder
         );
 
         $capabilities = $this->deriveCapabilities();
-        $loggingLevelGate = new LoggingLevelGate();
 
         $requestHandlers = $this->buildRequestHandlers($serverInfo, $capabilities);
 
@@ -433,7 +431,6 @@ final class ServerBuilder
             new ServerMessageDispatcher(
                 new HandlerRegistry($requestHandlers, RequestHandlerInterface::class, 'Request handler'),
                 new HandlerRegistry($this->customNotificationHandlers, NotificationHandlerInterface::class, 'Notification handler'),
-                loggingLevelGate: $loggingLevelGate,
                 logger: $this->logger,
             ),
             $this->logger,
@@ -499,7 +496,6 @@ final class ServerBuilder
     {
         return new ServerCapabilities(
             completions: $this->hasCompletionsCapability() ? [] : null,
-            logging: [],
             prompts: $this->hasPromptsCapability() ? [] : null,
             resources: $this->hasResourcesCapability() ? [] : null,
             tools: $this->hasToolsCapability() ? [] : null,

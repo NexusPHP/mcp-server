@@ -38,7 +38,6 @@ use Nexus\Mcp\Core\Schema\Request\ClientRequest;
 use Nexus\Mcp\Core\Schema\RequestParams;
 use Nexus\Mcp\Core\Schema\Result;
 use Nexus\Mcp\Core\Transport\TransportInterface;
-use Nexus\Mcp\Server\Logging\LoggingLevelGate;
 use Nexus\Mcp\Server\ServerContext;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -62,7 +61,6 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     public function __construct(
         private HandlerRegistry $requestHandlers,
         private HandlerRegistry $notificationHandlers,
-        private LoggingLevelGate $loggingLevelGate = new LoggingLevelGate(),
         private LoggerInterface $logger = new NullLogger(),
         private JsonRpcMessageParser $parser = new JsonRpcMessageParser(),
         private Cancellation $cancellation = new NullCancellation(),
@@ -180,7 +178,6 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                         $request->params->meta,
                         $transport->getSessionId(),
                         $sender,
-                        $this->loggingLevelGate,
                     );
                     $result = $handler->handle($request, $context);
                 } catch (TransportAlreadyClosedException $e) {

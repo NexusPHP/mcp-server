@@ -16,12 +16,8 @@ namespace Nexus\Mcp\Server;
 use Amp\Cancellation;
 use Nexus\Mcp\Core\Handler\AbstractContext;
 use Nexus\Mcp\Core\Handler\SenderInterface;
-use Nexus\Mcp\Core\Schema\Enum\LoggingLevel;
-use Nexus\Mcp\Core\Schema\Notification\LoggingMessageNotification;
-use Nexus\Mcp\Core\Schema\NotificationParams\LoggingMessageNotificationParams;
 use Nexus\Mcp\Core\Schema\RequestId;
 use Nexus\Mcp\Core\Schema\RequestMetaObject;
-use Nexus\Mcp\Server\Logging\LoggingLevelGate;
 
 /**
  * Context passed to server-side request handlers.
@@ -34,19 +30,7 @@ final readonly class ServerContext extends AbstractContext
         public RequestMetaObject $meta,
         ?string $sessionId,
         SenderInterface $sender,
-        private LoggingLevelGate $gate = new LoggingLevelGate(),
     ) {
         parent::__construct($requestId, $cancellation, $meta->progressToken, $sessionId, $sender);
-    }
-
-    public function log(LoggingLevel $level, mixed $data, ?string $logger = null): void
-    {
-        if (! $this->gate->shouldEmit($level)) {
-            return;
-        }
-
-        $this->sender->sendNotification(new LoggingMessageNotification(
-            params: new LoggingMessageNotificationParams(level: $level, data: $data, logger: $logger),
-        ));
     }
 }
