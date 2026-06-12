@@ -16,6 +16,7 @@ namespace Nexus\Mcp\Server\Discovery;
 use Nexus\Assert\Assert;
 use Nexus\Assert\ExpectationFailedException;
 use Nexus\Mcp\Core\Validation\EnumValueValidator;
+use Nexus\Mcp\Server\Exception\UnsupportedNestedParameterException;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
@@ -89,6 +90,7 @@ final class ArgumentBinder
             $name = $parameter->getName();
 
             if (\array_key_exists($name, $value)) {
+                self::guardAgainstNestedObject($class, $parameter);
                 $arguments[] = self::hydrate($parameter, $value[$name]);
             } elseif ($parameter->isDefaultValueAvailable()) {
                 $arguments[] = $parameter->getDefaultValue();
@@ -98,6 +100,28 @@ final class ArgumentBinder
         }
 
         return $reflection->newInstanceArgs($arguments);
+    }
+
+    /**
+     * @param class-string $class
+     *
+     * @throws UnsupportedNestedParameterException
+     */
+    private static function guardAgainstNestedObject(string $class, \ReflectionParameter $parameter): void
+    {
+        $type = $parameter->getType();
+
+        if (! $type instanceof \ReflectionNamedType || $type->isBuiltin()) {
+            return;
+        }
+
+        $name = $type->getName();
+
+        if (enum_exists($name)) {
+            return;
+        }
+
+        throw new UnsupportedNestedParameterException($class, $parameter->getName(), $name);
     }
 
     private static function hydrate(\ReflectionParameter $parameter, mixed $value): mixed

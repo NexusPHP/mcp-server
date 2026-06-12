@@ -20,7 +20,7 @@ namespace Nexus\Mcp\Server\Attribute;
 final readonly class InputSchema
 {
     /**
-     * @param null|array<string, mixed>      $definition           Explicit input schema (only its type, $schema, properties, and required keys are advertised)
+     * @param null|array<string, mixed>      $definition           Explicit input schema, advertised verbatim with every top-level JSON Schema 2020-12 keyword preserved
      * @param null|list<mixed>               $enum
      * @param null|array<string, mixed>      $items
      * @param null|array<string, mixed>      $properties
