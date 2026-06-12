@@ -130,7 +130,6 @@ final readonly class AttributeScanner
 
             $arguments[] = new PromptArgument(
                 name: $parameter->getName(),
-                title: null,
                 description: '' === $description ? null : $description,
                 required: ! $parameter->isOptional(),
             );
