@@ -55,8 +55,8 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     private ResponseSender $responseSender;
 
     /**
-     * @param HandlerRegistry<RequestHandlerInterface<non-empty-string, Result<array<string, mixed>>, ServerContext>> $requestHandlers
-     * @param HandlerRegistry<NotificationHandlerInterface<non-empty-string>>                                         $notificationHandlers
+     * @param HandlerRegistry<RequestHandlerInterface<non-empty-string, Result, ServerContext>> $requestHandlers
+     * @param HandlerRegistry<NotificationHandlerInterface<non-empty-string>>                   $notificationHandlers
      */
     public function __construct(
         private HandlerRegistry $requestHandlers,
@@ -143,7 +143,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     }
 
     /**
-     * @param JsonRpcRequest<non-empty-string, array<string, mixed>> $request
+     * @param JsonRpcRequest<non-empty-string> $request
      */
     private function dispatchRequest(JsonRpcRequest $request, TransportInterface $transport): void
     {
@@ -213,7 +213,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     }
 
     /**
-     * @param JsonRpcNotification<non-empty-string, array<string, mixed>> $notification
+     * @param JsonRpcNotification<non-empty-string> $notification
      */
     private function dispatchNotification(JsonRpcNotification $notification): void
     {
