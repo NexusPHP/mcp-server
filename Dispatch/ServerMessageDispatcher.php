@@ -29,11 +29,11 @@ use Nexus\Mcp\Core\Handler\HandlerRegistry;
 use Nexus\Mcp\Core\Handler\NotificationHandlerInterface;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
 use Nexus\Mcp\Core\JsonRpc\JsonRpcMessageParser;
+use Nexus\Mcp\Core\JsonRpc\ResultResponseFactory;
 use Nexus\Mcp\Core\Schema\Error\InternalError;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcErrorResponse;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
-use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcResultResponse;
 use Nexus\Mcp\Core\Schema\Request\ClientRequest;
 use Nexus\Mcp\Core\Schema\RequestParams;
 use Nexus\Mcp\Core\Schema\Result;
@@ -203,7 +203,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
 
                 $this->responseSender->send(
                     $transport,
-                    new JsonRpcResultResponse(id: $request->id, result: $result),
+                    ResultResponseFactory::wrap($request, $result),
                     $method,
                 );
             } finally {
