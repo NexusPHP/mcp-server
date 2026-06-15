@@ -180,6 +180,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                         $sender,
                     );
                     $result = $handler->handle($request, $context);
+                    $response = ResultResponseFactory::wrap($request, $result);
                 } catch (TransportAlreadyClosedException $e) {
                     $this->responseSender->logSkippedDelivery($method, $e);
 
@@ -201,11 +202,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                     return;
                 }
 
-                $this->responseSender->send(
-                    $transport,
-                    ResultResponseFactory::wrap($request, $result),
-                    $method,
-                );
+                $this->responseSender->send($transport, $response, $method);
             } finally {
                 $this->inboundRequests->release($request->id);
             }
