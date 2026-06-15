@@ -33,7 +33,7 @@ final readonly class AsResource
         public ?string $description = null,
         public ?string $mimeType = null,
         public ?Annotations $annotations = null,
-        public ?float $size = null,
+        public ?int $size = null,
         public ?array $icons = null,
         public ?array $meta = null,
     ) {
