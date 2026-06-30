@@ -28,9 +28,8 @@ final readonly class ServerContext extends AbstractContext
         RequestId $requestId,
         Cancellation $cancellation,
         public RequestMetaObject $meta,
-        ?string $sessionId,
         SenderInterface $sender,
     ) {
-        parent::__construct($requestId, $cancellation, $meta->progressToken, $sessionId, $sender);
+        parent::__construct($requestId, $cancellation, $meta->progressToken, $sender);
     }
 }

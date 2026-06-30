@@ -74,12 +74,6 @@ final class StdioServerTransport implements TransportInterface
     }
 
     #[\Override]
-    public function getSessionId(): ?string
-    {
-        return null;
-    }
-
-    #[\Override]
     public function onMessage(\Closure $listener): SubscriptionInterface
     {
         return $this->duplex->onMessage($listener);

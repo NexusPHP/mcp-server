@@ -192,7 +192,6 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                         $request->id,
                         $this->cancellation,
                         $request->params->meta,
-                        $transport->getSessionId(),
                         $sender,
                     );
                     $result = $handler->handle($request, $context);
