@@ -31,9 +31,11 @@ use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
 use Nexus\Mcp\Core\JsonRpc\JsonRpcMessageParser;
 use Nexus\Mcp\Core\JsonRpc\ResultResponseFactory;
 use Nexus\Mcp\Core\Schema\Error\InternalError;
+use Nexus\Mcp\Core\Schema\Error\UnsupportedProtocolVersionError;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcErrorResponse;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
+use Nexus\Mcp\Core\Schema\ProtocolVersion;
 use Nexus\Mcp\Core\Schema\Request\ClientRequest;
 use Nexus\Mcp\Core\Schema\RequestParams;
 use Nexus\Mcp\Core\Schema\Result;
@@ -165,11 +167,25 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                         throw new MethodNotFoundException($method, $request->id);
                     }
 
-                    $handler = $this->requestHandlers->get($method)
-                        ?? throw new MethodNotFoundException($method, $request->id);
-
                     // A ClientRequest always carries the heavy RequestParams (the required _meta).
                     \assert($request->params instanceof RequestParams);
+
+                    $requestedVersion = $request->params->meta->protocolVersion->version;
+
+                    if (! \in_array($requestedVersion, ProtocolVersion::SUPPORTED_VERSIONS, true)) {
+                        $this->responseSender->send($transport, new JsonRpcErrorResponse(
+                            id: $request->id,
+                            error: new UnsupportedProtocolVersionError(
+                                requested: $requestedVersion,
+                                supported: ProtocolVersion::SUPPORTED_VERSIONS,
+                            ),
+                        ), $method);
+
+                        return;
+                    }
+
+                    $handler = $this->requestHandlers->get($method)
+                        ?? throw new MethodNotFoundException($method, $request->id);
 
                     $sender = new RequestBoundSender($transport, $request->id);
                     $context = new ServerContext(

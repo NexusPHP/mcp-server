@@ -49,7 +49,7 @@ final readonly class DiscoverRequestHandler implements RequestHandlerInterface
     public function handle(JsonRpcRequest $request, AbstractContext $context): DiscoverResult
     {
         return new DiscoverResult(
-            supportedVersions: [ProtocolVersion::LATEST_VERSION],
+            supportedVersions: ProtocolVersion::SUPPORTED_VERSIONS,
             capabilities: $this->capabilities,
             serverInfo: $this->serverInfo,
             ttlMs: $this->ttlMs,
