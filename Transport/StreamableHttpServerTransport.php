@@ -1,0 +1,292 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * This file is part of the Nexus MCP SDK package.
+ *
+ * (c) 2026 John Paul E. Balandan, CPA <paulbalandan@gmail.com>
+ *
+ * For the full copyright and license information, please view
+ * the LICENSE file that was distributed with this source code.
+ */
+
+namespace Nexus\Mcp\Server\Transport;
+
+use Amp\DeferredFuture;
+use Nexus\Assert\Assert;
+use Nexus\Mcp\Core\Exception\TransportAlreadyClosedException;
+use Nexus\Mcp\Core\Exception\TransportAlreadyStartedException;
+use Nexus\Mcp\Core\Exception\TransportNotStartedException;
+use Nexus\Mcp\Core\Http\HttpStatus;
+use Nexus\Mcp\Core\Http\HttpStatusResolver;
+use Nexus\Mcp\Core\Schema\Enum\ProtocolErrorCode;
+use Nexus\Mcp\Core\Schema\Error;
+use Nexus\Mcp\Core\Schema\Error\InvalidRequestError;
+use Nexus\Mcp\Core\Schema\Error\ParseError;
+use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcErrorResponse;
+use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcMessage;
+use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
+use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcResultResponse;
+use Nexus\Mcp\Core\Schema\RequestId;
+use Nexus\Mcp\Core\Transport\SendContext;
+use Nexus\Mcp\Core\Transport\SubscriptionInterface;
+use Nexus\Mcp\Core\Transport\TransportEvents;
+use Nexus\Mcp\Core\Transport\TransportInterface;
+use Nexus\Mcp\Core\Transport\TransportState;
+use Psr\Http\Message\ResponseFactoryInterface;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\StreamFactoryInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
+
+/**
+ * Stateless Streamable HTTP server transport, and the PSR-15 request handler for the MCP endpoint.
+ *
+ * @see https://modelcontextprotocol.io/specification/draft/basic/transports/streamable-http
+ */
+final class StreamableHttpServerTransport implements RequestHandlerInterface, TransportInterface
+{
+    private TransportState $state = TransportState::Idle;
+    private readonly TransportEvents $events;
+
+    /**
+     * In-flight requests awaiting a response, keyed by the transport-internal id emitted to the dispatcher.
+     *
+     * @var array<int, array{deferred: DeferredFuture<array<string, mixed>>, clientId: int|non-empty-string}>
+     */
+    private array $sinks = [];
+
+    public function __construct(
+        private readonly ResponseFactoryInterface $responseFactory,
+        private readonly StreamFactoryInterface $streamFactory,
+        private readonly LoggerInterface $logger = new NullLogger(),
+    ) {
+        $this->events = new TransportEvents();
+    }
+
+    /**
+     * Handles one HTTP request against the MCP endpoint, returning the response to write back.
+     */
+    #[\Override]
+    public function handle(ServerRequestInterface $request): ResponseInterface
+    {
+        if ($request->getMethod() !== 'POST') {
+            return $this->responseFactory->createResponse(HttpStatus::MethodNotAllowed->value)->withHeader('Allow', 'POST');
+        }
+
+        try {
+            $envelope = json_decode((string) $request->getBody(), associative: true, flags: \JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            // An empty or otherwise undecodable body.
+            return $this->buildErrorResponse(new ParseError(message: ParseError::DEFAULT_MESSAGE));
+        }
+
+        try {
+            Assert::that($envelope)->isMap('JSON-RPC envelope must be a JSON object, {type} given.');
+        } catch (\InvalidArgumentException) {
+            // Valid JSON that is not an object (a scalar, or a JSON array such as a removed batch).
+            return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
+        }
+
+        if (\array_key_exists('result', $envelope) || \array_key_exists('error', $envelope)) {
+            // The body must be a request or notification. A response is not a valid client-to-server message,
+            // and the dispatcher discards responses without replying, so admitting one would hang the POST.
+            return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
+        }
+
+        if (! \array_key_exists('id', $envelope)) {
+            if (! self::isAcceptableNotification($envelope)) {
+                // The server cannot accept a malformed notification, so it answers an HTTP error, not 202.
+                return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
+            }
+
+            $this->events->emitMessage($envelope);
+
+            return $this->responseFactory->createResponse(HttpStatus::Accepted->value);
+        }
+
+        $clientId = $envelope['id'];
+
+        if (! \is_int($clientId) && ! (\is_string($clientId) && '' !== $clientId)) {
+            // MCP narrows the request id to int|non-empty-string.
+            return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
+        }
+
+        return $this->dispatchAndAwait($envelope, $clientId);
+    }
+
+    #[\Override]
+    public function start(): void
+    {
+        match ($this->state) {
+            TransportState::Running => throw new TransportAlreadyStartedException(transport: self::class),
+            TransportState::Closed => throw new TransportAlreadyClosedException(operation: 'start'),
+            TransportState::Idle => null,
+        };
+
+        $this->state = TransportState::Running;
+    }
+
+    #[\Override]
+    public function send(JsonRpcMessage $message, ?SendContext $context = null): void
+    {
+        match ($this->state) {
+            TransportState::Idle => throw new TransportNotStartedException(operation: 'send'),
+            TransportState::Closed => throw new TransportAlreadyClosedException(operation: 'send'),
+            TransportState::Running => null,
+        };
+
+        if ($message instanceof JsonRpcResultResponse || $message instanceof JsonRpcErrorResponse) {
+            $this->completeResponse($message);
+
+            return;
+        }
+
+        if ($message instanceof JsonRpcNotification) {
+            // A progress notification needs a live SSE stream. The JSON response path has none, so it drops.
+            $this->logger->debug('Dropping a notification: the JSON response path cannot stream it.');
+
+            return;
+        }
+
+        // The server issues no client-bound requests over Streamable HTTP.
+        $this->logger->warning('Dropping an unexpected server-initiated request.');
+    }
+
+    #[\Override]
+    public function close(): void
+    {
+        if (TransportState::Closed === $this->state) {
+            return;
+        }
+
+        // Draining lets any in-flight dispatch coroutine send its response and resolve the awaiting request
+        // before the transport is marked closed.
+        try {
+            $this->events->emitDrain();
+        } finally {
+            $this->state = TransportState::Closed;
+            $this->events->emitClose();
+        }
+    }
+
+    #[\Override]
+    public function onMessage(\Closure $listener): SubscriptionInterface
+    {
+        return $this->events->onMessage($listener);
+    }
+
+    #[\Override]
+    public function onError(\Closure $listener): SubscriptionInterface
+    {
+        return $this->events->onError($listener);
+    }
+
+    #[\Override]
+    public function onDrain(\Closure $listener): SubscriptionInterface
+    {
+        return $this->events->onDrain($listener);
+    }
+
+    #[\Override]
+    public function onClose(\Closure $listener): SubscriptionInterface
+    {
+        return $this->events->onClose($listener);
+    }
+
+    /**
+     * A notification receives no dispatcher reply, so the transport gates its acceptance itself: a
+     * well-formed JSON-RPC 2.0 notification carries a non-empty string method.
+     *
+     * @param array<string, mixed> $envelope
+     */
+    private static function isAcceptableNotification(array $envelope): bool
+    {
+        $method = $envelope['method'] ?? null;
+
+        return JsonRpcMessage::JSONRPC_VERSION === ($envelope['jsonrpc'] ?? null)
+            && \is_string($method)
+            && '' !== $method;
+    }
+
+    /**
+     * @param array<string, mixed> $envelope
+     * @param int|non-empty-string $clientId
+     */
+    private function dispatchAndAwait(array $envelope, int|string $clientId): ResponseInterface
+    {
+        /** @var DeferredFuture<array<string, mixed>> $deferred */
+        $deferred = new DeferredFuture();
+
+        // The deferred is itself the correlation token: its object id is unique among the live in-flight
+        // sinks, so it re-keys the request without a shared counter.
+        $internalId = spl_object_id($deferred);
+        $this->sinks[$internalId] = ['deferred' => $deferred, 'clientId' => $clientId];
+
+        $envelope['id'] = $internalId;
+        $this->events->emitMessage($envelope);
+
+        $response = $deferred->getFuture()->await();
+        unset($this->sinks[$internalId]);
+
+        return $this->buildJsonResponse($response);
+    }
+
+    private function completeResponse(JsonRpcErrorResponse|JsonRpcResultResponse $message): void
+    {
+        $id = $message->id;
+
+        if (! $id instanceof RequestId) {
+            $this->logger->warning('Discarding a response that carries no id to correlate.');
+
+            return;
+        }
+
+        $internalId = $id->id;
+
+        if (! \is_int($internalId) || ! \array_key_exists($internalId, $this->sinks)) {
+            $this->logger->warning('Discarding an orphan response with no in-flight request.');
+
+            return;
+        }
+
+        $sink = $this->sinks[$internalId];
+        $envelope = $message->toArray();
+        $envelope['id'] = $sink['clientId'];
+        $sink['deferred']->complete($envelope);
+    }
+
+    /**
+     * @param array<string, mixed> $envelope
+     */
+    private function buildJsonResponse(array $envelope): ResponseInterface
+    {
+        return $this->responseFactory->createResponse(HttpStatus::Ok->value)
+            ->withHeader('Content-Type', 'application/json')
+            ->withBody($this->streamFactory->createStream(self::encode($envelope)))
+        ;
+    }
+
+    private function buildErrorResponse(Error $error): ResponseInterface
+    {
+        // A transport-synthesised error always carries a spec-defined code, so it maps to a ProtocolErrorCode.
+        $status = HttpStatusResolver::resolve(ProtocolErrorCode::from($error->code), fromHandler: false);
+        $envelope = new JsonRpcErrorResponse(id: null, error: $error)->toArray();
+
+        return $this->responseFactory->createResponse($status)
+            ->withHeader('Content-Type', 'application/json')
+            ->withBody($this->streamFactory->createStream(self::encode($envelope)))
+        ;
+    }
+
+    /**
+     * @param array<string, mixed> $envelope
+     */
+    private static function encode(array $envelope): string
+    {
+        return json_encode($envelope, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE);
+    }
+}
