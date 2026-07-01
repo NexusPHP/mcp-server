@@ -39,6 +39,7 @@ use Nexus\Mcp\Core\Schema\ProtocolVersion;
 use Nexus\Mcp\Core\Schema\Request\ClientRequest;
 use Nexus\Mcp\Core\Schema\RequestParams;
 use Nexus\Mcp\Core\Schema\Result;
+use Nexus\Mcp\Core\Transport\SendContext;
 use Nexus\Mcp\Core\Transport\TransportInterface;
 use Nexus\Mcp\Server\ServerContext;
 use Psr\Log\LoggerInterface;
@@ -200,8 +201,19 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                     $this->responseSender->logSkippedDelivery($method, $e);
 
                     return;
-                } catch (AbstractJsonRpcProtocolException $e) {
+                } catch (MethodNotFoundException $e) {
+                    // A routing miss the framework raises: no handler serves the method.
                     $this->responseSender->send($transport, ResponseSender::buildErrorResponse($e, $request->id), $method);
+
+                    return;
+                } catch (AbstractJsonRpcProtocolException $e) {
+                    // A protocol error the handler itself raised (e.g. invalid tool arguments).
+                    $this->responseSender->send(
+                        $transport,
+                        ResponseSender::buildErrorResponse($e, $request->id),
+                        $method,
+                        new SendContext(fromHandler: true),
+                    );
 
                     return;
                 } catch (\Throwable $e) {
@@ -209,10 +221,15 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                         'Uncaught request handler exception.',
                         ['method' => $method, 'exception' => $e],
                     );
-                    $this->responseSender->send($transport, new JsonRpcErrorResponse(
-                        id: $request->id,
-                        error: new InternalError(message: InternalError::DEFAULT_MESSAGE),
-                    ), $method);
+                    $this->responseSender->send(
+                        $transport,
+                        new JsonRpcErrorResponse(
+                            id: $request->id,
+                            error: new InternalError(message: InternalError::DEFAULT_MESSAGE),
+                        ),
+                        $method,
+                        new SendContext(fromHandler: true),
+                    );
 
                     return;
                 }

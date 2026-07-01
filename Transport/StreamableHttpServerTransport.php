@@ -20,6 +20,7 @@ use Nexus\Mcp\Core\Exception\TransportAlreadyStartedException;
 use Nexus\Mcp\Core\Exception\TransportNotStartedException;
 use Nexus\Mcp\Core\Http\HttpStatus;
 use Nexus\Mcp\Core\Http\HttpStatusResolver;
+use Nexus\Mcp\Core\Http\StandardHeaderValidator;
 use Nexus\Mcp\Core\Schema\Enum\ProtocolErrorCode;
 use Nexus\Mcp\Core\Schema\Error;
 use Nexus\Mcp\Core\Schema\Error\InvalidRequestError;
@@ -55,7 +56,10 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
     /**
      * In-flight requests awaiting a response, keyed by the transport-internal id emitted to the dispatcher.
      *
-     * @var array<int, array{deferred: DeferredFuture<array<string, mixed>>, clientId: int|non-empty-string}>
+     * @var array<int, array{
+     *   deferred: DeferredFuture<array{envelope: array<string, mixed>, status: int}>,
+     *   clientId: int|non-empty-string,
+     * }>
      */
     private array $sinks = [];
 
@@ -115,6 +119,12 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
             return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
         }
 
+        $mismatch = StandardHeaderValidator::validate(self::readHeaders($request), $envelope);
+
+        if (null !== $mismatch) {
+            return $this->buildErrorResponse($mismatch);
+        }
+
         return $this->dispatchAndAwait($envelope, $clientId);
     }
 
@@ -140,7 +150,7 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
         };
 
         if ($message instanceof JsonRpcResultResponse || $message instanceof JsonRpcErrorResponse) {
-            $this->completeResponse($message);
+            $this->completeResponse($message, $context);
 
             return;
         }
@@ -218,7 +228,7 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
      */
     private function dispatchAndAwait(array $envelope, int|string $clientId): ResponseInterface
     {
-        /** @var DeferredFuture<array<string, mixed>> $deferred */
+        /** @var DeferredFuture<array{envelope: array<string, mixed>, status: int}> $deferred */
         $deferred = new DeferredFuture();
 
         // The deferred is itself the correlation token: its object id is unique among the live in-flight
@@ -229,13 +239,13 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
         $envelope['id'] = $internalId;
         $this->events->emitMessage($envelope);
 
-        $response = $deferred->getFuture()->await();
+        $resolved = $deferred->getFuture()->await();
         unset($this->sinks[$internalId]);
 
-        return $this->buildJsonResponse($response);
+        return $this->buildJsonResponse($resolved['envelope'], $resolved['status']);
     }
 
-    private function completeResponse(JsonRpcErrorResponse|JsonRpcResultResponse $message): void
+    private function completeResponse(JsonRpcErrorResponse|JsonRpcResultResponse $message, ?SendContext $context): void
     {
         $id = $message->id;
 
@@ -256,18 +266,45 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
         $sink = $this->sinks[$internalId];
         $envelope = $message->toArray();
         $envelope['id'] = $sink['clientId'];
-        $sink['deferred']->complete($envelope);
+        $fromHandler = null !== $context && $context->fromHandler;
+        $sink['deferred']->complete(['envelope' => $envelope, 'status' => self::resolveStatus($message, $fromHandler)]);
+    }
+
+    /**
+     * A result rides HTTP 200. An error's status turns on its origin: a handler-produced error rides 200
+     * with the JSON-RPC error in the body, while a protocol error carries a real status.
+     */
+    private static function resolveStatus(JsonRpcErrorResponse|JsonRpcResultResponse $message, bool $fromHandler): int
+    {
+        if ($message instanceof JsonRpcResultResponse) {
+            return HttpStatus::Ok->value;
+        }
+
+        return HttpStatusResolver::resolve(ProtocolErrorCode::from($message->error->code), $fromHandler);
     }
 
     /**
      * @param array<string, mixed> $envelope
      */
-    private function buildJsonResponse(array $envelope): ResponseInterface
+    private function buildJsonResponse(array $envelope, int $status): ResponseInterface
     {
-        return $this->responseFactory->createResponse(HttpStatus::Ok->value)
+        return $this->responseFactory->createResponse($status)
             ->withHeader('Content-Type', 'application/json')
             ->withBody($this->streamFactory->createStream(self::encode($envelope)))
         ;
+    }
+
+    /**
+     * Flattens the PSR-7 header bag to the single-value-per-name map the header validator consumes.
+     *
+     * @return array<string, string>
+     */
+    private static function readHeaders(ServerRequestInterface $request): array
+    {
+        return array_map(
+            static fn(array $values): string => implode(', ', $values),
+            $request->getHeaders(),
+        );
     }
 
     private function buildErrorResponse(Error $error): ResponseInterface
