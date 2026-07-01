@@ -20,8 +20,8 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 /**
- * Thin shell that drives a single transport's lifecycle. `run()` attaches the
- * listeners once and blocks until the transport closes.
+ * Thin shell that drives a single transport's lifecycle, exposing a blocking
+ * `run()` and a non-blocking `listen()`.
  */
 final readonly class Server
 {
@@ -29,21 +29,19 @@ final readonly class Server
     {
     }
 
+    /**
+     * Runs the server on the transport, blocking until it closes. Use for a
+     * long-lived transport that owns its read loop (stdio). For a request-scoped
+     * transport the host drives per request, use `listen()` instead.
+     */
     public function run(TransportInterface $transport): void
     {
         $this->logger->info('Starting MCP server.');
 
         $deferred = new DeferredFuture();
 
-        $transport->onMessage(function (array $envelope) use ($transport): void {
-            $this->dispatcher->dispatch($envelope, $transport);
-        });
-        $transport->onError(function (\Throwable $e): void {
-            $this->logger->error('Transport error.', ['exception' => $e]);
-        });
-        $transport->onDrain(function (): void {
-            $this->dispatcher->flushPending();
-        });
+        $this->attachDispatchListeners($transport);
+
         $transport->onClose(static function () use ($deferred): void {
             // Transports may emit `close` more than once if an error raises during shutdown
             // (e.g. stdin EOF followed by a write failure). Ignore the duplicate.
@@ -58,5 +56,30 @@ final readonly class Server
         $deferred->getFuture()->await();
 
         $this->logger->info('MCP server stopped.');
+    }
+
+    /**
+     * Attaches the dispatcher and starts the transport without blocking. Use for
+     * a request-scoped transport (streamable HTTP mounted in a PSR-15 stack) the
+     * host drives per request. For a long-lived transport, use `run()` instead.
+     */
+    public function listen(TransportInterface $transport): void
+    {
+        $this->attachDispatchListeners($transport);
+
+        $transport->start();
+    }
+
+    private function attachDispatchListeners(TransportInterface $transport): void
+    {
+        $transport->onMessage(function (array $envelope) use ($transport): void {
+            $this->dispatcher->dispatch($envelope, $transport);
+        });
+        $transport->onError(function (\Throwable $e): void {
+            $this->logger->error('Transport error.', ['exception' => $e]);
+        });
+        $transport->onDrain(function (): void {
+            $this->dispatcher->flushPending();
+        });
     }
 }
