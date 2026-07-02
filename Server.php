@@ -15,6 +15,7 @@ namespace Nexus\Mcp\Server;
 
 use Amp\DeferredFuture;
 use Nexus\Mcp\Core\Dispatch\MessageDispatcherInterface;
+use Nexus\Mcp\Core\Transport\ReceiveContext;
 use Nexus\Mcp\Core\Transport\TransportInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -72,8 +73,8 @@ final readonly class Server
 
     private function attachDispatchListeners(TransportInterface $transport): void
     {
-        $transport->onMessage(function (array $envelope) use ($transport): void {
-            $this->dispatcher->dispatch($envelope, $transport);
+        $transport->onMessage(function (array $envelope, ReceiveContext $context) use ($transport): void {
+            $this->dispatcher->dispatch($envelope, $transport, $context);
         });
         $transport->onError(function (\Throwable $e): void {
             $this->logger->error('Transport error.', ['exception' => $e]);

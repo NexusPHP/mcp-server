@@ -18,6 +18,7 @@ use Nexus\Mcp\Core\Handler\AbstractContext;
 use Nexus\Mcp\Core\Handler\SenderInterface;
 use Nexus\Mcp\Core\Schema\RequestId;
 use Nexus\Mcp\Core\Schema\RequestMetaObject;
+use Nexus\Mcp\Core\Transport\ReceiveContext;
 
 /**
  * Context passed to server-side request handlers.
@@ -29,6 +30,7 @@ final readonly class ServerContext extends AbstractContext
         Cancellation $cancellation,
         public RequestMetaObject $meta,
         SenderInterface $sender,
+        public ReceiveContext $receiveContext = new ReceiveContext(),
     ) {
         parent::__construct($requestId, $cancellation, $meta->progressToken, $sender);
     }

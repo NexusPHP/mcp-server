@@ -30,6 +30,7 @@ use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcMessage;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcResultResponse;
 use Nexus\Mcp\Core\Schema\RequestId;
+use Nexus\Mcp\Core\Transport\ReceiveContext;
 use Nexus\Mcp\Core\Transport\SendContext;
 use Nexus\Mcp\Core\Transport\SubscriptionInterface;
 use Nexus\Mcp\Core\Transport\TransportEvents;
@@ -123,7 +124,7 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
                 return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
             }
 
-            $this->events->emitMessage($envelope);
+            $this->events->emitMessage($envelope, new ReceiveContext($request));
 
             return $this->responseFactory->createResponse(HttpStatus::Accepted->value);
         }
@@ -142,8 +143,8 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
         }
 
         return ResponseMode::Sse === $this->responseMode
-            ? $this->dispatchStreaming($envelope, $clientId)
-            : $this->dispatchBuffered($envelope, $clientId);
+            ? $this->dispatchStreaming($envelope, $clientId, $request)
+            : $this->dispatchBuffered($envelope, $clientId, $request);
     }
 
     #[\Override]
@@ -257,7 +258,7 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
      * @param array<string, mixed> $envelope
      * @param int|non-empty-string $clientId
      */
-    private function dispatchBuffered(array $envelope, int|string $clientId): ResponseInterface
+    private function dispatchBuffered(array $envelope, int|string $clientId, ServerRequestInterface $request): ResponseInterface
     {
         /** @var DeferredFuture<ResponseInterface> $deferred */
         $deferred = new DeferredFuture();
@@ -268,7 +269,7 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
         $this->sinks[$internalId] = ['clientId' => $clientId, 'buffered' => $deferred, 'stream' => null];
 
         $envelope['id'] = $internalId;
-        $this->events->emitMessage($envelope);
+        $this->events->emitMessage($envelope, new ReceiveContext($request));
 
         return $deferred->getFuture()->await();
     }
@@ -280,7 +281,7 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
      * @param array<string, mixed> $envelope
      * @param int|non-empty-string $clientId
      */
-    private function dispatchStreaming(array $envelope, int|string $clientId): ResponseInterface
+    private function dispatchStreaming(array $envelope, int|string $clientId, ServerRequestInterface $request): ResponseInterface
     {
         // The deferred is a pure correlation anchor here: its object id keys the sink, but the streaming
         // response is returned directly rather than through its future.
@@ -291,7 +292,7 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
         $this->sinks[$internalId] = ['clientId' => $clientId, 'buffered' => $anchor, 'stream' => $stream];
 
         $envelope['id'] = $internalId;
-        $this->events->emitMessage($envelope);
+        $this->events->emitMessage($envelope, new ReceiveContext($request));
 
         return $this->buildSseResponse($stream);
     }

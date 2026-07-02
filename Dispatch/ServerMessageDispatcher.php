@@ -39,6 +39,7 @@ use Nexus\Mcp\Core\Schema\ProtocolVersion;
 use Nexus\Mcp\Core\Schema\Request\ClientRequest;
 use Nexus\Mcp\Core\Schema\RequestParams;
 use Nexus\Mcp\Core\Schema\Result;
+use Nexus\Mcp\Core\Transport\ReceiveContext;
 use Nexus\Mcp\Core\Transport\SendContext;
 use Nexus\Mcp\Core\Transport\TransportInterface;
 use Nexus\Mcp\Server\ServerContext;
@@ -83,7 +84,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
      * @param array<string, mixed> $envelope
      */
     #[\Override]
-    public function dispatch(array $envelope, TransportInterface $transport): void
+    public function dispatch(array $envelope, TransportInterface $transport, ReceiveContext $context): void
     {
         if (\array_key_exists('result', $envelope) || \array_key_exists('error', $envelope)) {
             $this->discardResponseEnvelope($envelope);
@@ -128,7 +129,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
         }
 
         if ($message instanceof JsonRpcRequest) {
-            $this->dispatchRequest($message, $transport);
+            $this->dispatchRequest($message, $transport, $context);
         } elseif ($message instanceof JsonRpcNotification) {
             $this->dispatchNotification($message);
         }
@@ -148,7 +149,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     /**
      * @param JsonRpcRequest<non-empty-string> $request
      */
-    private function dispatchRequest(JsonRpcRequest $request, TransportInterface $transport): void
+    private function dispatchRequest(JsonRpcRequest $request, TransportInterface $transport, ReceiveContext $context): void
     {
         $method = $request::getMethod();
 
@@ -159,7 +160,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
             return;
         }
 
-        $this->coroutines->track(async(function () use ($request, $transport, $method): void {
+        $this->coroutines->track(async(function () use ($request, $transport, $method, $context): void {
             try {
                 try {
                     if (! $request instanceof ClientRequest) {
@@ -189,13 +190,14 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                         ?? throw new MethodNotFoundException($method, $request->id);
 
                     $sender = new RequestBoundSender($transport, $request->id);
-                    $context = new ServerContext(
+                    $serverContext = new ServerContext(
                         $request->id,
                         $this->cancellation,
                         $request->params->meta,
                         $sender,
+                        $context,
                     );
-                    $result = $handler->handle($request, $context);
+                    $result = $handler->handle($request, $serverContext);
                     $response = ResultResponseFactory::wrap($request, $result);
                 } catch (TransportAlreadyClosedException $e) {
                     $this->responseSender->logSkippedDelivery($method, $e);
