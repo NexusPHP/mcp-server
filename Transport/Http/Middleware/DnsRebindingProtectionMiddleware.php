@@ -24,9 +24,12 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
 /**
- * Guards the MCP endpoint against DNS rebinding by rejecting requests from an unrecognised `Origin`.
- * A present-but-unlisted `Origin` is answered with an id-less JSON-RPC error on HTTP 403. A request
- * without an `Origin` header (non-browser clients) passes through, since only browsers send it.
+ * Guards the MCP endpoint against DNS rebinding by rejecting requests from an unrecognised `Origin` or `Host`.
+ *
+ * A present-but-unlisted `Origin` is answered with an id-less JSON-RPC error on HTTP 403. A request without an
+ * `Origin` header (non-browser clients) passes through, since only browsers send it. `Host` validation is a
+ * beyond-spec, opt-in dimension: an empty allow-list disables it, otherwise the `Host` header must be present
+ * and listed.
  */
 final readonly class DnsRebindingProtectionMiddleware implements MiddlewareInterface
 {
@@ -34,9 +37,11 @@ final readonly class DnsRebindingProtectionMiddleware implements MiddlewareInter
 
     /**
      * @param list<non-empty-string> $allowedOrigins Origins permitted to reach the endpoint, or `['*']` to allow any
+     * @param list<non-empty-string> $allowedHosts   Hosts permitted to reach the endpoint (empty disables `Host` validation), or `['*']` to allow any
      */
     public function __construct(
         private array $allowedOrigins,
+        private array $allowedHosts,
         private ResponseFactoryInterface $responseFactory,
         private StreamFactoryInterface $streamFactory,
     ) {
@@ -45,28 +50,49 @@ final readonly class DnsRebindingProtectionMiddleware implements MiddlewareInter
     #[\Override]
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        if (! $request->hasHeader('Origin')) {
-            return $handler->handle($request);
+        if (! $this->isHostAllowed($request)) {
+            return $this->reject('The request Host is not allowed.');
         }
 
-        if ($this->isAllowed($request->getHeaderLine('Origin'))) {
-            return $handler->handle($request);
+        if (! $this->isOriginAllowed($request)) {
+            return $this->reject('The request Origin is not allowed.');
         }
 
-        return $this->reject();
+        return $handler->handle($request);
     }
 
-    private function isAllowed(string $origin): bool
+    private function isHostAllowed(ServerRequestInterface $request): bool
     {
-        return \in_array(self::WILDCARD, $this->allowedOrigins, true)
-            || \in_array($origin, $this->allowedOrigins, true);
+        if ([] === $this->allowedHosts) {
+            return true;
+        }
+
+        return self::matches($request->getHeaderLine('Host'), $this->allowedHosts);
     }
 
-    private function reject(): ResponseInterface
+    private function isOriginAllowed(ServerRequestInterface $request): bool
+    {
+        if (! $request->hasHeader('Origin')) {
+            return true;
+        }
+
+        return self::matches($request->getHeaderLine('Origin'), $this->allowedOrigins);
+    }
+
+    /**
+     * @param list<non-empty-string> $allowed
+     */
+    private static function matches(string $value, array $allowed): bool
+    {
+        return \in_array(self::WILDCARD, $allowed, true)
+            || \in_array($value, $allowed, true);
+    }
+
+    private function reject(string $message): ResponseInterface
     {
         $envelope = new JsonRpcErrorResponse(
             id: null,
-            error: new InvalidRequestError(message: 'The request Origin is not allowed.'),
+            error: new InvalidRequestError(message: $message),
         )->toArray();
 
         return $this->responseFactory->createResponse(HttpStatus::Forbidden->value)
