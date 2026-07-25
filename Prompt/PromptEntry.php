@@ -17,8 +17,6 @@ use Nexus\Mcp\Core\Schema\Prompt\Prompt;
 
 /**
  * Pairs a `Prompt` with the renderer that resolves it for a request.
- *
- * @internal
  */
 final readonly class PromptEntry
 {

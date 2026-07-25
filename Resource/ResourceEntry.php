@@ -17,8 +17,6 @@ use Nexus\Mcp\Core\Schema\Resource\Resource;
 
 /**
  * Pairs a `Resource` with the reader that serves its content.
- *
- * @internal
  */
 final readonly class ResourceEntry
 {

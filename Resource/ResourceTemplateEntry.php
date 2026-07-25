@@ -17,8 +17,6 @@ use Nexus\Mcp\Core\Schema\Resource\ResourceTemplate;
 
 /**
  * Pairs a `ResourceTemplate` with the reader that serves URIs matching it.
- *
- * @internal
  */
 final readonly class ResourceTemplateEntry
 {

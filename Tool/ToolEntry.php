@@ -17,8 +17,6 @@ use Nexus\Mcp\Core\Schema\Tool\Tool;
 
 /**
  * Pairs a `Tool` with the executor that runs its invocations.
- *
- * @internal
  */
 final readonly class ToolEntry
 {
