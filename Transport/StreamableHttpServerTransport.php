@@ -58,9 +58,16 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
     private readonly TransportEvents $events;
 
     /**
-     * In-flight requests, keyed by the transport-internal id emitted to the dispatcher. The `buffered`
-     * deferred both correlates the request (its object id is the internal id) and, on the buffered path,
-     * carries the response `handle()` awaits. Once `stream` is set the sink streams SSE frames instead.
+     * The last transport-internal request id minted. Ids ascend and are never reused for the process's
+     * lifetime, so a retired sink's id cannot reach a later request while the handler that still holds it
+     * runs on.
+     */
+    private int $lastRequestId = 0;
+
+    /**
+     * In-flight requests, keyed by the transport-internal id emitted to the dispatcher. On the buffered path
+     * the `buffered` deferred carries the response `handle()` awaits. Once `stream` is set the sink streams
+     * SSE frames instead and the deferred goes unused.
      *
      * @var array<int, array{
      *   clientId: int|non-empty-string,
@@ -273,9 +280,7 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
         /** @var DeferredFuture<ResponseInterface> $deferred */
         $deferred = new DeferredFuture();
 
-        // The deferred is itself the correlation token: its object id is unique among the live in-flight
-        // sinks, so it re-keys the request without a shared counter.
-        $internalId = spl_object_id($deferred);
+        $internalId = ++$this->lastRequestId;
         $this->sinks[$internalId] = ['clientId' => $clientId, 'buffered' => $deferred, 'stream' => null];
 
         $envelope['id'] = $internalId;
@@ -293,13 +298,13 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
      */
     private function dispatchStreaming(array $envelope, int|string $clientId, ServerRequestInterface $request): ResponseInterface
     {
-        // The deferred is a pure correlation anchor here: its object id keys the sink, but the streaming
-        // response is returned directly rather than through its future.
-        /** @var DeferredFuture<ResponseInterface> $anchor */
-        $anchor = new DeferredFuture();
-        $internalId = spl_object_id($anchor);
+        // The streaming response is returned directly rather than through the sink's deferred, which only an
+        // `Auto` upgrade from the buffered path ever completes.
+        /** @var DeferredFuture<ResponseInterface> $unused */
+        $unused = new DeferredFuture();
+        $internalId = ++$this->lastRequestId;
         $stream = new SseResponseStream($this->keepAliveInterval, fn(): null => $this->releaseStream($internalId));
-        $this->sinks[$internalId] = ['clientId' => $clientId, 'buffered' => $anchor, 'stream' => $stream];
+        $this->sinks[$internalId] = ['clientId' => $clientId, 'buffered' => $unused, 'stream' => $stream];
 
         $envelope['id'] = $internalId;
         $this->events->emitMessage($envelope, new ReceiveContext($request));
