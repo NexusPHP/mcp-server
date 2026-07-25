@@ -29,22 +29,34 @@ use Psr\Http\Server\RequestHandlerInterface;
  * A present-but-unlisted `Origin` is answered with an id-less JSON-RPC error on HTTP 403. A request without an
  * `Origin` header (non-browser clients) passes through, since only browsers send it. `Host` validation is a
  * beyond-spec, opt-in dimension: an empty allow-list disables it, otherwise the `Host` header must be present
- * and listed.
+ * and listed. Matching is case-insensitive, since RFC 9110 makes the scheme and host of a URI so.
  */
 final readonly class DnsRebindingProtectionMiddleware implements MiddlewareInterface
 {
     private const string WILDCARD = '*';
 
     /**
+     * @var list<non-empty-string>
+     */
+    private array $allowedOrigins;
+
+    /**
+     * @var list<non-empty-string>
+     */
+    private array $allowedHosts;
+
+    /**
      * @param list<non-empty-string> $allowedOrigins Origins permitted to reach the endpoint, or `['*']` to allow any
      * @param list<non-empty-string> $allowedHosts   Hosts permitted to reach the endpoint (empty disables `Host` validation), or `['*']` to allow any
      */
     public function __construct(
-        private array $allowedOrigins,
-        private array $allowedHosts,
+        array $allowedOrigins,
+        array $allowedHosts,
         private ResponseFactoryInterface $responseFactory,
         private StreamFactoryInterface $streamFactory,
     ) {
+        $this->allowedOrigins = array_map(strtolower(...), $allowedOrigins);
+        $this->allowedHosts = array_map(strtolower(...), $allowedHosts);
     }
 
     #[\Override]
@@ -85,7 +97,7 @@ final readonly class DnsRebindingProtectionMiddleware implements MiddlewareInter
     private static function matches(string $value, array $allowed): bool
     {
         return \in_array(self::WILDCARD, $allowed, true)
-            || \in_array($value, $allowed, true);
+            || \in_array(strtolower($value), $allowed, true);
     }
 
     private function reject(string $message): ResponseInterface

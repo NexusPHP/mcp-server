@@ -155,7 +155,9 @@ final class SseResponseStream implements StreamInterface
                 $this->reader->getFuture()->await(new TimeoutCancellation($this->keepAliveInterval));
             } catch (CancelledException) {
                 // Nothing arrived within the interval: keep the connection alive with a comment frame.
-                return self::KEEP_ALIVE_FRAME;
+                // Buffering it rather than returning it keeps the read honouring `$length` and `tell()`.
+                // A push during the await completes the reader, so reaching here leaves the buffer empty.
+                $this->buffer = self::KEEP_ALIVE_FRAME;
             }
         }
 
