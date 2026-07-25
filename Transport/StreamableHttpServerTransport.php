@@ -21,6 +21,7 @@ use Nexus\Mcp\Core\Exception\TransportNotStartedException;
 use Nexus\Mcp\Core\Http\HttpStatus;
 use Nexus\Mcp\Core\Http\HttpStatusResolver;
 use Nexus\Mcp\Core\Http\StandardHeaders;
+use Nexus\Mcp\Core\JsonRpc\EnvelopeRequestId;
 use Nexus\Mcp\Core\Schema\Enum\ProtocolErrorCode;
 use Nexus\Mcp\Core\Schema\Error;
 use Nexus\Mcp\Core\Schema\Error\InternalError;
@@ -146,12 +147,14 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
             return $this->responseFactory->createResponse(HttpStatus::Accepted->value);
         }
 
-        $clientId = $envelope['id'];
+        $requestId = EnvelopeRequestId::recover($envelope);
 
-        if (! \is_int($clientId) && ! (\is_string($clientId) && '' !== $clientId)) {
+        if (null === $requestId) {
             // MCP narrows the request id to int|non-empty-string.
             return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
         }
+
+        $clientId = $requestId->id;
 
         $mismatch = StandardHeaders::validate(self::readHeaders($request), $envelope);
 

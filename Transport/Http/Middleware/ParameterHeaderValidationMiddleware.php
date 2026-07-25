@@ -17,6 +17,7 @@ use Nexus\Mcp\Core\Http\HttpStatus;
 use Nexus\Mcp\Core\Http\ParameterHeaderBinding;
 use Nexus\Mcp\Core\Http\ParameterHeaders;
 use Nexus\Mcp\Core\Http\ParameterHeaderScanner;
+use Nexus\Mcp\Core\JsonRpc\EnvelopeRequestId;
 use Nexus\Mcp\Core\Schema\Error\HeaderMismatchError;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcErrorResponse;
 use Nexus\Mcp\Core\Schema\Request\CallToolRequest;
@@ -87,7 +88,7 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
-        return $this->reject($mismatch, $envelope['id'] ?? null);
+        return $this->reject($mismatch, EnvelopeRequestId::recover($envelope));
     }
 
     /**
@@ -154,10 +155,9 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
         );
     }
 
-    private function reject(HeaderMismatchError $error, mixed $id): ResponseInterface
+    private function reject(HeaderMismatchError $error, ?RequestId $id): ResponseInterface
     {
-        $requestId = \is_int($id) || (\is_string($id) && '' !== $id) ? new RequestId(id: $id) : null;
-        $envelope = new JsonRpcErrorResponse(id: $requestId, error: $error)->toArray();
+        $envelope = new JsonRpcErrorResponse(id: $id, error: $error)->toArray();
 
         return $this->responseFactory->createResponse(HttpStatus::BadRequest->value)
             ->withHeader('Content-Type', 'application/json')
