@@ -20,7 +20,7 @@ use Nexus\Mcp\Core\Exception\TransportAlreadyStartedException;
 use Nexus\Mcp\Core\Exception\TransportNotStartedException;
 use Nexus\Mcp\Core\Http\HttpStatus;
 use Nexus\Mcp\Core\Http\HttpStatusResolver;
-use Nexus\Mcp\Core\Http\StandardHeaderValidator;
+use Nexus\Mcp\Core\Http\StandardHeaders;
 use Nexus\Mcp\Core\Schema\Enum\ProtocolErrorCode;
 use Nexus\Mcp\Core\Schema\Error;
 use Nexus\Mcp\Core\Schema\Error\InternalError;
@@ -153,7 +153,7 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
             return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
         }
 
-        $mismatch = StandardHeaderValidator::validate(self::readHeaders($request), $envelope);
+        $mismatch = StandardHeaders::validate(self::readHeaders($request), $envelope);
 
         if (null !== $mismatch) {
             return $this->buildErrorResponse($mismatch);

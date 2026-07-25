@@ -78,7 +78,7 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
 
         $arguments = \is_array($params) ? $params['arguments'] ?? [] : [];
         $mismatch = ParameterHeaders::validate(
-            $this->bindingsFor($name),
+            $this->resolveBindings($name),
             \is_array($arguments) ? array_filter($arguments, is_string(...), \ARRAY_FILTER_USE_KEY) : [],
             self::readHeaders($request),
         );
@@ -93,7 +93,7 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
     /**
      * @return list<ParameterHeaderBinding>
      */
-    private function bindingsFor(string $tool): array
+    private function resolveBindings(string $tool): array
     {
         return ($this->bindings ??= $this->scan())[$tool] ?? [];
     }
