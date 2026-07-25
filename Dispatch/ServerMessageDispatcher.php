@@ -102,15 +102,10 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                 ['envelope' => $envelope, 'exception' => $e],
             );
 
-            if (! $isNotification) {
-                // Envelope carried an id but the method is a notification method.
-                // JSON-RPC 2.0 §4.1 forbids responses to notifications. Drop silently.
-                return;
-            }
-
-            // Envelope omitted the id but the method is a request method.
-            // §5 null-id fallback. Respond so the peer can fix the malformed request.
-            $this->responseSender->send($transport, ResponseSender::buildErrorResponse($e, null), 'misrouted');
+            // §4.1 defines a notification as an envelope *without* an id, so one that carries an id is a
+            // request whatever method it names and §5 obliges a reply. Echo the id the envelope supplied,
+            // falling back to the §5 null id when it supplied none.
+            $this->responseSender->send($transport, ResponseSender::buildErrorResponse($e, $e->requestId), 'misrouted');
 
             return;
         } catch (AbstractJsonRpcProtocolException $e) {

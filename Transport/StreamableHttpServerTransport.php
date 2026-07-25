@@ -23,6 +23,7 @@ use Nexus\Mcp\Core\Http\HttpStatusResolver;
 use Nexus\Mcp\Core\Http\StandardHeaderValidator;
 use Nexus\Mcp\Core\Schema\Enum\ProtocolErrorCode;
 use Nexus\Mcp\Core\Schema\Error;
+use Nexus\Mcp\Core\Schema\Error\InternalError;
 use Nexus\Mcp\Core\Schema\Error\InvalidRequestError;
 use Nexus\Mcp\Core\Schema\Error\ParseError;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcErrorResponse;
@@ -91,6 +92,15 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
     {
         if ($request->getMethod() !== 'POST') {
             return $this->responseFactory->createResponse(HttpStatus::MethodNotAllowed->value)->withHeader('Allow', 'POST');
+        }
+
+        if (TransportState::Running !== $this->state) {
+            // Nothing is listening, so no dispatch would ever resolve the request. Fail fast rather than
+            // suspending on a response that cannot arrive.
+            return $this->buildErrorResponse(
+                new InternalError(message: 'The MCP endpoint is not accepting requests.'),
+                HttpStatus::ServiceUnavailable->value,
+            );
         }
 
         if (! self::acceptsRequiredContentTypes($request)) {
@@ -410,7 +420,9 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
             return HttpStatus::Ok->value;
         }
 
-        return HttpStatusResolver::resolve(ProtocolErrorCode::from($message->error->code), $fromHandler);
+        // A consumer may send an error whose code falls outside the spec-defined set, so the code is
+        // resolved leniently: throwing here would strand the request that is awaiting this response.
+        return HttpStatusResolver::resolve(ProtocolErrorCode::tryFrom($message->error->code), $fromHandler);
     }
 
     /**
@@ -435,10 +447,13 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
         ;
     }
 
-    private function buildErrorResponse(Error $error): ResponseInterface
+    /**
+     * @param ?int $status The HTTP status to pin, or `null` to derive it from the error's code
+     */
+    private function buildErrorResponse(Error $error, ?int $status = null): ResponseInterface
     {
         // A transport-synthesised error always carries a spec-defined code, so it maps to a ProtocolErrorCode.
-        $status = HttpStatusResolver::resolve(ProtocolErrorCode::from($error->code), fromHandler: false);
+        $status ??= HttpStatusResolver::resolve(ProtocolErrorCode::from($error->code), fromHandler: false);
         $envelope = new JsonRpcErrorResponse(id: null, error: $error)->toArray();
 
         return $this->responseFactory->createResponse($status)
