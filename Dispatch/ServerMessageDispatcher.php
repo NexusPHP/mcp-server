@@ -32,6 +32,7 @@ use Nexus\Mcp\Core\JsonRpc\JsonRpcMessageParser;
 use Nexus\Mcp\Core\JsonRpc\ResultResponseFactory;
 use Nexus\Mcp\Core\Schema\Error\InternalError;
 use Nexus\Mcp\Core\Schema\Error\UnsupportedProtocolVersionError;
+use Nexus\Mcp\Core\Schema\Implementation;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcErrorResponse;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
@@ -39,6 +40,7 @@ use Nexus\Mcp\Core\Schema\ProtocolVersion;
 use Nexus\Mcp\Core\Schema\Request\ClientRequest;
 use Nexus\Mcp\Core\Schema\RequestParams;
 use Nexus\Mcp\Core\Schema\Result;
+use Nexus\Mcp\Core\Schema\ResultMetaObject;
 use Nexus\Mcp\Core\Transport\ReceiveContext;
 use Nexus\Mcp\Core\Transport\SendContext;
 use Nexus\Mcp\Core\Transport\TransportInterface;
@@ -61,6 +63,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     /**
      * @param HandlerRegistry<RequestHandlerInterface<non-empty-string, Result, ServerContext>> $requestHandlers
      * @param HandlerRegistry<NotificationHandlerInterface<non-empty-string>>                   $notificationHandlers
+     * @param null|Implementation                                                               $serverInfo           Identity stamped on every outgoing result, or null to disclose none
      */
     public function __construct(
         private HandlerRegistry $requestHandlers,
@@ -68,6 +71,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
         private LoggerInterface $logger = new NullLogger(),
         private JsonRpcMessageParser $parser = new JsonRpcMessageParser(),
         private Cancellation $cancellation = new NullCancellation(),
+        private ?Implementation $serverInfo = null,
     ) {
         $this->coroutines = new PendingCoroutines();
         $this->inboundRequests = new PendingInboundRequests();
@@ -193,6 +197,14 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                         $context,
                     );
                     $result = $handler->handle($request, $serverContext);
+
+                    if (null !== $this->serverInfo && ! $result->meta->declaresServerInfo()) {
+                        $result = $result->rebuildWithMeta(new ResultMetaObject(
+                            serverInfo: $this->serverInfo,
+                            extras: $result->meta->extras,
+                        ));
+                    }
+
                     $response = ResultResponseFactory::wrap($request, $result);
                 } catch (TransportAlreadyClosedException $e) {
                     $this->responseSender->logSkippedDelivery($method, $e);

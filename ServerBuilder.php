@@ -96,6 +96,7 @@ final class ServerBuilder
     private ?string $instructions = null;
 
     private ?AsServer $serverMetadata = null;
+    private bool $discloseServerInfo = true;
     private LoggerInterface $logger;
     private SchemaValidatorInterface $schemaValidator;
 
@@ -160,6 +161,16 @@ final class ServerBuilder
             websiteUrl: $websiteUrl,
             icons: $icons,
         );
+
+        return $this;
+    }
+
+    /**
+     * Controls whether the server discloses its identity on the `_meta` of the results it sends.
+     */
+    public function setServerInfoDisclosure(bool $disclose): self
+    {
+        $this->discloseServerInfo = $disclose;
 
         return $this;
     }
@@ -425,13 +436,14 @@ final class ServerBuilder
 
         $capabilities = $this->deriveCapabilities();
 
-        $requestHandlers = $this->buildRequestHandlers($serverInfo, $capabilities);
+        $requestHandlers = $this->buildRequestHandlers($capabilities);
 
         return new Server(
             new ServerMessageDispatcher(
                 new HandlerRegistry($requestHandlers, RequestHandlerInterface::class, 'Request handler'),
                 new HandlerRegistry($this->customNotificationHandlers, NotificationHandlerInterface::class, 'Notification handler'),
                 logger: $this->logger,
+                serverInfo: $this->discloseServerInfo ? $serverInfo : null,
             ),
             $this->logger,
         );
@@ -546,10 +558,10 @@ final class ServerBuilder
     /**
      * @return array<non-empty-string, RequestHandlerInterface<non-empty-string, Result, ServerContext>>
      */
-    private function buildRequestHandlers(Implementation $serverInfo, ServerCapabilities $capabilities): array
+    private function buildRequestHandlers(ServerCapabilities $capabilities): array
     {
         $defaults = [
-            DiscoverRequest::getMethod() => new DiscoverRequestHandler($serverInfo, $capabilities, $this->resolveInstructions()),
+            DiscoverRequest::getMethod() => new DiscoverRequestHandler($capabilities, $this->resolveInstructions()),
         ];
 
         if (null !== $this->toolStore || [] !== $this->tools) {
