@@ -96,7 +96,7 @@ final class ServerBuilder
     private ?string $instructions = null;
 
     private ?AsServer $serverMetadata = null;
-    private bool $discloseServerInfo = true;
+    private ServerInfoDisclosure $serverInfoDisclosure = ServerInfoDisclosure::Full;
     private LoggerInterface $logger;
     private SchemaValidatorInterface $schemaValidator;
 
@@ -166,11 +166,11 @@ final class ServerBuilder
     }
 
     /**
-     * Controls whether the server discloses its identity on the `_meta` of the results it sends.
+     * Controls how much of the server's identity rides the `_meta` of the results it sends.
      */
-    public function setServerInfoDisclosure(bool $disclose): self
+    public function setServerInfoDisclosure(ServerInfoDisclosure $disclosure): self
     {
-        $this->discloseServerInfo = $disclose;
+        $this->serverInfoDisclosure = $disclosure;
 
         return $this;
     }
@@ -436,14 +436,17 @@ final class ServerBuilder
 
         $capabilities = $this->deriveCapabilities();
 
-        $requestHandlers = $this->buildRequestHandlers($capabilities);
+        $requestHandlers = $this->buildRequestHandlers(
+            $capabilities,
+            ServerInfoDisclosure::None === $this->serverInfoDisclosure ? null : $serverInfo,
+        );
 
         return new Server(
             new ServerMessageDispatcher(
                 new HandlerRegistry($requestHandlers, RequestHandlerInterface::class, 'Request handler'),
                 new HandlerRegistry($this->customNotificationHandlers, NotificationHandlerInterface::class, 'Notification handler'),
                 logger: $this->logger,
-                serverInfo: $this->discloseServerInfo ? $serverInfo : null,
+                serverInfo: $this->serverInfoDisclosure->project($serverInfo),
             ),
             $this->logger,
         );
@@ -558,10 +561,14 @@ final class ServerBuilder
     /**
      * @return array<non-empty-string, RequestHandlerInterface<non-empty-string, Result, ServerContext>>
      */
-    private function buildRequestHandlers(ServerCapabilities $capabilities): array
+    private function buildRequestHandlers(ServerCapabilities $capabilities, ?Implementation $serverInfo): array
     {
         $defaults = [
-            DiscoverRequest::getMethod() => new DiscoverRequestHandler($capabilities, $this->resolveInstructions()),
+            DiscoverRequest::getMethod() => new DiscoverRequestHandler(
+                $capabilities,
+                $this->resolveInstructions(),
+                serverInfo: $serverInfo,
+            ),
         ];
 
         if (null !== $this->toolStore || [] !== $this->tools) {

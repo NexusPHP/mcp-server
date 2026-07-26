@@ -16,6 +16,7 @@ namespace Nexus\Mcp\Server\Handler\Request;
 use Nexus\Mcp\Core\Handler\AbstractContext;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
 use Nexus\Mcp\Core\Schema\Enum\CacheScope;
+use Nexus\Mcp\Core\Schema\Implementation;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\ProtocolVersion;
 use Nexus\Mcp\Core\Schema\Result\DiscoverResult;
@@ -25,7 +26,7 @@ use Nexus\Mcp\Server\ServerContext;
 
 /**
  * Handles the `server/discover` request, advertising the server's supported
- * protocol versions and capabilities.
+ * protocol versions, capabilities, and full identity.
  *
  * @implements RequestHandlerInterface<'server/discover', DiscoverResult, ServerContext>
  */
@@ -40,6 +41,7 @@ final readonly class DiscoverRequestHandler implements RequestHandlerInterface
         private int $ttlMs = 0,
         private CacheScope $cacheScope = CacheScope::Private,
         private ResultMetaObject $meta = new ResultMetaObject(),
+        private ?Implementation $serverInfo = null,
     ) {
     }
 
@@ -52,7 +54,9 @@ final readonly class DiscoverRequestHandler implements RequestHandlerInterface
             ttlMs: $this->ttlMs,
             cacheScope: $this->cacheScope,
             instructions: $this->instructions,
-            meta: $this->meta,
+            meta: null === $this->serverInfo
+                ? $this->meta
+                : new ResultMetaObject(serverInfo: $this->serverInfo, extras: $this->meta->extras),
         );
     }
 }
