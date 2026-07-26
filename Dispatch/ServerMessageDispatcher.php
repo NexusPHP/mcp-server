@@ -53,6 +53,8 @@ use function Amp\async;
 /**
  * Server-side per-envelope inbound dispatch. Parses, classifies, resolves a handler,
  * spawns a coroutine to run it, and sends the response (or error) on the transport.
+ *
+ * @internal
  */
 final readonly class ServerMessageDispatcher implements MessageDispatcherInterface
 {
