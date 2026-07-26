@@ -97,6 +97,12 @@ final class ServerBuilder
 
     private ?AsServer $serverMetadata = null;
     private ServerInfoDisclosure $serverInfoDisclosure = ServerInfoDisclosure::Full;
+
+    /**
+     * @var null|positive-int
+     */
+    private ?int $maxInFlight = null;
+
     private LoggerInterface $logger;
     private SchemaValidatorInterface $schemaValidator;
 
@@ -161,6 +167,20 @@ final class ServerBuilder
             websiteUrl: $websiteUrl,
             icons: $icons,
         );
+
+        return $this;
+    }
+
+    /**
+     * Caps how many inbound messages the server dispatches at once. Past the cap a request is
+     * answered `-32000` and a notification is dropped, until running handlers finish. Null lifts
+     * the cap, which is the default.
+     */
+    public function setMaxInFlightDispatches(?int $max): self
+    {
+        Assert::that($max)->nullOr()->isPositiveInt('Maximum in-flight dispatches must be a positive integer or null, {value} given.');
+
+        $this->maxInFlight = $max;
 
         return $this;
     }
@@ -447,6 +467,7 @@ final class ServerBuilder
                 new HandlerRegistry($this->customNotificationHandlers, NotificationHandlerInterface::class, 'Notification handler'),
                 logger: $this->logger,
                 serverInfo: $this->serverInfoDisclosure->project($serverInfo),
+                maxInFlight: $this->maxInFlight,
             ),
             $this->logger,
         );

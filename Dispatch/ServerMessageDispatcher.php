@@ -15,6 +15,7 @@ namespace Nexus\Mcp\Server\Dispatch;
 
 use Amp\Cancellation;
 use Amp\NullCancellation;
+use Nexus\Mcp\Core\Dispatch\LogThrottle;
 use Nexus\Mcp\Core\Dispatch\MessageDispatcherInterface;
 use Nexus\Mcp\Core\Dispatch\PendingCoroutines;
 use Nexus\Mcp\Core\Dispatch\PendingInboundRequests;
@@ -30,7 +31,9 @@ use Nexus\Mcp\Core\Handler\NotificationHandlerInterface;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
 use Nexus\Mcp\Core\JsonRpc\JsonRpcMessageParser;
 use Nexus\Mcp\Core\JsonRpc\ResultResponseFactory;
+use Nexus\Mcp\Core\Schema\Enum\SdkErrorCode;
 use Nexus\Mcp\Core\Schema\Error\InternalError;
+use Nexus\Mcp\Core\Schema\Error\UnknownProtocolError;
 use Nexus\Mcp\Core\Schema\Error\UnsupportedProtocolVersionError;
 use Nexus\Mcp\Core\Schema\Implementation;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcErrorResponse;
@@ -58,14 +61,19 @@ use function Amp\async;
  */
 final readonly class ServerMessageDispatcher implements MessageDispatcherInterface
 {
+    private const string OVERLOADED_MESSAGE = 'Server overloaded';
+
     private PendingCoroutines $coroutines;
     private PendingInboundRequests $inboundRequests;
     private ResponseSender $responseSender;
+    private LogThrottle $orphanResponses;
+    private LogThrottle $shedNotifications;
 
     /**
      * @param HandlerRegistry<RequestHandlerInterface<non-empty-string, Result, ServerContext>> $requestHandlers
      * @param HandlerRegistry<NotificationHandlerInterface<non-empty-string>>                   $notificationHandlers
      * @param null|Implementation                                                               $serverInfo           Identity stamped on every outgoing result, or null to disclose none
+     * @param null|positive-int                                                                 $maxInFlight          Messages dispatched at once before further ones are shed, or null for no cap
      */
     public function __construct(
         private HandlerRegistry $requestHandlers,
@@ -74,10 +82,13 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
         private JsonRpcMessageParser $parser = new JsonRpcMessageParser(),
         private Cancellation $cancellation = new NullCancellation(),
         private ?Implementation $serverInfo = null,
+        private ?int $maxInFlight = null,
     ) {
         $this->coroutines = new PendingCoroutines();
         $this->inboundRequests = new PendingInboundRequests();
         $this->responseSender = new ResponseSender($this->logger);
+        $this->orphanResponses = new LogThrottle();
+        $this->shedNotifications = new LogThrottle();
     }
 
     #[\Override]
@@ -93,7 +104,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     public function dispatch(array $envelope, TransportInterface $transport, ReceiveContext $context): void
     {
         if (\array_key_exists('result', $envelope) || \array_key_exists('error', $envelope)) {
-            $this->discardResponseEnvelope($envelope);
+            $this->discardResponseEnvelope();
 
             return;
         }
@@ -137,14 +148,26 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     }
 
     /**
-     * @param array<string, mixed> $envelope
+     * Reports a discarded response envelope without echoing its payload.
      */
-    private function discardResponseEnvelope(array $envelope): void
+    private function discardResponseEnvelope(): void
     {
+        if (! $this->orphanResponses->admits()) {
+            return;
+        }
+
         $this->logger->warning(
-            'Discarding response envelope (server has no outbound-request correlation).',
-            ['envelope' => $envelope],
+            'Discarded {count} response envelope(s) so far (server has no outbound-request correlation).',
+            ['count' => $this->orphanResponses->count()],
         );
+    }
+
+    /**
+     * Whether the dispatcher is already running as many messages as it accepts at once.
+     */
+    private function isSaturated(): bool
+    {
+        return null !== $this->maxInFlight && $this->maxInFlight <= $this->coroutines->count();
     }
 
     /**
@@ -153,6 +176,19 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     private function dispatchRequest(JsonRpcRequest $request, TransportInterface $transport, ReceiveContext $context): void
     {
         $method = $request::getMethod();
+
+        if ($this->isSaturated()) {
+            // Shed before claiming the id, so a shed request leaves no trace a retry would collide with.
+            $this->responseSender->send($transport, new JsonRpcErrorResponse(
+                id: $request->id,
+                error: new UnknownProtocolError(
+                    code: SdkErrorCode::Overloaded->value,
+                    message: self::OVERLOADED_MESSAGE,
+                ),
+            ), $method);
+
+            return;
+        }
 
         if (! $this->inboundRequests->claim($request->id)) {
             $exception = new DuplicateInboundRequestIdException($request->id);
@@ -262,6 +298,18 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
         $handler = $this->notificationHandlers->get($method);
 
         if (null === $handler) {
+            return;
+        }
+
+        if ($this->isSaturated()) {
+            // JSON-RPC 2.0 §4.1 forbids answering a notification, so a shed one is dropped outright.
+            if ($this->shedNotifications->admits()) {
+                $this->logger->warning(
+                    'Shed {count} notification(s) so far. The server is at its in-flight dispatch cap.',
+                    ['count' => $this->shedNotifications->count()],
+                );
+            }
+
             return;
         }
 

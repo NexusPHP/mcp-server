@@ -22,7 +22,6 @@ use Nexus\Mcp\Core\Http\HttpStatus;
 use Nexus\Mcp\Core\Http\HttpStatusResolver;
 use Nexus\Mcp\Core\Http\StandardHeaders;
 use Nexus\Mcp\Core\JsonRpc\EnvelopeRequestId;
-use Nexus\Mcp\Core\Schema\Enum\ProtocolErrorCode;
 use Nexus\Mcp\Core\Schema\Error;
 use Nexus\Mcp\Core\Schema\Error\InternalError;
 use Nexus\Mcp\Core\Schema\Error\InvalidRequestError;
@@ -428,9 +427,7 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
             return HttpStatus::Ok->value;
         }
 
-        // A consumer may send an error whose code falls outside the spec-defined set, so the code is
-        // resolved leniently: throwing here would strand the request that is awaiting this response.
-        return HttpStatusResolver::resolve(ProtocolErrorCode::tryFrom($message->error->code), $fromHandler);
+        return HttpStatusResolver::resolve($message->error->code, $fromHandler);
     }
 
     /**
@@ -460,8 +457,7 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
      */
     private function buildErrorResponse(Error $error, ?int $status = null): ResponseInterface
     {
-        // A transport-synthesised error always carries a spec-defined code, so it maps to a ProtocolErrorCode.
-        $status ??= HttpStatusResolver::resolve(ProtocolErrorCode::from($error->code), fromHandler: false);
+        $status ??= HttpStatusResolver::resolve($error->code, fromHandler: false);
         $envelope = new JsonRpcErrorResponse(id: null, error: $error)->toArray();
 
         return $this->responseFactory->createResponse($status)
