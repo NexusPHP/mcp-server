@@ -18,6 +18,7 @@ use Nexus\Mcp\Core\Handler\HandlerRegistry;
 use Nexus\Mcp\Core\Handler\NotificationHandlerInterface;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
 use Nexus\Mcp\Core\JsonRpc\JsonRpcMethodRegistry;
+use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Icon;
 use Nexus\Mcp\Core\Schema\Implementation;
 use Nexus\Mcp\Core\Schema\Prompt\Prompt;
@@ -126,6 +127,9 @@ final class ServerBuilder
      */
     private array $resourceTemplates = [];
 
+    private int $pageSize = AbstractPaginatedStore::DEFAULT_PAGE_SIZE;
+    private int $ttlMs = 0;
+    private CacheScope $cacheScope = CacheScope::Private;
     private ?ToolStoreInterface $toolStore = null;
     private ?PromptStoreInterface $promptStore = null;
     private ?ResourceStoreInterface $resourceStore = null;
@@ -217,6 +221,43 @@ final class ServerBuilder
     public function setSchemaValidator(SchemaValidatorInterface $validator): self
     {
         $this->schemaValidator = $validator;
+
+        return $this;
+    }
+
+    /**
+     * Sets how many entries one page of a list result carries, for every store the builder assembles
+     * from its `add*()` entries. A store supplied through `setToolStore()` and its siblings keeps its own.
+     */
+    public function setPageSize(int $pageSize): self
+    {
+        Assert::that($pageSize)->isPositiveInt('Store page size must be a positive integer, {value} given.');
+
+        $this->pageSize = $pageSize;
+
+        return $this;
+    }
+
+    /**
+     * Sets how many milliseconds a client may treat a list result as fresh, for every store the builder
+     * assembles from its `add*()` entries. Zero asks the client to re-fetch every time.
+     */
+    public function setTtlMs(int $ttlMs): self
+    {
+        Assert::that($ttlMs)->isNaturalInt('Store TTL must be a non-negative integer, {value} given.');
+
+        $this->ttlMs = $ttlMs;
+
+        return $this;
+    }
+
+    /**
+     * Sets which caches may serve a list result, for every store the builder assembles from its
+     * `add*()` entries.
+     */
+    public function setCacheScope(CacheScope $cacheScope): self
+    {
+        $this->cacheScope = $cacheScope;
 
         return $this;
     }
@@ -593,13 +634,24 @@ final class ServerBuilder
         ];
 
         if (null !== $this->toolStore || [] !== $this->tools) {
-            $toolStore = $this->toolStore ?? new ToolStore($this->tools, validator: $this->schemaValidator);
+            $toolStore = $this->toolStore ?? new ToolStore(
+                entries: $this->tools,
+                pageSize: $this->pageSize,
+                validator: $this->schemaValidator,
+                ttlMs: $this->ttlMs,
+                cacheScope: $this->cacheScope,
+            );
             $defaults[ListToolsRequest::getMethod()] = new ListToolsRequestHandler($toolStore);
             $defaults[CallToolRequest::getMethod()] = new CallToolRequestHandler($toolStore, $this->logger);
         }
 
         if (null !== $this->promptStore || [] !== $this->prompts) {
-            $promptStore = $this->promptStore ?? new PromptStore($this->prompts);
+            $promptStore = $this->promptStore ?? new PromptStore(
+                entries: $this->prompts,
+                pageSize: $this->pageSize,
+                ttlMs: $this->ttlMs,
+                cacheScope: $this->cacheScope,
+            );
             $defaults[ListPromptsRequest::getMethod()] = new ListPromptsRequestHandler($promptStore);
             $defaults[GetPromptRequest::getMethod()] = new GetPromptRequestHandler($promptStore);
         }
@@ -607,13 +659,23 @@ final class ServerBuilder
         $resourceTemplateStore = null;
 
         if (null !== $this->resourceTemplateStore || [] !== $this->resourceTemplates) {
-            $resourceTemplateStore = $this->resourceTemplateStore ?? new ResourceTemplateStore($this->resourceTemplates);
+            $resourceTemplateStore = $this->resourceTemplateStore ?? new ResourceTemplateStore(
+                entries: $this->resourceTemplates,
+                pageSize: $this->pageSize,
+                ttlMs: $this->ttlMs,
+                cacheScope: $this->cacheScope,
+            );
 
             $defaults[ListResourceTemplatesRequest::getMethod()] = new ListResourceTemplatesRequestHandler($resourceTemplateStore);
         }
 
         if (null !== $this->resourceStore || [] !== $this->resources || null !== $resourceTemplateStore) {
-            $resourceStore = $this->resourceStore ?? new ResourceStore($this->resources);
+            $resourceStore = $this->resourceStore ?? new ResourceStore(
+                entries: $this->resources,
+                pageSize: $this->pageSize,
+                ttlMs: $this->ttlMs,
+                cacheScope: $this->cacheScope,
+            );
 
             $defaults[ListResourcesRequest::getMethod()] = new ListResourcesRequestHandler($resourceStore);
             $defaults[ReadResourceRequest::getMethod()] = new ReadResourceRequestHandler(
