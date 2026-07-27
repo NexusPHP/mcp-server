@@ -22,6 +22,7 @@ use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\StreamFactoryInterface;
+use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -31,9 +32,9 @@ use Psr\Log\NullLogger;
  * ordered CORS, then DNS-rebinding protection, then `Mcp-Param-{Name}` validation, then the optional
  * body-size cap.
  *
- * Origin allow-listing is required. `Host` allow-listing, parameter-header validation, and the body-size cap
- * apply only when configured. A server whose tools declare `x-mcp-header` must pass its tool store so the
- * spec-required header-to-body validation runs.
+ * Origin allow-listing is required. `Host` allow-listing, bearer authentication, parameter-header validation,
+ * and the body-size cap apply only when configured. A server whose tools declare `x-mcp-header` must pass its
+ * tool store so the spec-required header-to-body validation runs.
  */
 final readonly class SecuredHttpEndpoint implements RequestHandlerInterface
 {
@@ -44,6 +45,7 @@ final readonly class SecuredHttpEndpoint implements RequestHandlerInterface
      * @param list<non-empty-string> $allowedHosts   Hosts permitted to reach the endpoint (empty disables `Host` validation), or `['*']` to allow any
      * @param ?int                   $maxBodyBytes   Request body byte cap, or `null` to leave the body uncapped
      * @param ?ToolStoreInterface    $toolStore      The served tool store, enabling `Mcp-Param-{Name}` validation
+     * @param ?MiddlewareInterface   $authentication Bearer token enforcement, making the endpoint an OAuth resource server
      */
     public function __construct(
         RequestHandlerInterface $handler,
@@ -54,11 +56,18 @@ final readonly class SecuredHttpEndpoint implements RequestHandlerInterface
         ?int $maxBodyBytes = null,
         ?ToolStoreInterface $toolStore = null,
         LoggerInterface $logger = new NullLogger(),
+        ?MiddlewareInterface $authentication = null,
     ) {
         $middleware = [
             new CorsMiddleware($allowedOrigins, $responseFactory),
             new DnsRebindingProtectionMiddleware($allowedOrigins, $allowedHosts, $responseFactory, $streamFactory),
         ];
+
+        // Authentication runs before anything reads the body, so an unauthorized request is turned away
+        // without it being parsed.
+        if (null !== $authentication) {
+            $middleware[] = $authentication;
+        }
 
         if (null !== $toolStore) {
             $middleware[] = new ParameterHeaderValidationMiddleware($toolStore, $responseFactory, $streamFactory, $logger);
