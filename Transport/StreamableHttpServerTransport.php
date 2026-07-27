@@ -15,6 +15,7 @@ namespace Nexus\Mcp\Server\Transport;
 
 use Amp\DeferredFuture;
 use Nexus\Assert\Assert;
+use Nexus\Mcp\Core\Auth\VerifiedAccessToken;
 use Nexus\Mcp\Core\Exception\TransportAlreadyClosedException;
 use Nexus\Mcp\Core\Exception\TransportAlreadyStartedException;
 use Nexus\Mcp\Core\Exception\TransportNotStartedException;
@@ -141,7 +142,7 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
                 return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
             }
 
-            $this->events->emitMessage($envelope, new ReceiveContext($request));
+            $this->events->emitMessage($envelope, self::buildReceiveContext($request));
 
             return $this->responseFactory->createResponse(HttpStatus::Accepted->value);
         }
@@ -286,7 +287,7 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
         $this->sinks[$internalId] = ['clientId' => $clientId, 'buffered' => $deferred, 'stream' => null];
 
         $envelope['id'] = $internalId;
-        $this->events->emitMessage($envelope, new ReceiveContext($request));
+        $this->events->emitMessage($envelope, self::buildReceiveContext($request));
 
         return $deferred->getFuture()->await();
     }
@@ -309,9 +310,19 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
         $this->sinks[$internalId] = ['clientId' => $clientId, 'buffered' => $unused, 'stream' => $stream];
 
         $envelope['id'] = $internalId;
-        $this->events->emitMessage($envelope, new ReceiveContext($request));
+        $this->events->emitMessage($envelope, self::buildReceiveContext($request));
 
         return $this->buildSseResponse($stream);
+    }
+
+    /**
+     * Carries the HTTP request, and the token a bearer-authentication stage validated it with, to handlers.
+     */
+    private static function buildReceiveContext(ServerRequestInterface $request): ReceiveContext
+    {
+        $token = $request->getAttribute(VerifiedAccessToken::REQUEST_ATTRIBUTE);
+
+        return new ReceiveContext($request, $token instanceof VerifiedAccessToken ? $token : null);
     }
 
     private function routeResponse(JsonRpcErrorResponse|JsonRpcResultResponse $message, ?SendContext $context): void
