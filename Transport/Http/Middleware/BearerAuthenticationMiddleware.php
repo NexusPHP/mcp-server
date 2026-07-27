@@ -29,9 +29,10 @@ use Psr\Http\Server\RequestHandlerInterface;
  * Makes the MCP endpoint an OAuth 2.1 resource server: it requires a bearer token, binds that token's audience
  * to this server, and enforces the scopes the endpoint calls for.
  *
- * A request with no usable token is answered `401` with a `WWW-Authenticate` challenge naming the Protected
- * Resource Metadata document. A token that is valid but too narrow is answered `403 insufficient_scope`. The
- * validated token reaches request handlers on `ServerContext::$receiveContext->authInfo`.
+ * A request carrying no credentials is answered `401` with a `WWW-Authenticate` challenge naming the Protected
+ * Resource Metadata document, one whose `Authorization` header cannot be read is answered `400 invalid_request`,
+ * and a token that is valid but too narrow is answered `403 insufficient_scope`. The validated token reaches
+ * request handlers on `ServerContext::$receiveContext->authInfo`.
  *
  * @see https://modelcontextprotocol.io/specification/draft/basic/authorization#error-handling
  */
@@ -61,10 +62,18 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
     #[\Override]
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        $presented = self::readBearerToken($request);
+        $headers = $request->getHeader('Authorization');
+
+        // RFC 6750 tells a request carrying no credentials apart from one whose credentials cannot be read:
+        // the first is answered with a bare challenge, the second names what was wrong with it.
+        if ([] === $headers) {
+            return $this->challenge(HttpStatus::Unauthorized, null);
+        }
+
+        $presented = self::readBearerToken($headers);
 
         if (null === $presented) {
-            return $this->challenge(HttpStatus::Unauthorized, null);
+            return $this->challenge(HttpStatus::BadRequest, 'invalid_request');
         }
 
         $token = $this->validator->validate($presented);
@@ -107,10 +116,11 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
         ;
     }
 
-    private static function readBearerToken(ServerRequestInterface $request): ?string
+    /**
+     * @param non-empty-array<array-key, string> $headers
+     */
+    private static function readBearerToken(array $headers): ?string
     {
-        $headers = $request->getHeader('Authorization');
-
         // RFC 7235 permits exactly one. Several would be joined into one string, smuggling a second
         // credential past a lenient validator.
         if (\count($headers) !== 1) {
