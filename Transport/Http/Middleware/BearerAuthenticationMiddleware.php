@@ -29,10 +29,10 @@ use Psr\Http\Server\RequestHandlerInterface;
  * Makes the MCP endpoint an OAuth 2.1 resource server: it requires a bearer token, binds that token's audience
  * to this server, and enforces the scopes the endpoint calls for.
  *
- * A request carrying no credentials is answered `401` with a `WWW-Authenticate` challenge naming the Protected
- * Resource Metadata document, one whose `Authorization` header cannot be read is answered `400 invalid_request`,
- * and a token that is valid but too narrow is answered `403 insufficient_scope`. The validated token reaches
- * request handlers on `ServerContext::$receiveContext->authInfo`.
+ * A request presenting no bearer credential is answered `401` with a `WWW-Authenticate` challenge naming the
+ * Protected Resource Metadata document, one presenting a bearer credential that cannot be read is answered
+ * `400 invalid_request`, and a token that is valid but too narrow is answered `403 insufficient_scope`. The
+ * validated token reaches request handlers on `ServerContext::$receiveContext->authInfo`.
  *
  * @see https://modelcontextprotocol.io/specification/draft/basic/authorization#error-handling
  */
@@ -64,9 +64,10 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
     {
         $headers = $request->getHeader('Authorization');
 
-        // RFC 6750 tells a request carrying no credentials apart from one whose credentials cannot be read:
-        // the first is answered with a bare challenge, the second names what was wrong with it.
-        if ([] === $headers) {
+        // RFC 6750 puts a request that presented no bearer credential, whether it carried nothing at all or
+        // tried an authentication method this server does not support, in one bucket, answered with a bare
+        // challenge and no error code. Only a bearer credential that cannot be read gets one.
+        if (! self::presentsBearerScheme($headers)) {
             return $this->challenge(HttpStatus::Unauthorized, null);
         }
 
@@ -117,6 +118,26 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
     }
 
     /**
+     * Whether any header names the bearer scheme, which is what tells a malformed bearer credential apart
+     * from a request that presented none.
+     *
+     * @param array<array-key, string> $headers
+     *
+     * @phpstan-assert-if-true non-empty-array<array-key, string> $headers
+     */
+    private static function presentsBearerScheme(array $headers): bool
+    {
+        foreach ($headers as $header) {
+            // RFC 7235 makes the scheme case-insensitive and separates it from the credential by a space.
+            if (strcasecmp(explode(' ', $header)[0], WwwAuthenticateChallenge::BEARER_SCHEME) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param non-empty-array<array-key, string> $headers
      */
     private static function readBearerToken(array $headers): ?string
@@ -127,14 +148,9 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
             return null;
         }
 
-        $header = reset($headers);
-
-        // RFC 7235 makes the scheme case-insensitive, so only the token that follows it is compared as sent.
-        if (! str_starts_with(strtolower($header), strtolower(self::BEARER_PREFIX))) {
-            return null;
-        }
-
-        $token = trim(substr($header, \strlen(self::BEARER_PREFIX)));
+        // The scheme was matched case-insensitively before this, so only what follows it is read, and that
+        // is compared as sent.
+        $token = trim(substr(reset($headers), \strlen(self::BEARER_PREFIX)));
 
         return '' === $token ? null : $token;
     }
