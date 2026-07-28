@@ -16,8 +16,8 @@ namespace Nexus\Mcp\Server;
 use Amp\Cancellation;
 use Nexus\Mcp\Core\Handler\AbstractContext;
 use Nexus\Mcp\Core\Handler\SenderInterface;
+use Nexus\Mcp\Core\Schema\MetaObject\RequestMetaObject;
 use Nexus\Mcp\Core\Schema\RequestId;
-use Nexus\Mcp\Core\Schema\RequestMetaObject;
 use Nexus\Mcp\Core\Schema\Result\InputResponse;
 use Nexus\Mcp\Core\Transport\ReceiveContext;
 

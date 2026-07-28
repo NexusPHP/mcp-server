@@ -18,9 +18,9 @@ use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
 use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Implementation;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
+use Nexus\Mcp\Core\Schema\MetaObject\ResultMetaObject;
 use Nexus\Mcp\Core\Schema\ProtocolVersion;
 use Nexus\Mcp\Core\Schema\Result\DiscoverResult;
-use Nexus\Mcp\Core\Schema\ResultMetaObject;
 use Nexus\Mcp\Core\Schema\ServerCapabilities;
 use Nexus\Mcp\Server\ServerContext;
 

@@ -14,7 +14,7 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Discovery;
 
 use Nexus\Mcp\Core\Schema\Annotations;
-use Nexus\Mcp\Core\Schema\MetaObject;
+use Nexus\Mcp\Core\Schema\MetaObject\PayloadMetaObject;
 use Nexus\Mcp\Core\Schema\Prompt\Prompt;
 use Nexus\Mcp\Core\Schema\Prompt\PromptArgument;
 use Nexus\Mcp\Core\Schema\Resource\Resource;
@@ -94,7 +94,7 @@ final readonly class AttributeScanner
             outputSchema: $attribute->outputSchema,
             annotations: $attribute->annotations ?? new ToolAnnotations(),
             icons: $attribute->icons,
-            meta: new MetaObject(extras: $attribute->meta ?? []),
+            meta: new PayloadMetaObject(extras: $attribute->meta ?? []),
         );
     }
 
@@ -109,7 +109,7 @@ final readonly class AttributeScanner
             description: $attribute->description,
             arguments: $this->buildPromptArguments($method),
             icons: $attribute->icons,
-            meta: new MetaObject(extras: $attribute->meta ?? []),
+            meta: new PayloadMetaObject(extras: $attribute->meta ?? []),
         );
     }
 
@@ -152,7 +152,7 @@ final readonly class AttributeScanner
             annotations: $attribute->annotations ?? new Annotations(),
             size: $attribute->size,
             icons: $attribute->icons,
-            meta: new MetaObject(extras: $attribute->meta ?? []),
+            meta: new PayloadMetaObject(extras: $attribute->meta ?? []),
         );
     }
 
@@ -169,7 +169,7 @@ final readonly class AttributeScanner
             mimeType: $attribute->mimeType,
             annotations: $attribute->annotations ?? new Annotations(),
             icons: $attribute->icons,
-            meta: new MetaObject(extras: $attribute->meta ?? []),
+            meta: new PayloadMetaObject(extras: $attribute->meta ?? []),
         );
     }
 
