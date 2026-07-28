@@ -16,6 +16,7 @@ namespace Nexus\Mcp\Server\Resource;
 use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Resource\Resource;
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ListResourcesResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Server\AbstractPaginatedStore;
@@ -42,7 +43,7 @@ final readonly class ResourceStore extends AbstractPaginatedStore implements Res
     }
 
     #[\Override]
-    public function read(string $uri, ServerContext $context): ReadResourceResult
+    public function read(string $uri, ServerContext $context): InputRequiredResult|ReadResourceResult
     {
         $entry = $this->entries[$uri] ?? throw new ResourceNotFoundException($uri, $context->requestId);
 

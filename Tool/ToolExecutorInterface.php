@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Tool;
 
 use Nexus\Mcp\Core\Schema\Result\CallToolResult;
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
@@ -24,5 +25,5 @@ interface ToolExecutorInterface
     /**
      * @param null|array<string, mixed> $arguments
      */
-    public function execute(?array $arguments, ServerContext $context): CallToolResult;
+    public function execute(?array $arguments, ServerContext $context): CallToolResult|InputRequiredResult;
 }

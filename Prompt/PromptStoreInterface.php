@@ -15,6 +15,7 @@ namespace Nexus\Mcp\Server\Prompt;
 
 use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Result\GetPromptResult;
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ListPromptsResult;
 use Nexus\Mcp\Server\Exception\InvalidCursorException;
 use Nexus\Mcp\Server\Exception\PromptNotFoundException;
@@ -35,5 +36,5 @@ interface PromptStoreInterface
      *
      * @throws PromptNotFoundException
      */
-    public function get(string $name, ?array $arguments, ServerContext $context): GetPromptResult;
+    public function get(string $name, ?array $arguments, ServerContext $context): GetPromptResult|InputRequiredResult;
 }

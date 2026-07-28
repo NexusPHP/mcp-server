@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Resource;
 
 use Nexus\Mcp\Core\Schema\Cursor;
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ListResourceTemplatesResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Server\Exception\InvalidCursorException;
@@ -36,5 +37,5 @@ interface ResourceTemplateStoreInterface
      *
      * @throws ResourceNotFoundException
      */
-    public function read(string $uri, ServerContext $context): ReadResourceResult;
+    public function read(string $uri, ServerContext $context): InputRequiredResult|ReadResourceResult;
 }

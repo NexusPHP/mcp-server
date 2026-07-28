@@ -17,6 +17,7 @@ use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Resource\BlobResourceContents;
 use Nexus\Mcp\Core\Schema\Resource\ResourceContents;
 use Nexus\Mcp\Core\Schema\Resource\TextResourceContents;
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Server\Exception\UnsupportedReturnValueException;
 
@@ -27,9 +28,9 @@ use Nexus\Mcp\Server\Exception\UnsupportedReturnValueException;
  */
 final class ReflectedResourceResult
 {
-    public static function adapt(mixed $result, string $uri, \ReflectionMethod $method): ReadResourceResult
+    public static function adapt(mixed $result, string $uri, \ReflectionMethod $method): InputRequiredResult|ReadResourceResult
     {
-        if ($result instanceof ReadResourceResult) {
+        if ($result instanceof ReadResourceResult || $result instanceof InputRequiredResult) {
             return $result;
         }
 

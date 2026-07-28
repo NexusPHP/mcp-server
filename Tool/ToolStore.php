@@ -17,6 +17,7 @@ use Nexus\Mcp\Core\Exception\InvalidParamsException;
 use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Result\CallToolResult;
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ListToolsResult;
 use Nexus\Mcp\Core\Schema\Tool\Tool;
 use Nexus\Mcp\Server\AbstractPaginatedStore;
@@ -59,7 +60,7 @@ final readonly class ToolStore extends AbstractPaginatedStore implements ToolSto
     }
 
     #[\Override]
-    public function call(string $name, ?array $arguments, ServerContext $context): CallToolResult
+    public function call(string $name, ?array $arguments, ServerContext $context): CallToolResult|InputRequiredResult
     {
         $entry = $this->entries[$name] ?? throw new ToolNotFoundException($name, $context->requestId);
 
@@ -76,6 +77,11 @@ final readonly class ToolStore extends AbstractPaginatedStore implements ToolSto
         }
 
         $result = $entry->executor->execute($arguments, $context);
+
+        if ($result instanceof InputRequiredResult) {
+            // The round trip is unfinished, so there is no structured output to validate yet.
+            return $result;
+        }
 
         if (null !== $tool->outputSchema && true !== $result->isError && null !== $result->structuredContent) {
             $outputData = [] === $result->structuredContent ? new \stdClass() : $result->structuredContent;

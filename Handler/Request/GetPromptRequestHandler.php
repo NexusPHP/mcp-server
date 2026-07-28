@@ -18,13 +18,14 @@ use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\Request\GetPromptRequest;
 use Nexus\Mcp\Core\Schema\Result\GetPromptResult;
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Server\Prompt\PromptStoreInterface;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
  * Handles the `prompts/get` request by delegating to a `PromptStoreInterface`.
  *
- * @implements RequestHandlerInterface<'prompts/get', GetPromptResult, ServerContext>
+ * @implements RequestHandlerInterface<'prompts/get', GetPromptResult|InputRequiredResult, ServerContext>
  */
 final readonly class GetPromptRequestHandler implements RequestHandlerInterface
 {
@@ -33,9 +34,10 @@ final readonly class GetPromptRequestHandler implements RequestHandlerInterface
     }
 
     #[\Override]
-    public function handle(JsonRpcRequest $request, AbstractContext $context): GetPromptResult
+    public function handle(JsonRpcRequest $request, AbstractContext $context): GetPromptResult|InputRequiredResult
     {
         \assert($request instanceof GetPromptRequest);
+        \assert($context instanceof ServerContext);
 
         return $this->store->get($request->params->name, $request->params->arguments, $context);
     }

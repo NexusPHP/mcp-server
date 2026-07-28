@@ -17,6 +17,7 @@ use Nexus\Assert\Assert;
 use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Resource\ResourceTemplate;
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ListResourceTemplatesResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Core\UriTemplate\Matcher;
@@ -74,7 +75,7 @@ final readonly class ResourceTemplateStore extends AbstractPaginatedStore implem
     }
 
     #[\Override]
-    public function read(string $uri, ServerContext $context): ReadResourceResult
+    public function read(string $uri, ServerContext $context): InputRequiredResult|ReadResourceResult
     {
         foreach ($this->compiled as ['pattern' => $pattern, 'entry' => $entry]) {
             $bindings = Matcher::matchCompiled($pattern, $uri);

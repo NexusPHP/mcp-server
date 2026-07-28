@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Resource;
 
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Server\ServerContext;
 
@@ -22,14 +23,14 @@ use Nexus\Mcp\Server\ServerContext;
 final readonly class ClosureTemplatedResourceReader implements TemplatedResourceReaderInterface
 {
     /**
-     * @param \Closure(string, array<string, string>, ServerContext): ReadResourceResult $closure
+     * @param \Closure(string, array<string, string>, ServerContext): (InputRequiredResult|ReadResourceResult) $closure
      */
     public function __construct(private \Closure $closure)
     {
     }
 
     #[\Override]
-    public function read(string $uri, array $bindings, ServerContext $context): ReadResourceResult
+    public function read(string $uri, array $bindings, ServerContext $context): InputRequiredResult|ReadResourceResult
     {
         return ($this->closure)($uri, $bindings, $context);
     }

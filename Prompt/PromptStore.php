@@ -17,6 +17,7 @@ use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Prompt\Prompt;
 use Nexus\Mcp\Core\Schema\Result\GetPromptResult;
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ListPromptsResult;
 use Nexus\Mcp\Server\AbstractPaginatedStore;
 use Nexus\Mcp\Server\Exception\PromptNotFoundException;
@@ -42,7 +43,7 @@ final readonly class PromptStore extends AbstractPaginatedStore implements Promp
     }
 
     #[\Override]
-    public function get(string $name, ?array $arguments, ServerContext $context): GetPromptResult
+    public function get(string $name, ?array $arguments, ServerContext $context): GetPromptResult|InputRequiredResult
     {
         if (! \array_key_exists($name, $this->entries)) {
             throw new PromptNotFoundException($name, $context->requestId);

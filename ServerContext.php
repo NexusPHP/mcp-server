@@ -18,6 +18,7 @@ use Nexus\Mcp\Core\Handler\AbstractContext;
 use Nexus\Mcp\Core\Handler\SenderInterface;
 use Nexus\Mcp\Core\Schema\RequestId;
 use Nexus\Mcp\Core\Schema\RequestMetaObject;
+use Nexus\Mcp\Core\Schema\Result\InputResponse;
 use Nexus\Mcp\Core\Transport\ReceiveContext;
 
 /**
@@ -25,12 +26,18 @@ use Nexus\Mcp\Core\Transport\ReceiveContext;
  */
 final readonly class ServerContext extends AbstractContext
 {
+    /**
+     * @param null|array<string, InputResponse> $inputResponses The client's answers to a prior `InputRequiredResult`
+     * @param null|string                       $requestState   The continuation token that result carried, echoed back unchanged
+     */
     public function __construct(
         RequestId $requestId,
         Cancellation $cancellation,
         public RequestMetaObject $meta,
         SenderInterface $sender,
         public ReceiveContext $receiveContext = new ReceiveContext(),
+        public ?array $inputResponses = null,
+        public ?string $requestState = null,
     ) {
         parent::__construct($requestId, $cancellation, $meta->progressToken, $sender);
     }

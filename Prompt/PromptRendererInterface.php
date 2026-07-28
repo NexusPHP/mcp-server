@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Prompt;
 
 use Nexus\Mcp\Core\Schema\Result\GetPromptResult;
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
@@ -24,5 +25,5 @@ interface PromptRendererInterface
     /**
      * @param null|array<string, string> $arguments
      */
-    public function render(?array $arguments, ServerContext $context): GetPromptResult;
+    public function render(?array $arguments, ServerContext $context): GetPromptResult|InputRequiredResult;
 }

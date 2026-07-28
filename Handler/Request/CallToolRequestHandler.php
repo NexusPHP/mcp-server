@@ -20,6 +20,7 @@ use Nexus\Mcp\Core\Schema\ContentBlock\TextContent;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\Request\CallToolRequest;
 use Nexus\Mcp\Core\Schema\Result\CallToolResult;
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Server\Exception\ToolOutputValidationException;
 use Nexus\Mcp\Server\ServerContext;
 use Nexus\Mcp\Server\Tool\ToolStoreInterface;
@@ -29,7 +30,7 @@ use Psr\Log\NullLogger;
 /**
  * Handles the `tools/call` request by delegating to a `ToolStoreInterface`.
  *
- * @implements RequestHandlerInterface<'tools/call', CallToolResult, ServerContext>
+ * @implements RequestHandlerInterface<'tools/call', CallToolResult|InputRequiredResult, ServerContext>
  */
 final readonly class CallToolRequestHandler implements RequestHandlerInterface
 {
@@ -38,13 +39,18 @@ final readonly class CallToolRequestHandler implements RequestHandlerInterface
     }
 
     #[\Override]
-    public function handle(JsonRpcRequest $request, AbstractContext $context): CallToolResult
+    public function handle(JsonRpcRequest $request, AbstractContext $context): CallToolResult|InputRequiredResult
     {
         \assert($request instanceof CallToolRequest);
         \assert($context instanceof ServerContext);
 
         try {
             $result = $this->store->call($request->params->name, $request->params->arguments, $context);
+
+            if ($result instanceof InputRequiredResult) {
+                // The tool is asking the client for input, so it has produced no content to back-fill.
+                return $result;
+            }
 
             // Spec, "Structured Content": "For backwards compatibility, a tool that returns
             // structured content SHOULD also return the serialized JSON in a TextContent block."

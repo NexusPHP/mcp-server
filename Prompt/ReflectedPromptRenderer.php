@@ -17,6 +17,7 @@ use Nexus\Mcp\Core\Schema\ContentBlock\TextContent;
 use Nexus\Mcp\Core\Schema\Enum\Role;
 use Nexus\Mcp\Core\Schema\Prompt\PromptMessage;
 use Nexus\Mcp\Core\Schema\Result\GetPromptResult;
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Server\Discovery\ArgumentBinder;
 use Nexus\Mcp\Server\Exception\UnsupportedReturnValueException;
 use Nexus\Mcp\Server\ServerContext;
@@ -34,16 +35,16 @@ final readonly class ReflectedPromptRenderer implements PromptRendererInterface
     }
 
     #[\Override]
-    public function render(?array $arguments, ServerContext $context): GetPromptResult
+    public function render(?array $arguments, ServerContext $context): GetPromptResult|InputRequiredResult
     {
         $bound = $this->binder->bind($this->method, $arguments ?? [], $context);
 
         return $this->adapt($this->method->invokeArgs($this->handler, $bound));
     }
 
-    private function adapt(mixed $result): GetPromptResult
+    private function adapt(mixed $result): GetPromptResult|InputRequiredResult
     {
-        if ($result instanceof GetPromptResult) {
+        if ($result instanceof GetPromptResult || $result instanceof InputRequiredResult) {
             return $result;
         }
 

@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Resource;
 
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Server\ServerContext;
 
@@ -26,5 +27,5 @@ interface TemplatedResourceReaderInterface
     /**
      * @param array<string, string> $bindings
      */
-    public function read(string $uri, array $bindings, ServerContext $context): ReadResourceResult;
+    public function read(string $uri, array $bindings, ServerContext $context): InputRequiredResult|ReadResourceResult;
 }

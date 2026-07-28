@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Prompt;
 
 use Nexus\Mcp\Core\Schema\Result\GetPromptResult;
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
@@ -22,14 +23,14 @@ use Nexus\Mcp\Server\ServerContext;
 final readonly class ClosurePromptRenderer implements PromptRendererInterface
 {
     /**
-     * @param \Closure(?array<string, string>, ServerContext): GetPromptResult $closure
+     * @param \Closure(?array<string, string>, ServerContext): (GetPromptResult|InputRequiredResult) $closure
      */
     public function __construct(private \Closure $closure)
     {
     }
 
     #[\Override]
-    public function render(?array $arguments, ServerContext $context): GetPromptResult
+    public function render(?array $arguments, ServerContext $context): GetPromptResult|InputRequiredResult
     {
         return ($this->closure)($arguments, $context);
     }

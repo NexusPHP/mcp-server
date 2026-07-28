@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Tool;
 
 use Nexus\Mcp\Core\Schema\Result\CallToolResult;
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
@@ -22,14 +23,14 @@ use Nexus\Mcp\Server\ServerContext;
 final readonly class ClosureToolExecutor implements ToolExecutorInterface
 {
     /**
-     * @param \Closure(?array<string, mixed>, ServerContext): CallToolResult $closure
+     * @param \Closure(?array<string, mixed>, ServerContext): (CallToolResult|InputRequiredResult) $closure
      */
     public function __construct(private \Closure $closure)
     {
     }
 
     #[\Override]
-    public function execute(?array $arguments, ServerContext $context): CallToolResult
+    public function execute(?array $arguments, ServerContext $context): CallToolResult|InputRequiredResult
     {
         return ($this->closure)($arguments, $context);
     }

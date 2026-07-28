@@ -42,6 +42,7 @@ use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\ProtocolVersion;
 use Nexus\Mcp\Core\Schema\Request\ClientRequest;
 use Nexus\Mcp\Core\Schema\RequestParams;
+use Nexus\Mcp\Core\Schema\RequestParams\InputResponseRequestParams;
 use Nexus\Mcp\Core\Schema\Result;
 use Nexus\Mcp\Core\Schema\ResultMetaObject;
 use Nexus\Mcp\Core\Transport\ReceiveContext;
@@ -227,12 +228,15 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                         ?? throw new MethodNotFoundException($method, $request->id);
 
                     $sender = new RequestBoundSender($transport, $request->id);
+                    $params = $request->params;
                     $serverContext = new ServerContext(
                         $request->id,
                         $this->cancellation,
-                        $request->params->meta,
+                        $params->meta,
                         $sender,
                         $context,
+                        $params instanceof InputResponseRequestParams ? $params->inputResponses : null,
+                        $params instanceof InputResponseRequestParams ? $params->requestState : null,
                     );
                     $result = $handler->handle($request, $serverContext);
 

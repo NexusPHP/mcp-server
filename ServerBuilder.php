@@ -36,6 +36,7 @@ use Nexus\Mcp\Core\Schema\Resource\ResourceTemplate;
 use Nexus\Mcp\Core\Schema\Result;
 use Nexus\Mcp\Core\Schema\Result\CallToolResult;
 use Nexus\Mcp\Core\Schema\Result\GetPromptResult;
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Core\Schema\ServerCapabilities;
 use Nexus\Mcp\Core\Schema\Tool\Tool;
@@ -263,7 +264,7 @@ final class ServerBuilder
     }
 
     /**
-     * @param (\Closure(?array<string, mixed>, ServerContext): CallToolResult)|ToolExecutorInterface $executor
+     * @param (\Closure(?array<string, mixed>, ServerContext): (CallToolResult|InputRequiredResult))|ToolExecutorInterface $executor
      */
     public function addTool(Tool $tool, \Closure|ToolExecutorInterface $executor): self
     {
@@ -276,7 +277,7 @@ final class ServerBuilder
     }
 
     /**
-     * @param (\Closure(?array<string, string>, ServerContext): GetPromptResult)|PromptRendererInterface $renderer
+     * @param (\Closure(?array<string, string>, ServerContext): (GetPromptResult|InputRequiredResult))|PromptRendererInterface $renderer
      */
     public function addPrompt(Prompt $prompt, \Closure|PromptRendererInterface $renderer): self
     {
@@ -289,7 +290,7 @@ final class ServerBuilder
     }
 
     /**
-     * @param (\Closure(string, ServerContext): ReadResourceResult)|ResourceReaderInterface $reader
+     * @param (\Closure(string, ServerContext): (InputRequiredResult|ReadResourceResult))|ResourceReaderInterface $reader
      */
     public function addResource(Resource $resource, \Closure|ResourceReaderInterface $reader): self
     {
@@ -302,7 +303,7 @@ final class ServerBuilder
     }
 
     /**
-     * @param (\Closure(string, array<string, string>, ServerContext): ReadResourceResult)|TemplatedResourceReaderInterface $reader
+     * @param (\Closure(string, array<string, string>, ServerContext): (InputRequiredResult|ReadResourceResult))|TemplatedResourceReaderInterface $reader
      */
     public function addResourceTemplate(
         ResourceTemplate $template,

@@ -16,6 +16,7 @@ namespace Nexus\Mcp\Server\Tool;
 use Nexus\Mcp\Core\Exception\InvalidParamsException;
 use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Result\CallToolResult;
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ListToolsResult;
 use Nexus\Mcp\Server\Exception\InvalidCursorException;
 use Nexus\Mcp\Server\Exception\ToolNotFoundException;
@@ -39,5 +40,5 @@ interface ToolStoreInterface
      * @throws ToolNotFoundException
      * @throws ToolOutputValidationException
      */
-    public function call(string $name, ?array $arguments, ServerContext $context): CallToolResult;
+    public function call(string $name, ?array $arguments, ServerContext $context): CallToolResult|InputRequiredResult;
 }

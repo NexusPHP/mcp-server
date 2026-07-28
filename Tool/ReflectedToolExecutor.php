@@ -22,6 +22,7 @@ use Nexus\Mcp\Core\Schema\ContentBlock\ImageContent;
 use Nexus\Mcp\Core\Schema\ContentBlock\ResourceLink;
 use Nexus\Mcp\Core\Schema\ContentBlock\TextContent;
 use Nexus\Mcp\Core\Schema\Result\CallToolResult;
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Server\Discovery\ArgumentBinder;
 use Nexus\Mcp\Server\Exception\UnsupportedReturnValueException;
 use Nexus\Mcp\Server\ServerContext;
@@ -39,16 +40,16 @@ final readonly class ReflectedToolExecutor implements ToolExecutorInterface
     }
 
     #[\Override]
-    public function execute(?array $arguments, ServerContext $context): CallToolResult
+    public function execute(?array $arguments, ServerContext $context): CallToolResult|InputRequiredResult
     {
         $bound = $this->binder->bind($this->method, $arguments ?? [], $context);
 
         return $this->adapt($this->method->invokeArgs($this->handler, $bound));
     }
 
-    private function adapt(mixed $result): CallToolResult
+    private function adapt(mixed $result): CallToolResult|InputRequiredResult
     {
-        if ($result instanceof CallToolResult) {
+        if ($result instanceof CallToolResult || $result instanceof InputRequiredResult) {
             return $result;
         }
 
