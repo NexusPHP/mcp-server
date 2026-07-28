@@ -98,14 +98,20 @@ final readonly class ReflectedToolExecutor implements ToolExecutorInterface
      */
     private static function contentBlocks(array $items): array
     {
-        return array_values(array_filter(
-            $items,
-            static fn(mixed $item): bool => $item instanceof AudioContent
+        $blocks = [];
+
+        foreach ($items as $item) {
+            if ($item instanceof AudioContent
                 || $item instanceof EmbeddedResource
                 || $item instanceof ImageContent
                 || $item instanceof ResourceLink
-                || $item instanceof TextContent,
-        ));
+                || $item instanceof TextContent
+            ) {
+                $blocks[] = $item;
+            }
+        }
+
+        return $blocks;
     }
 
     private static function buildUnsupportedError(\ReflectionMethod $method, mixed $result): UnsupportedReturnValueException
