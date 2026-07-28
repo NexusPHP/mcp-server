@@ -344,7 +344,7 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
         }
 
         $sink = $this->sinks[$internalId];
-        $envelope = $message->toArray();
+        $envelope = $message->jsonSerialize();
         $envelope['id'] = $sink['clientId'];
         $stream = $sink['stream'];
 
@@ -383,9 +383,9 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
         $stream = $sink['stream'];
 
         if (null !== $stream) {
-            $stream->push(self::frame($notification->toArray()));
+            $stream->push(self::frame($notification->jsonSerialize()));
         } elseif (ResponseMode::Auto === $this->responseMode) {
-            $this->upgradeToStream($internalId, $sink['clientId'], $sink['buffered'], $notification->toArray());
+            $this->upgradeToStream($internalId, $sink['clientId'], $sink['buffered'], $notification->jsonSerialize());
         } else {
             // The JSON response mode buffers a single object and has no stream to carry a notification.
             $this->logger->debug('Dropping a notification: the JSON response mode cannot stream it.');
@@ -469,7 +469,7 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
     private function buildErrorResponse(Error $error, ?int $status = null): ResponseInterface
     {
         $status ??= HttpStatusResolver::resolve($error->code, fromHandler: false);
-        $envelope = new JsonRpcErrorResponse(id: null, error: $error)->toArray();
+        $envelope = new JsonRpcErrorResponse(id: null, error: $error)->jsonSerialize();
 
         return $this->responseFactory->createResponse($status)
             ->withHeader('Content-Type', 'application/json')

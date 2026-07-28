@@ -68,7 +68,7 @@ final readonly class RequestBodySizeLimitMiddleware implements MiddlewareInterfa
         $envelope = new JsonRpcErrorResponse(
             id: null,
             error: new InvalidRequestError(message: 'The request body exceeds the permitted size.'),
-        )->toArray();
+        );
 
         return $this->responseFactory->createResponse(HttpStatus::ContentTooLarge->value)
             ->withHeader('Content-Type', 'application/json')

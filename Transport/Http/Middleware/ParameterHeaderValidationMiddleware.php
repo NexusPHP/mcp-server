@@ -157,7 +157,7 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
 
     private function reject(HeaderMismatchError $error, ?RequestId $id): ResponseInterface
     {
-        $envelope = new JsonRpcErrorResponse(id: $id, error: $error)->toArray();
+        $envelope = new JsonRpcErrorResponse(id: $id, error: $error);
 
         return $this->responseFactory->createResponse(HttpStatus::BadRequest->value)
             ->withHeader('Content-Type', 'application/json')

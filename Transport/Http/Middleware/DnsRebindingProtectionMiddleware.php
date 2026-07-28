@@ -105,7 +105,7 @@ final readonly class DnsRebindingProtectionMiddleware implements MiddlewareInter
         $envelope = new JsonRpcErrorResponse(
             id: null,
             error: new InvalidRequestError(message: $message),
-        )->toArray();
+        );
 
         return $this->responseFactory->createResponse(HttpStatus::Forbidden->value)
             ->withHeader('Content-Type', 'application/json')
