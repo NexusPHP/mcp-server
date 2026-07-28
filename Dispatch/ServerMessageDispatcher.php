@@ -39,7 +39,7 @@ use Nexus\Mcp\Core\Schema\Implementation;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcErrorResponse;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
-use Nexus\Mcp\Core\Schema\MetaObject\ResultMetaObject;
+use Nexus\Mcp\Core\Schema\MetaObject\GenericResultMetaObject;
 use Nexus\Mcp\Core\Schema\ProtocolVersion;
 use Nexus\Mcp\Core\Schema\Request\ClientRequest;
 use Nexus\Mcp\Core\Schema\RequestParams;
@@ -241,7 +241,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                     $result = $handler->handle($request, $serverContext);
 
                     if (null !== $this->serverInfo && ! $result->meta->declaresServerInfo()) {
-                        $result = $result->rebuildWithMeta(new ResultMetaObject(
+                        $result = $result->rebuildWithMeta(new GenericResultMetaObject(
                             serverInfo: $this->serverInfo,
                             extras: $result->meta->extras,
                         ));

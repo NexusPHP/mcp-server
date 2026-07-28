@@ -18,6 +18,7 @@ use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
 use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Implementation;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
+use Nexus\Mcp\Core\Schema\MetaObject\GenericResultMetaObject;
 use Nexus\Mcp\Core\Schema\MetaObject\ResultMetaObject;
 use Nexus\Mcp\Core\Schema\ProtocolVersion;
 use Nexus\Mcp\Core\Schema\Result\DiscoverResult;
@@ -40,7 +41,7 @@ final readonly class DiscoverRequestHandler implements RequestHandlerInterface
         private ?string $instructions = null,
         private int $ttlMs = 0,
         private CacheScope $cacheScope = CacheScope::Private,
-        private ResultMetaObject $meta = new ResultMetaObject(),
+        private ResultMetaObject $meta = new GenericResultMetaObject(),
         private ?Implementation $serverInfo = null,
     ) {
     }
@@ -56,7 +57,7 @@ final readonly class DiscoverRequestHandler implements RequestHandlerInterface
             instructions: $this->instructions,
             meta: null === $this->serverInfo
                 ? $this->meta
-                : new ResultMetaObject(serverInfo: $this->serverInfo, extras: $this->meta->extras),
+                : new GenericResultMetaObject(serverInfo: $this->serverInfo, extras: $this->meta->extras),
         );
     }
 }
