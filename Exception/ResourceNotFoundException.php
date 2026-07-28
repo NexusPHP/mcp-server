@@ -31,6 +31,7 @@ final class ResourceNotFoundException extends AbstractJsonRpcProtocolException
             $requestId,
             \sprintf('No resource registered under URI "%s".', $uri),
             $previous,
+            errorData: ['uri' => $uri],
         );
     }
 
