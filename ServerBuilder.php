@@ -325,6 +325,29 @@ final class ServerBuilder
         return $this;
     }
 
+    /**
+     * The tool store the built server serves, or null when it exposes no tools. Assembled from the
+     * `addTool()` and `register()` entries unless `setToolStore()` supplied one.
+     *
+     * Call it once every tool is registered, since it holds the store it returns. Pass the result to
+     * `SecuredHttpEndpoint` so `Mcp-Param-{Name}` validation reads the same tools the handlers serve.
+     */
+    public function getToolStore(): ?ToolStoreInterface
+    {
+        if (null === $this->toolStore && [] === $this->tools) {
+            return null;
+        }
+
+        // Memoised, so the store the middleware validates against is the one the handlers serve.
+        return $this->toolStore ??= new ToolStore(
+            entries: $this->tools,
+            pageSize: $this->pageSize,
+            validator: $this->schemaValidator,
+            ttlMs: $this->ttlMs,
+            cacheScope: $this->cacheScope,
+        );
+    }
+
     public function setPromptStore(PromptStoreInterface $store): self
     {
         $this->promptStore = $store;
@@ -633,14 +656,9 @@ final class ServerBuilder
             ),
         ];
 
-        if (null !== $this->toolStore || [] !== $this->tools) {
-            $toolStore = $this->toolStore ?? new ToolStore(
-                entries: $this->tools,
-                pageSize: $this->pageSize,
-                validator: $this->schemaValidator,
-                ttlMs: $this->ttlMs,
-                cacheScope: $this->cacheScope,
-            );
+        $toolStore = $this->getToolStore();
+
+        if (null !== $toolStore) {
             $defaults[ListToolsRequest::getMethod()] = new ListToolsRequestHandler($toolStore);
             $defaults[CallToolRequest::getMethod()] = new CallToolRequestHandler($toolStore, $this->logger);
         }
