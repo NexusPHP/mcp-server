@@ -21,7 +21,7 @@ use Nexus\Assert\Assert;
  * The payload travels in the clear and is signed, not encrypted, so a state may hold a
  * continuation marker but never a secret.
  *
- * @see https://modelcontextprotocol.io/specification/draft/basic/utilities/mrtr
+ * @see https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/mrtr
  */
 final readonly class RequestStateSigner
 {

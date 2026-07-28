@@ -51,7 +51,7 @@ use Psr\Log\NullLogger;
 /**
  * Stateless Streamable HTTP server transport, and the PSR-15 request handler for the MCP endpoint.
  *
- * @see https://modelcontextprotocol.io/specification/draft/basic/transports/streamable-http
+ * @see https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http
  */
 final class StreamableHttpServerTransport implements RequestHandlerInterface, TransportInterface
 {

@@ -24,7 +24,7 @@ use Nexus\Mcp\Core\Auth\VerifiedAccessToken;
  * `BearerAuthenticationMiddleware` binds the returned audience to this server and enforces the scopes the
  * endpoint requires.
  *
- * @see https://modelcontextprotocol.io/specification/draft/basic/authorization#token-handling
+ * @see https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#token-handling
  */
 interface AccessTokenValidatorInterface
 {

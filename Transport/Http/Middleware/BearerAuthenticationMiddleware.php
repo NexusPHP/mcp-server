@@ -34,7 +34,7 @@ use Psr\Http\Server\RequestHandlerInterface;
  * `400 invalid_request`, and a token that is valid but too narrow is answered `403 insufficient_scope`. The
  * validated token reaches request handlers on `ServerContext::$receiveContext->authInfo`.
  *
- * @see https://modelcontextprotocol.io/specification/draft/basic/authorization#error-handling
+ * @see https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#error-handling
  */
 final readonly class BearerAuthenticationMiddleware implements MiddlewareInterface
 {

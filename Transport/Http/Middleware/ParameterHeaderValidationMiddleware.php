@@ -40,7 +40,7 @@ use Psr\Log\NullLogger;
  * from the tool `inputSchema` declarations once and cached, which a `ToolStoreInterface` whose tool set
  * changes after the first `tools/call` would outlive.
  *
- * @see https://modelcontextprotocol.io/specification/draft/basic/transports/streamable-http#server-behavior-for-custom-headers
+ * @see https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#server-behavior-for-custom-headers
  */
 final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
 {
