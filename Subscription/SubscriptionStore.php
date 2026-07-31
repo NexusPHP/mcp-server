@@ -128,9 +128,13 @@ final class SubscriptionStore implements SubscriptionStoreInterface
 
         $this->discard($entry);
 
-        // The spec has the server name the `subscriptions/listen` request it is tearing down.
+        // The spec has the server name the `subscriptions/listen` request it is tearing down, and tags
+        // every notification delivered on a stream with that stream's id.
         $this->pushTo($entry, new CancelledNotification(
-            params: new CancelledNotificationParams(requestId: $entry->subscriptionId),
+            params: new CancelledNotificationParams(
+                requestId: $entry->subscriptionId,
+                meta: new NotificationMetaObject(subscriptionId: $entry->subscriptionId),
+            ),
         ));
 
         $entry->closed->complete();
