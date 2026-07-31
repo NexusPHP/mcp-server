@@ -127,8 +127,8 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
             );
 
             // §4.1 defines a notification as an envelope *without* an id, so one that carries an id is a
-            // request whatever method it names and §5 obliges a reply. Echo the id the envelope supplied,
-            // falling back to the §5 null id when it supplied none.
+            // request whatever method it names and §5 obliges a reply. Echo the id the envelope supplied.
+            // When it supplied none the response omits the key, since MCP admits no null id.
             $this->responseSender->send($transport, ResponseSender::buildErrorResponse($e, $e->requestId), 'misrouted');
 
             return;
