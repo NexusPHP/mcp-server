@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Tool;
 
+use Nexus\Assert\Assert;
 use Nexus\Mcp\Core\Exception\InvalidParamsException;
 use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Enum\CacheScope;
@@ -20,7 +21,7 @@ use Nexus\Mcp\Core\Schema\Result\CallToolResult;
 use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ListToolsResult;
 use Nexus\Mcp\Core\Schema\Tool\Tool;
-use Nexus\Mcp\Server\AbstractPaginatedStore;
+use Nexus\Mcp\Server\CursorPaginator;
 use Nexus\Mcp\Server\Exception\ToolNotFoundException;
 use Nexus\Mcp\Server\Exception\ToolOutputValidationException;
 use Nexus\Mcp\Server\ServerContext;
@@ -28,34 +29,83 @@ use Nexus\Mcp\Server\Validation\OpisSchemaValidator;
 use Nexus\Mcp\Server\Validation\SchemaValidatorInterface;
 
 /**
- * In-memory implementation of `ToolStoreInterface`.
- *
- * @extends AbstractPaginatedStore<ToolEntry>
+ * In-memory implementation of `MutableToolStoreInterface`.
  */
-final readonly class ToolStore extends AbstractPaginatedStore implements ToolStoreInterface
+final class ToolStore implements MutableToolStoreInterface
 {
-    protected const string STORE_LABEL = 'Tool store';
+    private readonly CursorPaginator $paginator;
 
     /**
-     * @param array<non-empty-string, ToolEntry> $entries
+     * @var list<\Closure(): void>
+     */
+    private array $listChangedListeners = [];
+
+    /**
+     * @param array<array-key, ToolEntry> $entries
      */
     public function __construct(
-        array $entries = [],
-        int $pageSize = self::DEFAULT_PAGE_SIZE,
-        private SchemaValidatorInterface $validator = new OpisSchemaValidator(),
-        int $ttlMs = 0,
-        CacheScope $cacheScope = CacheScope::Private,
+        private array $entries = [],
+        int $pageSize = CursorPaginator::DEFAULT_PAGE_SIZE,
+        private readonly SchemaValidatorInterface $validator = new OpisSchemaValidator(),
+        private readonly int $ttlMs = 0,
+        private readonly CacheScope $cacheScope = CacheScope::Private,
     ) {
-        parent::__construct($entries, $pageSize, $ttlMs, $cacheScope);
+        foreach ($entries as $key => $entry) {
+            // A decimal-int-string name arrives as an int key, so the comparison is on the stringified key.
+            Assert::that($entry->tool->name)->isIdentical(
+                (string) $key,
+                'Tool store entry key "{other}" must match its tool name "{value}".',
+            );
+        }
+
+        Assert::that($pageSize)
+            ->isPositiveInt('Tool store page size must be a positive integer, {value} given.')
+        ;
+        Assert::that($ttlMs)
+            ->isNaturalInt('Tool store TTL must be a non-negative integer, {value} given.')
+        ;
+
+        $this->paginator = new CursorPaginator($pageSize);
+    }
+
+    #[\Override]
+    public function onListChanged(\Closure $listener): void
+    {
+        $this->listChangedListeners[] = $listener;
+    }
+
+    #[\Override]
+    public function addTool(Tool $tool, ToolExecutorInterface $executor): void
+    {
+        $this->entries[$tool->name] = new ToolEntry($tool, $executor);
+
+        $this->announceListChange();
+    }
+
+    #[\Override]
+    public function removeTool(string $name): bool
+    {
+        if (! \array_key_exists($name, $this->entries)) {
+            return false;
+        }
+
+        unset($this->entries[$name]);
+
+        $this->announceListChange();
+
+        return true;
     }
 
     #[\Override]
     public function list(?Cursor $cursor): ListToolsResult
     {
-        return $this->paginate(
-            $cursor,
-            static fn(ToolEntry $entry): Tool => $entry->tool,
-            self::buildResult(...),
+        $page = $this->paginator->paginate($this->entries, $cursor);
+
+        return new ListToolsResult(
+            tools: array_map(static fn(ToolEntry $entry): Tool => $entry->tool, $page->entries),
+            ttlMs: $this->ttlMs,
+            cacheScope: $this->cacheScope,
+            nextCursor: $page->nextCursor,
         );
     }
 
@@ -95,11 +145,10 @@ final readonly class ToolStore extends AbstractPaginatedStore implements ToolSto
         return $result;
     }
 
-    /**
-     * @param list<Tool> $tools
-     */
-    private static function buildResult(array $tools, ?Cursor $nextCursor, int $ttlMs, CacheScope $cacheScope): ListToolsResult
+    private function announceListChange(): void
     {
-        return new ListToolsResult(tools: $tools, ttlMs: $ttlMs, cacheScope: $cacheScope, nextCursor: $nextCursor);
+        foreach ($this->listChangedListeners as $listener) {
+            $listener();
+        }
     }
 }

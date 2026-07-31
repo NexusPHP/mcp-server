@@ -22,6 +22,7 @@ use Nexus\Mcp\Core\Schema\Error\HeaderMismatchError;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcErrorResponse;
 use Nexus\Mcp\Core\Schema\Request\CallToolRequest;
 use Nexus\Mcp\Core\Schema\RequestId;
+use Nexus\Mcp\Server\ListChangeSourceInterface;
 use Nexus\Mcp\Server\Tool\ToolStoreInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -37,8 +38,8 @@ use Psr\Log\NullLogger;
  *
  * The spec requires any server that processes the body to validate the mirrored headers against it, so an
  * intermediary routing on a header value cannot disagree with what the server executes. Bindings are read
- * from the tool `inputSchema` declarations once and cached, which a `ToolStoreInterface` whose tool set
- * changes after the first `tools/call` would outlive.
+ * from the tool `inputSchema` declarations once and cached, and the cache is dropped whenever a
+ * `ListChangeSourceInterface` store reports that its listing changed.
  *
  * @see https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#server-behavior-for-custom-headers
  */
@@ -57,6 +58,11 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
         private readonly StreamFactoryInterface $streamFactory,
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {
+        if ($store instanceof ListChangeSourceInterface) {
+            $store->onListChanged(function (): void {
+                $this->bindings = null;
+            });
+        }
     }
 
     #[\Override]
@@ -96,7 +102,9 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
      */
     private function resolveBindings(string $tool): array
     {
-        return ($this->bindings ??= $this->scan())[$tool] ?? [];
+        $this->bindings ??= $this->scan();
+
+        return $this->bindings[$tool] ?? [];
     }
 
     /**

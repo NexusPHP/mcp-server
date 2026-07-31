@@ -22,55 +22,105 @@ use Nexus\Mcp\Core\Schema\Result\ListResourceTemplatesResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Core\UriTemplate\Matcher;
 use Nexus\Mcp\Core\UriTemplate\Validator;
-use Nexus\Mcp\Server\AbstractPaginatedStore;
+use Nexus\Mcp\Server\CursorPaginator;
 use Nexus\Mcp\Server\Exception\ResourceNotFoundException;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * In-memory implementation of `ResourceTemplateStoreInterface`.
- *
- * @extends AbstractPaginatedStore<ResourceTemplateEntry>
+ * In-memory implementation of `MutableResourceTemplateStoreInterface`.
  */
-final readonly class ResourceTemplateStore extends AbstractPaginatedStore implements ResourceTemplateStoreInterface
+final class ResourceTemplateStore implements MutableResourceTemplateStoreInterface
 {
-    protected const string STORE_LABEL = 'Resource template store';
+    private readonly CursorPaginator $paginator;
 
     /**
-     * @var list<array{pattern: non-empty-string, entry: ResourceTemplateEntry}>
+     * Keyed by entry key so a removal drops the pattern with its entry.
+     *
+     * @var array<non-empty-string, array{pattern: non-empty-string, entry: ResourceTemplateEntry}>
      */
-    private array $compiled;
+    private array $compiled = [];
+
+    /**
+     * @var list<\Closure(): void>
+     */
+    private array $listChangedListeners = [];
 
     /**
      * @param array<non-empty-string, ResourceTemplateEntry> $entries
      */
     public function __construct(
-        array $entries = [],
-        int $pageSize = self::DEFAULT_PAGE_SIZE,
-        int $ttlMs = 0,
-        CacheScope $cacheScope = CacheScope::Private,
+        private array $entries = [],
+        int $pageSize = CursorPaginator::DEFAULT_PAGE_SIZE,
+        private readonly int $ttlMs = 0,
+        private readonly CacheScope $cacheScope = CacheScope::Private,
     ) {
-        parent::__construct($entries, $pageSize, $ttlMs, $cacheScope);
+        Assert::that($entries)
+            ->keys()
+            ->isNonEmptyString('Resource template store entry key must be a non-empty string.')
+        ;
+        Assert::that($pageSize)
+            ->isPositiveInt('Resource template store page size must be a positive integer, {value} given.')
+        ;
+        Assert::that($ttlMs)
+            ->isNaturalInt('Resource template store TTL must be a non-negative integer, {value} given.')
+        ;
 
-        $compiled = [];
+        $this->paginator = new CursorPaginator($pageSize);
 
-        foreach ($this->entries as $key => $entry) {
-            Validator::validate($key, 'ResourceTemplate');
+        foreach ($entries as $key => $entry) {
             Assert::that($entry->template->uriTemplate)
                 ->isIdentical($key, 'Resource template store entry key "{other}" must match its template URI "{value}".')
             ;
-            $compiled[] = ['pattern' => Matcher::compile($key), 'entry' => $entry];
+            $this->indexTemplate($key, $entry);
+        }
+    }
+
+    #[\Override]
+    public function onListChanged(\Closure $listener): void
+    {
+        $this->listChangedListeners[] = $listener;
+    }
+
+    #[\Override]
+    public function addResourceTemplate(ResourceTemplate $template, TemplatedResourceReaderInterface $reader): void
+    {
+        $uriTemplate = $template->uriTemplate;
+        $entry = new ResourceTemplateEntry($template, $reader);
+
+        // Indexing validates, so it runs first: a rejected template must leave neither map touched.
+        $this->indexTemplate($uriTemplate, $entry);
+        $this->entries[$uriTemplate] = $entry;
+
+        $this->announceListChange();
+    }
+
+    #[\Override]
+    public function removeResourceTemplate(string $uriTemplate): bool
+    {
+        if (! \array_key_exists($uriTemplate, $this->entries)) {
+            return false;
         }
 
-        $this->compiled = $compiled;
+        unset($this->entries[$uriTemplate], $this->compiled[$uriTemplate]);
+
+        $this->announceListChange();
+
+        return true;
     }
 
     #[\Override]
     public function list(?Cursor $cursor): ListResourceTemplatesResult
     {
-        return $this->paginate(
-            $cursor,
-            static fn(ResourceTemplateEntry $entry): ResourceTemplate => $entry->template,
-            self::buildResult(...),
+        $page = $this->paginator->paginate($this->entries, $cursor);
+
+        return new ListResourceTemplatesResult(
+            resourceTemplates: array_map(
+                static fn(ResourceTemplateEntry $entry): ResourceTemplate => $entry->template,
+                $page->entries,
+            ),
+            ttlMs: $this->ttlMs,
+            cacheScope: $this->cacheScope,
+            nextCursor: $page->nextCursor,
         );
     }
 
@@ -89,15 +139,18 @@ final readonly class ResourceTemplateStore extends AbstractPaginatedStore implem
     }
 
     /**
-     * @param list<ResourceTemplate> $templates
+     * @param non-empty-string $uriTemplate
      */
-    private static function buildResult(array $templates, ?Cursor $nextCursor, int $ttlMs, CacheScope $cacheScope): ListResourceTemplatesResult
+    private function indexTemplate(string $uriTemplate, ResourceTemplateEntry $entry): void
     {
-        return new ListResourceTemplatesResult(
-            resourceTemplates: $templates,
-            ttlMs: $ttlMs,
-            cacheScope: $cacheScope,
-            nextCursor: $nextCursor,
-        );
+        Validator::validate($uriTemplate, 'ResourceTemplate');
+        $this->compiled[$uriTemplate] = ['pattern' => Matcher::compile($uriTemplate), 'entry' => $entry];
+    }
+
+    private function announceListChange(): void
+    {
+        foreach ($this->listChangedListeners as $listener) {
+            $listener();
+        }
     }
 }

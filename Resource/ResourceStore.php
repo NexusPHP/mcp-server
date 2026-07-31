@@ -13,32 +13,90 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Resource;
 
+use Nexus\Assert\Assert;
 use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Resource\Resource;
 use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ListResourcesResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
-use Nexus\Mcp\Server\AbstractPaginatedStore;
+use Nexus\Mcp\Server\CursorPaginator;
 use Nexus\Mcp\Server\Exception\ResourceNotFoundException;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * In-memory implementation of `ResourceStoreInterface`.
- *
- * @extends AbstractPaginatedStore<ResourceEntry>
+ * In-memory implementation of `MutableResourceStoreInterface`.
  */
-final readonly class ResourceStore extends AbstractPaginatedStore implements ResourceStoreInterface
+final class ResourceStore implements MutableResourceStoreInterface
 {
-    protected const string STORE_LABEL = 'Resource store';
+    private readonly CursorPaginator $paginator;
+
+    /**
+     * @var list<\Closure(): void>
+     */
+    private array $listChangedListeners = [];
+
+    /**
+     * @param array<non-empty-string, ResourceEntry> $entries
+     */
+    public function __construct(
+        private array $entries = [],
+        int $pageSize = CursorPaginator::DEFAULT_PAGE_SIZE,
+        private readonly int $ttlMs = 0,
+        private readonly CacheScope $cacheScope = CacheScope::Private,
+    ) {
+        Assert::that($entries)
+            ->keys()
+            ->isNonEmptyString('Resource store entry key must be a non-empty string.')
+        ;
+        Assert::that($pageSize)
+            ->isPositiveInt('Resource store page size must be a positive integer, {value} given.')
+        ;
+        Assert::that($ttlMs)
+            ->isNaturalInt('Resource store TTL must be a non-negative integer, {value} given.')
+        ;
+
+        $this->paginator = new CursorPaginator($pageSize);
+    }
+
+    #[\Override]
+    public function onListChanged(\Closure $listener): void
+    {
+        $this->listChangedListeners[] = $listener;
+    }
+
+    #[\Override]
+    public function addResource(Resource $resource, ResourceReaderInterface $reader): void
+    {
+        $this->entries[$resource->uri] = new ResourceEntry($resource, $reader);
+
+        $this->announceListChange();
+    }
+
+    #[\Override]
+    public function removeResource(string $uri): bool
+    {
+        if (! \array_key_exists($uri, $this->entries)) {
+            return false;
+        }
+
+        unset($this->entries[$uri]);
+
+        $this->announceListChange();
+
+        return true;
+    }
 
     #[\Override]
     public function list(?Cursor $cursor): ListResourcesResult
     {
-        return $this->paginate(
-            $cursor,
-            static fn(ResourceEntry $entry): Resource => $entry->resource,
-            self::buildResult(...),
+        $page = $this->paginator->paginate($this->entries, $cursor);
+
+        return new ListResourcesResult(
+            resources: array_map(static fn(ResourceEntry $entry): Resource => $entry->resource, $page->entries),
+            ttlMs: $this->ttlMs,
+            cacheScope: $this->cacheScope,
+            nextCursor: $page->nextCursor,
         );
     }
 
@@ -50,16 +108,10 @@ final readonly class ResourceStore extends AbstractPaginatedStore implements Res
         return $entry->reader->read($uri, $context);
     }
 
-    /**
-     * @param list<Resource> $resources
-     */
-    private static function buildResult(array $resources, ?Cursor $nextCursor, int $ttlMs, CacheScope $cacheScope): ListResourcesResult
+    private function announceListChange(): void
     {
-        return new ListResourcesResult(
-            resources: $resources,
-            ttlMs: $ttlMs,
-            cacheScope: $cacheScope,
-            nextCursor: $nextCursor,
-        );
+        foreach ($this->listChangedListeners as $listener) {
+            $listener();
+        }
     }
 }

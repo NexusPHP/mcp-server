@@ -15,8 +15,11 @@ namespace Nexus\Mcp\Server;
 
 use Amp\DeferredFuture;
 use Nexus\Mcp\Core\Dispatch\MessageDispatcherInterface;
+use Nexus\Mcp\Core\Schema\RequestId;
+use Nexus\Mcp\Core\Transport\CancellableTransportInterface;
 use Nexus\Mcp\Core\Transport\ReceiveContext;
 use Nexus\Mcp\Core\Transport\TransportInterface;
+use Nexus\Mcp\Server\Subscription\SubscriptionStoreInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -26,8 +29,11 @@ use Psr\Log\NullLogger;
  */
 final readonly class Server
 {
-    public function __construct(private MessageDispatcherInterface $dispatcher, private LoggerInterface $logger = new NullLogger())
-    {
+    public function __construct(
+        private MessageDispatcherInterface $dispatcher,
+        private LoggerInterface $logger = new NullLogger(),
+        private ?SubscriptionStoreInterface $subscriptions = null,
+    ) {
     }
 
     /**
@@ -80,7 +86,16 @@ final readonly class Server
             $this->logger->error('Transport error.', ['exception' => $e]);
         });
         $transport->onDrain(function (): void {
+            // A held-open `subscriptions/listen` handler never settles on its own, so the streams close
+            // before the drain waits on the coroutines running them.
+            $this->subscriptions?->closeAll();
             $this->dispatcher->flushPending();
         });
+
+        if ($transport instanceof CancellableTransportInterface) {
+            $transport->onCancel(function (RequestId $id): void {
+                $this->dispatcher->cancelRequest($id);
+            });
+        }
     }
 }

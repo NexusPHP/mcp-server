@@ -14,7 +14,7 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Dispatch;
 
 use Amp\Cancellation;
-use Amp\NullCancellation;
+use Amp\CancelledException;
 use Nexus\Mcp\Core\Dispatch\LogThrottle;
 use Nexus\Mcp\Core\Dispatch\MessageDispatcherInterface;
 use Nexus\Mcp\Core\Dispatch\PendingCoroutines;
@@ -39,9 +39,12 @@ use Nexus\Mcp\Core\Schema\Implementation;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcErrorResponse;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
+use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcResultResponse;
 use Nexus\Mcp\Core\Schema\MetaObject\GenericResultMetaObject;
 use Nexus\Mcp\Core\Schema\ProtocolVersion;
 use Nexus\Mcp\Core\Schema\Request\ClientRequest;
+use Nexus\Mcp\Core\Schema\Request\SubscriptionsListenRequest;
+use Nexus\Mcp\Core\Schema\RequestId;
 use Nexus\Mcp\Core\Schema\RequestParams;
 use Nexus\Mcp\Core\Schema\RequestParams\InputResponseRequestParams;
 use Nexus\Mcp\Core\Schema\Result;
@@ -65,7 +68,6 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     private const string OVERLOADED_MESSAGE = 'Server overloaded';
 
     private PendingCoroutines $coroutines;
-    private PendingInboundRequests $inboundRequests;
     private ResponseSender $responseSender;
     private LogThrottle $orphanResponses;
     private LogThrottle $shedNotifications;
@@ -74,19 +76,18 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
      * @param HandlerRegistry<RequestHandlerInterface<non-empty-string, Result, ServerContext>> $requestHandlers
      * @param HandlerRegistry<NotificationHandlerInterface<non-empty-string>>                   $notificationHandlers
      * @param null|Implementation                                                               $serverInfo           Identity stamped on every outgoing result, or null to disclose none
-     * @param null|positive-int                                                                 $maxInFlight          Messages dispatched at once before further ones are shed, or null for no cap
+     * @param null|positive-int                                                                 $maxInFlight          Messages processed at once before further ones are shed, or null for no cap
      */
     public function __construct(
         private HandlerRegistry $requestHandlers,
         private HandlerRegistry $notificationHandlers,
         private LoggerInterface $logger = new NullLogger(),
         private JsonRpcMessageParser $parser = new JsonRpcMessageParser(),
-        private Cancellation $cancellation = new NullCancellation(),
         private ?Implementation $serverInfo = null,
         private ?int $maxInFlight = null,
+        private PendingInboundRequests $inboundRequests = new PendingInboundRequests(),
     ) {
-        $this->coroutines = new PendingCoroutines();
-        $this->inboundRequests = new PendingInboundRequests();
+        $this->coroutines = new PendingCoroutines($this->logger);
         $this->responseSender = new ResponseSender($this->logger);
         $this->orphanResponses = new LogThrottle();
         $this->shedNotifications = new LogThrottle();
@@ -96,6 +97,12 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     public function flushPending(): void
     {
         $this->coroutines->flushPending();
+    }
+
+    #[\Override]
+    public function cancelRequest(RequestId $id): void
+    {
+        $this->inboundRequests->cancel($id);
     }
 
     /**
@@ -191,14 +198,20 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
             return;
         }
 
-        if (! $this->inboundRequests->claim($request->id)) {
+        $cancellation = $this->inboundRequests->claim($request->id);
+
+        if (null === $cancellation) {
             $exception = new DuplicateInboundRequestIdException($request->id);
             $this->responseSender->send($transport, ResponseSender::buildErrorResponse($exception, $request->id), $method);
 
             return;
         }
 
-        $this->coroutines->track(async(function () use ($request, $transport, $method, $context): void {
+        // A listen request opens a subscription rather than being processed, so the dispatch cap does not
+        // govern it. `SubscriptionStoreInterface` bounds how many streams may be open.
+        $holdsOpen = SubscriptionsListenRequest::getMethod() === $method;
+
+        $this->coroutines->track(async(function () use ($request, $transport, $method, $context, $cancellation): void {
             try {
                 try {
                     if (! $request instanceof ClientRequest) {
@@ -231,7 +244,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                     $params = $request->params;
                     $serverContext = new ServerContext(
                         $request->id,
-                        $this->cancellation,
+                        $cancellation,
                         $params->meta,
                         $sender,
                         $context,
@@ -259,7 +272,8 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                     return;
                 } catch (AbstractJsonRpcProtocolException $e) {
                     // A protocol error the handler itself raised (e.g. invalid tool arguments).
-                    $this->responseSender->send(
+                    $this->sendUnlessCancelled(
+                        $cancellation,
                         $transport,
                         ResponseSender::buildErrorResponse($e, $request->id),
                         $method,
@@ -268,6 +282,17 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
 
                     return;
                 } catch (\Throwable $e) {
+                    if ($cancellation->isRequested()) {
+                        $this->logger->debug(
+                            'Dropping the response to a request whose handler the cancellation interrupted.',
+                            ['method' => $method],
+                        );
+
+                        return;
+                    }
+
+                    // A `CancelledException` from a token the handler armed itself is not this request being
+                    // cancelled, so the peer is still owed an answer.
                     $this->logger->error(
                         'Uncaught request handler exception.',
                         ['method' => $method, 'exception' => $e],
@@ -285,11 +310,33 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                     return;
                 }
 
-                $this->responseSender->send($transport, $response, $method);
+                $this->sendUnlessCancelled($cancellation, $transport, $response, $method);
             } finally {
                 $this->inboundRequests->release($request->id);
             }
-        }));
+        }), occupiesSlot: ! $holdsOpen);
+    }
+
+    /**
+     * Sends `$response` unless the peer abandoned the request first. The spec forbids answering a request
+     * once its cancellation was requested.
+     *
+     * @param non-empty-string $method
+     */
+    private function sendUnlessCancelled(
+        Cancellation $cancellation,
+        TransportInterface $transport,
+        JsonRpcErrorResponse|JsonRpcResultResponse $response,
+        string $method,
+        ?SendContext $context = null,
+    ): void {
+        if ($cancellation->isRequested()) {
+            $this->logger->debug('Dropping the response to a cancelled request.', ['method' => $method]);
+
+            return;
+        }
+
+        $this->responseSender->send($transport, $response, $method, $context);
     }
 
     /**

@@ -18,6 +18,7 @@ use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ListResourcesResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Server\Exception\ResourceNotFoundException;
+use Nexus\Mcp\Server\ListChangeSourceInterface;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
@@ -27,10 +28,20 @@ use Nexus\Mcp\Server\ServerContext;
  * store, only re-raising the not-found when neither side matches. `list()`
  * delegates to the primary unchanged.
  */
-final readonly class CompositeResourceStore implements ResourceStoreInterface
+final readonly class CompositeResourceStore implements ListChangeSourceInterface, ResourceStoreInterface
 {
     public function __construct(private ResourceStoreInterface $resourceStore, private ResourceTemplateStoreInterface $resourceTemplateStore)
     {
+    }
+
+    #[\Override]
+    public function onListChanged(\Closure $listener): void
+    {
+        foreach ([$this->resourceStore, $this->resourceTemplateStore] as $store) {
+            if ($store instanceof ListChangeSourceInterface) {
+                $store->onListChanged($listener);
+            }
+        }
     }
 
     #[\Override]

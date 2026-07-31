@@ -31,12 +31,15 @@ use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcErrorResponse;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcMessage;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcResultResponse;
+use Nexus\Mcp\Core\Schema\Notification\CancelledNotification;
+use Nexus\Mcp\Core\Schema\Request\SubscriptionsListenRequest;
 use Nexus\Mcp\Core\Schema\RequestId;
+use Nexus\Mcp\Core\Transport\CancellableTransportInterface;
 use Nexus\Mcp\Core\Transport\ReceiveContext;
 use Nexus\Mcp\Core\Transport\SendContext;
+use Nexus\Mcp\Core\Transport\Subscription;
 use Nexus\Mcp\Core\Transport\SubscriptionInterface;
 use Nexus\Mcp\Core\Transport\TransportEvents;
-use Nexus\Mcp\Core\Transport\TransportInterface;
 use Nexus\Mcp\Core\Transport\TransportState;
 use Nexus\Mcp\Server\Transport\Http\ResponseMode;
 use Nexus\Mcp\Server\Transport\Http\SseResponseStream;
@@ -53,7 +56,7 @@ use Psr\Log\NullLogger;
  *
  * @see https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http
  */
-final class StreamableHttpServerTransport implements RequestHandlerInterface, TransportInterface
+final class StreamableHttpServerTransport implements CancellableTransportInterface, RequestHandlerInterface
 {
     private TransportState $state = TransportState::Idle;
     private readonly TransportEvents $events;
@@ -77,6 +80,11 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
      * }>
      */
     private array $sinks = [];
+
+    /**
+     * @var array<int, \Closure(RequestId): void>
+     */
+    private array $cancelListeners = [];
 
     public function __construct(
         private readonly ResponseFactoryInterface $responseFactory,
@@ -142,6 +150,17 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
                 return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
             }
 
+            if (CancelledNotification::getMethod() === ($envelope['method'] ?? null)) {
+                // Closing the response stream is the cancellation signal here, so this message is neither
+                // required nor expected. Its `params.requestId` names the client's own id space, which no
+                // sink is keyed by, so honouring it would cancel whichever request holds that internal id.
+                $this->logger->debug(
+                    'Ignoring a client cancellation notification: the response stream is the signal on this transport.',
+                );
+
+                return $this->responseFactory->createResponse(HttpStatus::Accepted->value);
+            }
+
             $this->events->emitMessage($envelope, self::buildReceiveContext($request));
 
             return $this->responseFactory->createResponse(HttpStatus::Accepted->value);
@@ -162,7 +181,12 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
             return $this->buildErrorResponse($mismatch);
         }
 
-        return ResponseMode::Sse === $this->responseMode
+        // A listen request is answered only when its stream ends, so the buffered path would hold the POST
+        // open with nowhere to push the acknowledgement. It streams whatever the configured mode says.
+        $streams = ResponseMode::Sse === $this->responseMode
+            || SubscriptionsListenRequest::getMethod() === ($envelope['method'] ?? null);
+
+        return $streams
             ? $this->dispatchStreaming($envelope, $clientId, $request)
             : $this->dispatchBuffered($envelope, $clientId, $request);
     }
@@ -240,6 +264,17 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
     }
 
     #[\Override]
+    public function onCancel(\Closure $listener): SubscriptionInterface
+    {
+        $id = spl_object_id($listener);
+        $this->cancelListeners[$id] = $listener;
+
+        return new Subscription(function () use ($id): void {
+            unset($this->cancelListeners[$id]);
+        });
+    }
+
+    #[\Override]
     public function onClose(\Closure $listener): SubscriptionInterface
     {
         return $this->events->onClose($listener);
@@ -287,7 +322,7 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
         $this->sinks[$internalId] = ['clientId' => $clientId, 'buffered' => $deferred, 'stream' => null];
 
         $envelope['id'] = $internalId;
-        $this->events->emitMessage($envelope, self::buildReceiveContext($request));
+        $this->events->emitMessage($envelope, self::buildReceiveContext($request, $clientId));
 
         return $deferred->getFuture()->await();
     }
@@ -310,19 +345,27 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
         $this->sinks[$internalId] = ['clientId' => $clientId, 'buffered' => $unused, 'stream' => $stream];
 
         $envelope['id'] = $internalId;
-        $this->events->emitMessage($envelope, self::buildReceiveContext($request));
+        $this->events->emitMessage($envelope, self::buildReceiveContext($request, $clientId));
 
         return $this->buildSseResponse($stream);
     }
 
     /**
      * Carries the HTTP request, and the token a bearer-authentication stage validated it with, to handlers.
+     *
+     * @param null|int|non-empty-string $clientId
      */
-    private static function buildReceiveContext(ServerRequestInterface $request): ReceiveContext
+    private static function buildReceiveContext(ServerRequestInterface $request, null|int|string $clientId = null): ReceiveContext
     {
         $token = $request->getAttribute(VerifiedAccessToken::REQUEST_ATTRIBUTE);
 
-        return new ReceiveContext($request, $token instanceof VerifiedAccessToken ? $token : null);
+        // Dispatch runs under a transport-internal id, so anything the handler puts back on the message
+        // (a subscription id, say) has to name the id the client actually sent.
+        return new ReceiveContext(
+            $request,
+            $token instanceof VerifiedAccessToken ? $token : null,
+            null === $clientId ? null : new RequestId(id: $clientId),
+        );
     }
 
     private function routeResponse(JsonRpcErrorResponse|JsonRpcResultResponse $message, ?SendContext $context): void
@@ -423,7 +466,20 @@ final class StreamableHttpServerTransport implements RequestHandlerInterface, Tr
      */
     private function releaseStream(int $internalId): null
     {
+        $sink = $this->sinks[$internalId] ?? null;
         unset($this->sinks[$internalId]);
+
+        if (null === $sink) {
+            // `endStream()` already retired the sink, so the body closing is the graceful path finishing
+            // rather than the peer walking away.
+            return null;
+        }
+
+        $abandoned = new RequestId(id: $internalId);
+
+        foreach ($this->cancelListeners as $listener) {
+            $listener($abandoned);
+        }
 
         return null;
     }

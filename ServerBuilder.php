@@ -14,13 +14,16 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server;
 
 use Nexus\Assert\Assert;
+use Nexus\Mcp\Core\Dispatch\PendingInboundRequests;
 use Nexus\Mcp\Core\Handler\HandlerRegistry;
+use Nexus\Mcp\Core\Handler\Notification\CancelledNotificationHandler;
 use Nexus\Mcp\Core\Handler\NotificationHandlerInterface;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
 use Nexus\Mcp\Core\JsonRpc\JsonRpcMethodRegistry;
 use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Icon;
 use Nexus\Mcp\Core\Schema\Implementation;
+use Nexus\Mcp\Core\Schema\Notification\CancelledNotification;
 use Nexus\Mcp\Core\Schema\Prompt\Prompt;
 use Nexus\Mcp\Core\Schema\Request\CallToolRequest;
 use Nexus\Mcp\Core\Schema\Request\CompleteRequest;
@@ -31,6 +34,7 @@ use Nexus\Mcp\Core\Schema\Request\ListResourcesRequest;
 use Nexus\Mcp\Core\Schema\Request\ListResourceTemplatesRequest;
 use Nexus\Mcp\Core\Schema\Request\ListToolsRequest;
 use Nexus\Mcp\Core\Schema\Request\ReadResourceRequest;
+use Nexus\Mcp\Core\Schema\Request\SubscriptionsListenRequest;
 use Nexus\Mcp\Core\Schema\Resource\Resource;
 use Nexus\Mcp\Core\Schema\Resource\ResourceTemplate;
 use Nexus\Mcp\Core\Schema\Result;
@@ -39,12 +43,14 @@ use Nexus\Mcp\Core\Schema\Result\GetPromptResult;
 use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Core\Schema\ServerCapabilities;
+use Nexus\Mcp\Core\Schema\SubscriptionFilter;
 use Nexus\Mcp\Core\Schema\Tool\Tool;
 use Nexus\Mcp\Core\UriTemplate\Validator;
 use Nexus\Mcp\Server\Attribute\AsServer;
 use Nexus\Mcp\Server\Completion\CompletionStoreInterface;
 use Nexus\Mcp\Server\Discovery\AttributeScanner;
 use Nexus\Mcp\Server\Dispatch\ServerMessageDispatcher;
+use Nexus\Mcp\Server\Exception\BuilderAlreadyBuiltException;
 use Nexus\Mcp\Server\Exception\DuplicateServerMetadataException;
 use Nexus\Mcp\Server\Exception\MissingDiscoveryAttributeException;
 use Nexus\Mcp\Server\Exception\ReservedMethodException;
@@ -58,6 +64,7 @@ use Nexus\Mcp\Server\Handler\Request\ListResourcesRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\ListResourceTemplatesRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\ListToolsRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\ReadResourceRequestHandler;
+use Nexus\Mcp\Server\Handler\Request\SubscriptionsListenRequestHandler;
 use Nexus\Mcp\Server\Prompt\ClosurePromptRenderer;
 use Nexus\Mcp\Server\Prompt\PromptEntry;
 use Nexus\Mcp\Server\Prompt\PromptRendererInterface;
@@ -74,6 +81,7 @@ use Nexus\Mcp\Server\Resource\ResourceTemplateEntry;
 use Nexus\Mcp\Server\Resource\ResourceTemplateStore;
 use Nexus\Mcp\Server\Resource\ResourceTemplateStoreInterface;
 use Nexus\Mcp\Server\Resource\TemplatedResourceReaderInterface;
+use Nexus\Mcp\Server\Subscription\SubscriptionStoreInterface;
 use Nexus\Mcp\Server\Tool\ClosureToolExecutor;
 use Nexus\Mcp\Server\Tool\ToolEntry;
 use Nexus\Mcp\Server\Tool\ToolExecutorInterface;
@@ -128,7 +136,7 @@ final class ServerBuilder
      */
     private array $resourceTemplates = [];
 
-    private int $pageSize = AbstractPaginatedStore::DEFAULT_PAGE_SIZE;
+    private int $pageSize = CursorPaginator::DEFAULT_PAGE_SIZE;
     private int $ttlMs = 0;
     private CacheScope $cacheScope = CacheScope::Private;
     private ?ToolStoreInterface $toolStore = null;
@@ -136,6 +144,8 @@ final class ServerBuilder
     private ?ResourceStoreInterface $resourceStore = null;
     private ?ResourceTemplateStoreInterface $resourceTemplateStore = null;
     private ?CompletionStoreInterface $completionStore = null;
+    private ?SubscriptionStoreInterface $subscriptionStore = null;
+    private bool $built = false;
 
     /**
      * @var array<non-empty-string, RequestHandlerInterface<non-empty-string, Result, ServerContext>>
@@ -164,6 +174,8 @@ final class ServerBuilder
         ?string $websiteUrl = null,
         ?array $icons = null,
     ): self {
+        $this->assertNotBuilt();
+
         $this->serverInfo = new Implementation(
             name: $name,
             version: $version,
@@ -177,12 +189,15 @@ final class ServerBuilder
     }
 
     /**
-     * Caps how many inbound messages the server dispatches at once. Past the cap a request is
+     * Caps how many inbound messages the server processes at once. Past the cap a request is
      * answered `-32000` and a notification is dropped, until running handlers finish. Null lifts
-     * the cap, which is the default.
+     * the cap, which is the default. A `subscriptions/listen` is exempt: it opens a subscription rather
+     * than being processed, and the subscription store bounds how many streams may be open.
      */
     public function setMaxInFlightDispatches(?int $max): self
     {
+        $this->assertNotBuilt();
+
         Assert::that($max)->nullOr()->isPositiveInt('Maximum in-flight dispatches must be a positive integer or null, {value} given.');
 
         $this->maxInFlight = $max;
@@ -195,6 +210,8 @@ final class ServerBuilder
      */
     public function setServerInfoDisclosure(ServerInfoDisclosure $disclosure): self
     {
+        $this->assertNotBuilt();
+
         $this->serverInfoDisclosure = $disclosure;
 
         return $this;
@@ -202,6 +219,8 @@ final class ServerBuilder
 
     public function setInstructions(?string $instructions): self
     {
+        $this->assertNotBuilt();
+
         Assert::that($instructions)
             ->nullOr()
             ->isNonEmptyString('Server instructions must be a non-empty string or null.')
@@ -214,6 +233,8 @@ final class ServerBuilder
 
     public function setLogger(LoggerInterface $logger): self
     {
+        $this->assertNotBuilt();
+
         $this->logger = $logger;
 
         return $this;
@@ -221,6 +242,8 @@ final class ServerBuilder
 
     public function setSchemaValidator(SchemaValidatorInterface $validator): self
     {
+        $this->assertNotBuilt();
+
         $this->schemaValidator = $validator;
 
         return $this;
@@ -232,6 +255,8 @@ final class ServerBuilder
      */
     public function setPageSize(int $pageSize): self
     {
+        $this->assertNotBuilt();
+
         Assert::that($pageSize)->isPositiveInt('Store page size must be a positive integer, {value} given.');
 
         $this->pageSize = $pageSize;
@@ -245,6 +270,8 @@ final class ServerBuilder
      */
     public function setTtlMs(int $ttlMs): self
     {
+        $this->assertNotBuilt();
+
         Assert::that($ttlMs)->isNaturalInt('Store TTL must be a non-negative integer, {value} given.');
 
         $this->ttlMs = $ttlMs;
@@ -258,6 +285,8 @@ final class ServerBuilder
      */
     public function setCacheScope(CacheScope $cacheScope): self
     {
+        $this->assertNotBuilt();
+
         $this->cacheScope = $cacheScope;
 
         return $this;
@@ -268,6 +297,8 @@ final class ServerBuilder
      */
     public function addTool(Tool $tool, \Closure|ToolExecutorInterface $executor): self
     {
+        $this->assertNotBuilt();
+
         $this->tools[$tool->name] = new ToolEntry(
             $tool,
             $executor instanceof ToolExecutorInterface ? $executor : new ClosureToolExecutor($executor),
@@ -281,6 +312,8 @@ final class ServerBuilder
      */
     public function addPrompt(Prompt $prompt, \Closure|PromptRendererInterface $renderer): self
     {
+        $this->assertNotBuilt();
+
         $this->prompts[$prompt->name] = new PromptEntry(
             $prompt,
             $renderer instanceof PromptRendererInterface ? $renderer : new ClosurePromptRenderer($renderer),
@@ -294,6 +327,8 @@ final class ServerBuilder
      */
     public function addResource(Resource $resource, \Closure|ResourceReaderInterface $reader): self
     {
+        $this->assertNotBuilt();
+
         $this->resources[$resource->uri] = new ResourceEntry(
             $resource,
             $reader instanceof ResourceReaderInterface ? $reader : new ClosureResourceReader($reader),
@@ -309,6 +344,8 @@ final class ServerBuilder
         ResourceTemplate $template,
         \Closure|TemplatedResourceReaderInterface $reader,
     ): self {
+        $this->assertNotBuilt();
+
         Validator::validate($template->uriTemplate, 'ResourceTemplate');
 
         $this->resourceTemplates[$template->uriTemplate] = new ResourceTemplateEntry(
@@ -321,6 +358,8 @@ final class ServerBuilder
 
     public function setToolStore(ToolStoreInterface $store): self
     {
+        $this->assertNotBuilt();
+
         $this->toolStore = $store;
 
         return $this;
@@ -339,39 +378,132 @@ final class ServerBuilder
             return null;
         }
 
-        // Memoised, so the store the middleware validates against is the one the handlers serve.
-        return $this->toolStore ??= new ToolStore(
+        $this->toolStore ??= new ToolStore(
             entries: $this->tools,
             pageSize: $this->pageSize,
             validator: $this->schemaValidator,
             ttlMs: $this->ttlMs,
             cacheScope: $this->cacheScope,
         );
+
+        return $this->toolStore;
     }
 
     public function setPromptStore(PromptStoreInterface $store): self
     {
+        $this->assertNotBuilt();
+
         $this->promptStore = $store;
 
         return $this;
     }
 
+    /**
+     * The prompt store the built server serves, or null when it exposes no prompts. Assembled from the
+     * `addPrompt()` and `register()` entries unless `setPromptStore()` supplied one.
+     *
+     * Call it once every prompt is registered, since it holds the store it returns.
+     */
+    public function getPromptStore(): ?PromptStoreInterface
+    {
+        if (null === $this->promptStore && [] === $this->prompts) {
+            return null;
+        }
+
+        $this->promptStore ??= new PromptStore(
+            entries: $this->prompts,
+            pageSize: $this->pageSize,
+            ttlMs: $this->ttlMs,
+            cacheScope: $this->cacheScope,
+        );
+
+        return $this->promptStore;
+    }
+
     public function setResourceStore(ResourceStoreInterface $store): self
     {
+        $this->assertNotBuilt();
+
         $this->resourceStore = $store;
 
         return $this;
     }
 
+    /**
+     * The resource store the built server serves, or null when it exposes neither resources nor resource
+     * templates. Assembled from the `addResource()` and `register()` entries unless `setResourceStore()`
+     * supplied one.
+     *
+     * Call it once every resource is registered, since it holds the store it returns.
+     */
+    public function getResourceStore(): ?ResourceStoreInterface
+    {
+        // A template store alone still needs a resource store, since `resources/read` composes the two.
+        $templateStore = $this->getResourceTemplateStore();
+
+        if (null === $this->resourceStore && [] === $this->resources && null === $templateStore) {
+            return null;
+        }
+
+        $this->resourceStore ??= new ResourceStore(
+            entries: $this->resources,
+            pageSize: $this->pageSize,
+            ttlMs: $this->ttlMs,
+            cacheScope: $this->cacheScope,
+        );
+
+        return $this->resourceStore;
+    }
+
     public function setResourceTemplateStore(ResourceTemplateStoreInterface $store): self
     {
+        $this->assertNotBuilt();
+
         $this->resourceTemplateStore = $store;
+
+        return $this;
+    }
+
+    /**
+     * The resource template store the built server serves, or null when it exposes no templates. Assembled
+     * from the `addResourceTemplate()` and `register()` entries unless `setResourceTemplateStore()` supplied
+     * one.
+     *
+     * Call it once every template is registered, since it holds the store it returns.
+     */
+    public function getResourceTemplateStore(): ?ResourceTemplateStoreInterface
+    {
+        if (null === $this->resourceTemplateStore && [] === $this->resourceTemplates) {
+            return null;
+        }
+
+        $this->resourceTemplateStore ??= new ResourceTemplateStore(
+            entries: $this->resourceTemplates,
+            pageSize: $this->pageSize,
+            ttlMs: $this->ttlMs,
+            cacheScope: $this->cacheScope,
+        );
+
+        return $this->resourceTemplateStore;
+    }
+
+    /**
+     * Serves `subscriptions/listen` from `$store`, and lights up the `listChanged` capability of every
+     * feature whose store can report its changes.
+     */
+    public function setSubscriptionStore(SubscriptionStoreInterface $store): self
+    {
+        $this->assertNotBuilt();
+
+        $this->subscriptionStore = $store;
 
         return $this;
     }
 
     public function setCompletionStore(CompletionStoreInterface $store): self
     {
+        $this->assertNotBuilt();
+
         $this->completionStore = $store;
 
         return $this;
@@ -389,6 +521,8 @@ final class ServerBuilder
      */
     public function register(object ...$sources): self
     {
+        $this->assertNotBuilt();
+
         $scanner = new AttributeScanner();
 
         foreach ($sources as $source) {
@@ -438,6 +572,8 @@ final class ServerBuilder
      */
     public function addRequestHandler(string $method, RequestHandlerInterface $handler): self
     {
+        $this->assertNotBuilt();
+
         if (\array_key_exists($method, JsonRpcMethodRegistry::requests())) {
             throw new ReservedMethodException($method);
         }
@@ -459,6 +595,8 @@ final class ServerBuilder
      */
     public function replaceRequestHandler(string $method, RequestHandlerInterface $handler): self
     {
+        $this->assertNotBuilt();
+
         if (! \array_key_exists($method, JsonRpcMethodRegistry::requests())) {
             throw new UnreservedMethodException($method);
         }
@@ -480,6 +618,8 @@ final class ServerBuilder
      */
     public function addNotificationHandler(string $method, NotificationHandlerInterface $handler): self
     {
+        $this->assertNotBuilt();
+
         if (\array_key_exists($method, JsonRpcMethodRegistry::notifications())) {
             throw new ReservedMethodException($method, isNotification: true);
         }
@@ -501,6 +641,8 @@ final class ServerBuilder
      */
     public function replaceNotificationHandler(string $method, NotificationHandlerInterface $handler): self
     {
+        $this->assertNotBuilt();
+
         if (! \array_key_exists($method, JsonRpcMethodRegistry::notifications())) {
             throw new UnreservedMethodException($method, isNotification: true);
         }
@@ -512,6 +654,8 @@ final class ServerBuilder
 
     public function build(): Server
     {
+        $this->assertNotBuilt();
+        $this->built = true;
         $serverInfo = $this->resolveServerInfo();
 
         Assert::that($serverInfo)->isInstanceOf(
@@ -526,16 +670,74 @@ final class ServerBuilder
             ServerInfoDisclosure::None === $this->serverInfoDisclosure ? null : $serverInfo,
         );
 
+        $this->routeListChanges();
+
+        $inboundRequests = new PendingInboundRequests();
+
         return new Server(
             new ServerMessageDispatcher(
                 new HandlerRegistry($requestHandlers, RequestHandlerInterface::class, 'Request handler'),
-                new HandlerRegistry($this->customNotificationHandlers, NotificationHandlerInterface::class, 'Notification handler'),
+                new HandlerRegistry(
+                    $this->buildNotificationHandlers($inboundRequests),
+                    NotificationHandlerInterface::class,
+                    'Notification handler',
+                ),
                 logger: $this->logger,
                 serverInfo: $this->serverInfoDisclosure->project($serverInfo),
                 maxInFlight: $this->maxInFlight,
+                inboundRequests: $inboundRequests,
             ),
             $this->logger,
+            $this->subscriptionStore,
         );
+    }
+
+    /**
+     * Turns each store's change signal into the notification its own feature owns.
+     */
+    private function routeListChanges(): void
+    {
+        $subscriptionStore = $this->subscriptionStore;
+
+        if (null === $subscriptionStore) {
+            return;
+        }
+
+        $toolStore = $this->getToolStore();
+
+        if ($toolStore instanceof ListChangeSourceInterface) {
+            $toolStore->onListChanged($subscriptionStore->emitToolListChanged(...));
+        }
+
+        $promptStore = $this->getPromptStore();
+
+        if ($promptStore instanceof ListChangeSourceInterface) {
+            $promptStore->onListChanged($subscriptionStore->emitPromptListChanged(...));
+        }
+
+        $resourceStore = $this->getResourceStore();
+
+        if ($resourceStore instanceof ListChangeSourceInterface) {
+            $resourceStore->onListChanged($subscriptionStore->emitResourceListChanged(...));
+        }
+
+        $templateStore = $this->getResourceTemplateStore();
+
+        if ($templateStore instanceof ListChangeSourceInterface) {
+            $templateStore->onListChanged($subscriptionStore->emitResourceListChanged(...));
+        }
+    }
+
+    /**
+     * @return array<non-empty-string, NotificationHandlerInterface<non-empty-string>>
+     */
+    private function buildNotificationHandlers(PendingInboundRequests $inboundRequests): array
+    {
+        $defaults = [
+            CancelledNotification::getMethod() => new CancelledNotificationHandler($inboundRequests, $this->logger),
+        ];
+
+        return [...$defaults, ...$this->customNotificationHandlers];
     }
 
     /**
@@ -593,14 +795,85 @@ final class ServerBuilder
         return [] === $attributes ? null : $attributes[0]->newInstance();
     }
 
+    /**
+     * @throws BuilderAlreadyBuiltException
+     */
+    private function assertNotBuilt(): void
+    {
+        if ($this->built) {
+            // The built server holds the stores and the list-change listeners, so a later registration would
+            // be dropped without a trace.
+            throw new BuilderAlreadyBuiltException();
+        }
+    }
+
     private function deriveCapabilities(): ServerCapabilities
     {
+        $honoured = $this->resolveHonouredNotifications();
+
         return new ServerCapabilities(
             completions: $this->hasCompletionsCapability() ? [] : null,
-            prompts: $this->hasPromptsCapability() ? [] : null,
-            resources: $this->hasResourcesCapability() ? [] : null,
-            tools: $this->hasToolsCapability() ? [] : null,
+            prompts: $this->hasPromptsCapability()
+                ? self::listChangedFlag($this->getPromptStore() instanceof ListChangeSourceInterface, $honoured?->promptsListChanged)
+                : null,
+            resources: $this->resourcesCapability($honoured),
+            tools: $this->hasToolsCapability()
+                ? self::listChangedFlag($this->getToolStore() instanceof ListChangeSourceInterface, $honoured?->toolsListChanged)
+                : null,
         );
+    }
+
+    /**
+     * What the registered subscription store will deliver, or null when none is registered. Asking for
+     * everything makes the answer the store's own declaration, so no capability can promise more.
+     */
+    private function resolveHonouredNotifications(): ?SubscriptionFilter
+    {
+        return $this->subscriptionStore?->honour(new SubscriptionFilter(
+            toolsListChanged: true,
+            promptsListChanged: true,
+            resourcesListChanged: true,
+            resourceSubscriptions: [],
+        ));
+    }
+
+    /**
+     * `listChanged` is a promise to deliver, so it is only set when the store behind the feature can report
+     * a change and the subscription store honours that notification type.
+     *
+     * @return array{listChanged?: bool}
+     */
+    private static function listChangedFlag(bool $reportsChanges, ?bool $honoured): array
+    {
+        if (true !== $honoured || ! $reportsChanges) {
+            return [];
+        }
+
+        return ['listChanged' => true];
+    }
+
+    /**
+     * @return null|array{listChanged?: bool, subscribe?: bool}
+     */
+    private function resourcesCapability(?SubscriptionFilter $honoured): ?array
+    {
+        if (! $this->hasResourcesCapability()) {
+            return null;
+        }
+
+        // Both stores fan into `notifications/resources/list_changed`, so either one reporting is a promise
+        // the server can keep.
+        $reportsChanges = $this->getResourceStore() instanceof ListChangeSourceInterface
+            || $this->getResourceTemplateStore() instanceof ListChangeSourceInterface;
+
+        $capability = self::listChangedFlag($reportsChanges, $honoured?->resourcesListChanged);
+
+        if (null !== $honoured?->resourceSubscriptions) {
+            // `subscribe` means the server honours `resourceSubscriptions` on a listen filter.
+            $capability['subscribe'] = true;
+        }
+
+        return $capability;
     }
 
     private function hasCompletionsCapability(): bool
@@ -611,7 +884,9 @@ final class ServerBuilder
 
     private function hasPromptsCapability(): bool
     {
-        if (null !== $this->promptStore || [] !== $this->prompts) {
+        $store = $this->getPromptStore();
+
+        if (null !== $store) {
             return true;
         }
 
@@ -621,12 +896,9 @@ final class ServerBuilder
 
     private function hasResourcesCapability(): bool
     {
-        if (
-            [] !== $this->resources
-            || null !== $this->resourceStore
-            || [] !== $this->resourceTemplates
-            || null !== $this->resourceTemplateStore
-        ) {
+        $store = $this->getResourceStore();
+
+        if (null !== $store) {
             return true;
         }
 
@@ -636,7 +908,9 @@ final class ServerBuilder
 
     private function hasToolsCapability(): bool
     {
-        if (null !== $this->toolStore || [] !== $this->tools) {
+        $store = $this->getToolStore();
+
+        if (null !== $store) {
             return true;
         }
 
@@ -664,38 +938,22 @@ final class ServerBuilder
             $defaults[CallToolRequest::getMethod()] = new CallToolRequestHandler($toolStore, $this->logger);
         }
 
-        if (null !== $this->promptStore || [] !== $this->prompts) {
-            $promptStore = $this->promptStore ?? new PromptStore(
-                entries: $this->prompts,
-                pageSize: $this->pageSize,
-                ttlMs: $this->ttlMs,
-                cacheScope: $this->cacheScope,
-            );
+        $promptStore = $this->getPromptStore();
+
+        if (null !== $promptStore) {
             $defaults[ListPromptsRequest::getMethod()] = new ListPromptsRequestHandler($promptStore);
             $defaults[GetPromptRequest::getMethod()] = new GetPromptRequestHandler($promptStore);
         }
 
-        $resourceTemplateStore = null;
+        $resourceTemplateStore = $this->getResourceTemplateStore();
 
-        if (null !== $this->resourceTemplateStore || [] !== $this->resourceTemplates) {
-            $resourceTemplateStore = $this->resourceTemplateStore ?? new ResourceTemplateStore(
-                entries: $this->resourceTemplates,
-                pageSize: $this->pageSize,
-                ttlMs: $this->ttlMs,
-                cacheScope: $this->cacheScope,
-            );
-
+        if (null !== $resourceTemplateStore) {
             $defaults[ListResourceTemplatesRequest::getMethod()] = new ListResourceTemplatesRequestHandler($resourceTemplateStore);
         }
 
-        if (null !== $this->resourceStore || [] !== $this->resources || null !== $resourceTemplateStore) {
-            $resourceStore = $this->resourceStore ?? new ResourceStore(
-                entries: $this->resources,
-                pageSize: $this->pageSize,
-                ttlMs: $this->ttlMs,
-                cacheScope: $this->cacheScope,
-            );
+        $resourceStore = $this->getResourceStore();
 
+        if (null !== $resourceStore) {
             $defaults[ListResourcesRequest::getMethod()] = new ListResourcesRequestHandler($resourceStore);
             $defaults[ReadResourceRequest::getMethod()] = new ReadResourceRequestHandler(
                 null !== $resourceTemplateStore ? new CompositeResourceStore($resourceStore, $resourceTemplateStore) : $resourceStore,
@@ -704,6 +962,10 @@ final class ServerBuilder
 
         if (null !== $this->completionStore) {
             $defaults[CompleteRequest::getMethod()] = new CompleteRequestHandler($this->completionStore);
+        }
+
+        if (null !== $this->subscriptionStore) {
+            $defaults[SubscriptionsListenRequest::getMethod()] = new SubscriptionsListenRequestHandler($this->subscriptionStore);
         }
 
         return [...$defaults, ...$this->customRequestHandlers];
