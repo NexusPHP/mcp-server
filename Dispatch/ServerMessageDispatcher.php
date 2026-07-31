@@ -126,10 +126,14 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                 ['envelope' => $envelope, 'exception' => $e],
             );
 
-            // §4.1 defines a notification as an envelope *without* an id, so one that carries an id is a
-            // request whatever method it names and §5 obliges a reply. Echo the id the envelope supplied.
-            // When it supplied none the response omits the key, since MCP admits no null id.
-            $this->responseSender->send($transport, ResponseSender::buildErrorResponse($e, $e->requestId), 'misrouted');
+            // §4.1 splits notification from request on the envelope's id, not on the method it names. One
+            // carrying an id is a request whatever it is called, and §5 obliges a reply echoing that id.
+            // One without an id is a notification whatever it is called, and must go unanswered.
+            if ($isNotification) {
+                return;
+            }
+
+            $this->responseSender->send($transport, ResponseSender::buildErrorResponse($e, null), 'misrouted');
 
             return;
         } catch (AbstractJsonRpcProtocolException $e) {
