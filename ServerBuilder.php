@@ -109,7 +109,7 @@ final class ServerBuilder
     private ServerInfoDisclosure $serverInfoDisclosure = ServerInfoDisclosure::Full;
 
     /**
-     * @var null|positive-int
+     * @var null|int<1, max>
      */
     private ?int $maxInFlight = null;
 

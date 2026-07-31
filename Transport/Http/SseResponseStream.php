@@ -36,7 +36,7 @@ final class SseResponseStream implements StreamInterface
     private int $offset = 0;
 
     /**
-     * @var ?DeferredFuture<null>
+     * @var null|DeferredFuture<null>
      */
     private ?DeferredFuture $reader = null;
 

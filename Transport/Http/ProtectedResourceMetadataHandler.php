@@ -54,7 +54,7 @@ final readonly class ProtectedResourceMetadataHandler implements RequestHandlerI
      * @param string                 $resource             Canonical URI of this MCP server
      * @param list<non-empty-string> $authorizationServers Issuers that mint tokens for it, at least one
      * @param list<non-empty-string> $scopesSupported      Scopes basic use of this server calls for
-     * @param ?non-empty-string      $resourceName         Human-readable name for a consent screen
+     * @param null|non-empty-string  $resourceName         Human-readable name for a consent screen
      */
     public function __construct(
         string $resource,

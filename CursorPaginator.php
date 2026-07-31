@@ -26,7 +26,7 @@ final readonly class CursorPaginator
     public const int DEFAULT_PAGE_SIZE = 50;
 
     /**
-     * @param positive-int $pageSize
+     * @param int<1, max> $pageSize
      */
     public function __construct(private int $pageSize = self::DEFAULT_PAGE_SIZE)
     {

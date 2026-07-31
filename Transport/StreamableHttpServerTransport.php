@@ -76,7 +76,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      * @var array<int, array{
      *   clientId: int|non-empty-string,
      *   buffered: DeferredFuture<ResponseInterface>,
-     *   stream: ?SseResponseStream,
+     *   stream: null|SseResponseStream,
      * }>
      */
     private array $sinks = [];
@@ -520,7 +520,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     }
 
     /**
-     * @param ?int $status The HTTP status to pin, or `null` to derive it from the error's code
+     * @param null|int $status The HTTP status to pin, or `null` to derive it from the error's code
      */
     private function buildErrorResponse(Error $error, ?int $status = null): ResponseInterface
     {

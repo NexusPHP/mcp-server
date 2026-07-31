@@ -41,11 +41,11 @@ final readonly class SecuredHttpEndpoint implements RequestHandlerInterface
     private MiddlewarePipeline $pipeline;
 
     /**
-     * @param list<non-empty-string> $allowedOrigins Origins permitted to reach the endpoint, or `['*']` to allow any
-     * @param list<non-empty-string> $allowedHosts   Hosts permitted to reach the endpoint (empty disables `Host` validation), or `['*']` to allow any
-     * @param ?int                   $maxBodyBytes   Request body byte cap, or `null` to leave the body uncapped
-     * @param ?ToolStoreInterface    $toolStore      The served tool store, enabling `Mcp-Param-{Name}` validation
-     * @param ?MiddlewareInterface   $authentication Bearer token enforcement, making the endpoint an OAuth resource server
+     * @param list<non-empty-string>   $allowedOrigins Origins permitted to reach the endpoint, or `['*']` to allow any
+     * @param list<non-empty-string>   $allowedHosts   Hosts permitted to reach the endpoint (empty disables `Host` validation), or `['*']` to allow any
+     * @param null|int                 $maxBodyBytes   Request body byte cap, or `null` to leave the body uncapped
+     * @param null|ToolStoreInterface  $toolStore      The served tool store, enabling `Mcp-Param-{Name}` validation
+     * @param null|MiddlewareInterface $authentication Bearer token enforcement, making the endpoint an OAuth resource server
      */
     public function __construct(
         RequestHandlerInterface $handler,

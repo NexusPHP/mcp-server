@@ -14,7 +14,6 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Dispatch;
 
 use Amp\Cancellation;
-use Amp\CancelledException;
 use Nexus\Mcp\Core\Dispatch\LogThrottle;
 use Nexus\Mcp\Core\Dispatch\MessageDispatcherInterface;
 use Nexus\Mcp\Core\Dispatch\PendingCoroutines;
@@ -76,7 +75,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
      * @param HandlerRegistry<RequestHandlerInterface<non-empty-string, Result, ServerContext>> $requestHandlers
      * @param HandlerRegistry<NotificationHandlerInterface<non-empty-string>>                   $notificationHandlers
      * @param null|Implementation                                                               $serverInfo           Identity stamped on every outgoing result, or null to disclose none
-     * @param null|positive-int                                                                 $maxInFlight          Messages processed at once before further ones are shed, or null for no cap
+     * @param null|int<1, max>                                                                  $maxInFlight          Messages processed at once before further ones are shed, or null for no cap
      */
     public function __construct(
         private HandlerRegistry $requestHandlers,
