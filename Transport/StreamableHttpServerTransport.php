@@ -178,7 +178,9 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $mismatch = StandardHeaders::validate(self::readHeaders($request), $envelope);
 
         if (null !== $mismatch) {
-            return $this->buildErrorResponse($mismatch);
+            // The id was recovered above, and JSON-RPC requires echoing a detected id. It is also
+            // what lets the client correlate the refusal instead of timing out on it.
+            return $this->buildErrorResponse($mismatch, id: $requestId);
         }
 
         // A listen request is answered only when its stream ends, so the buffered path would hold the POST
@@ -520,12 +522,13 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     }
 
     /**
-     * @param null|int $status The HTTP status to pin, or `null` to derive it from the error's code
+     * @param null|int       $status The HTTP status to pin, or `null` to derive it from the error's code
+     * @param null|RequestId $id     The request id to echo, where one was detected
      */
-    private function buildErrorResponse(Error $error, ?int $status = null): ResponseInterface
+    private function buildErrorResponse(Error $error, ?int $status = null, ?RequestId $id = null): ResponseInterface
     {
         $status ??= HttpStatusResolver::resolve($error->code, fromHandler: false);
-        $envelope = new JsonRpcErrorResponse(id: null, error: $error)->jsonSerialize();
+        $envelope = new JsonRpcErrorResponse(id: $id, error: $error)->jsonSerialize();
 
         return $this->responseFactory->createResponse($status)
             ->withHeader('Content-Type', 'application/json')
