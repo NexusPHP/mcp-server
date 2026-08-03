@@ -21,10 +21,15 @@ use Nexus\Mcp\Core\Schema\Resource\Resource;
 use Nexus\Mcp\Core\Schema\Resource\ResourceTemplate;
 use Nexus\Mcp\Core\Schema\Tool\Tool;
 use Nexus\Mcp\Core\Schema\Tool\ToolAnnotations;
+use Nexus\Mcp\Server\Attribute\AsCompletion;
 use Nexus\Mcp\Server\Attribute\AsPrompt;
 use Nexus\Mcp\Server\Attribute\AsResource;
 use Nexus\Mcp\Server\Attribute\AsResourceTemplate;
 use Nexus\Mcp\Server\Attribute\AsTool;
+use Nexus\Mcp\Server\Completion\PromptCompletionEntry;
+use Nexus\Mcp\Server\Completion\ReflectedCompletionProvider;
+use Nexus\Mcp\Server\Completion\ResourceTemplateCompletionEntry;
+use Nexus\Mcp\Server\Exception\InvalidCompletionAttributeException;
 use Nexus\Mcp\Server\Exception\UnsupportedParameterTypeException;
 use Nexus\Mcp\Server\Exception\UnsupportedVariadicParameterException;
 use Nexus\Mcp\Server\Prompt\PromptEntry;
@@ -49,7 +54,7 @@ final readonly class AttributeScanner
     }
 
     /**
-     * @return iterable<PromptEntry|ResourceEntry|ResourceTemplateEntry|ToolEntry>
+     * @return iterable<PromptCompletionEntry|PromptEntry|ResourceEntry|ResourceTemplateCompletionEntry|ResourceTemplateEntry|ToolEntry>
      */
     public function scan(object $source): iterable
     {
@@ -81,7 +86,94 @@ final readonly class AttributeScanner
                     new ReflectedTemplatedResourceReader($source, $method),
                 );
             }
+
+            foreach ($method->getAttributes(AsCompletion::class) as $attribute) {
+                yield self::buildCompletion($source, $method, $attribute->newInstance());
+            }
         }
+    }
+
+    /**
+     * @throws InvalidCompletionAttributeException
+     */
+    private static function buildCompletion(
+        object $source,
+        \ReflectionMethod $method,
+        AsCompletion $attribute,
+    ): PromptCompletionEntry|ResourceTemplateCompletionEntry {
+        self::rejectIfVariadic($method);
+        self::rejectUnsupportedCompletionParameterType($method);
+
+        $class = $method->getDeclaringClass()->getName();
+        $name = $method->getName();
+        $argument = $attribute->argument;
+        $prompt = $attribute->prompt;
+        $uriTemplate = $attribute->uriTemplate;
+
+        if (null !== $prompt && null !== $uriTemplate) {
+            throw new InvalidCompletionAttributeException($class, $name, 'it must name either a "prompt" or a "uriTemplate", not both');
+        }
+
+        if ('' === $argument) {
+            throw new InvalidCompletionAttributeException($class, $name, 'its "argument" must be a non-empty string');
+        }
+
+        $provider = new ReflectedCompletionProvider($source, $method);
+
+        if (null !== $prompt && '' !== $prompt) {
+            return new PromptCompletionEntry($prompt, $argument, $provider);
+        }
+
+        if (null !== $uriTemplate && '' !== $uriTemplate) {
+            return new ResourceTemplateCompletionEntry($uriTemplate, $argument, $provider);
+        }
+
+        throw new InvalidCompletionAttributeException($class, $name, 'it must name the completed "prompt" or "uriTemplate"');
+    }
+
+    /**
+     * A completion parameter is either an injected `ServerContext`, the context-arguments `array`
+     * slot, or a value slot that must take the raw partial string. There is no enum coercion on
+     * this path, so a string-backed enum that a prompt method could declare is rejected here.
+     *
+     * @throws UnsupportedParameterTypeException
+     */
+    private static function rejectUnsupportedCompletionParameterType(\ReflectionMethod $method): void
+    {
+        foreach ($method->getParameters() as $parameter) {
+            $type = $parameter->getType();
+
+            if (InputSchemaGenerator::isInjectedContext($parameter)
+                || ($type instanceof \ReflectionNamedType && $type->getName() === 'array')
+                || self::acceptsRawStringArgument($type)
+            ) {
+                continue;
+            }
+
+            throw new UnsupportedParameterTypeException(
+                $method->getDeclaringClass()->getName(),
+                $method->getName(),
+                $parameter->getName(),
+                (string) $type,
+            );
+        }
+    }
+
+    private static function acceptsRawStringArgument(?\ReflectionType $type): bool
+    {
+        if ($type instanceof \ReflectionUnionType) {
+            return array_any(
+                $type->getTypes(),
+                static fn(\ReflectionType $member): bool => self::acceptsRawStringArgument($member),
+            );
+        }
+
+        if ($type instanceof \ReflectionNamedType) {
+            return $type->isBuiltin() && ($type->getName() === 'string' || $type->getName() === 'mixed');
+        }
+
+        // Untyped accepts the string verbatim. An intersection type cannot be a string.
+        return ! $type instanceof \ReflectionType;
     }
 
     private function buildTool(\ReflectionMethod $method, AsTool $attribute): Tool

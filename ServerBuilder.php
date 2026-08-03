@@ -39,6 +39,7 @@ use Nexus\Mcp\Core\Schema\Resource\Resource;
 use Nexus\Mcp\Core\Schema\Resource\ResourceTemplate;
 use Nexus\Mcp\Core\Schema\Result;
 use Nexus\Mcp\Core\Schema\Result\CallToolResult;
+use Nexus\Mcp\Core\Schema\Result\CompleteResult;
 use Nexus\Mcp\Core\Schema\Result\GetPromptResult;
 use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
@@ -47,7 +48,11 @@ use Nexus\Mcp\Core\Schema\SubscriptionFilter;
 use Nexus\Mcp\Core\Schema\Tool\Tool;
 use Nexus\Mcp\Core\UriTemplate\Validator;
 use Nexus\Mcp\Server\Attribute\AsServer;
+use Nexus\Mcp\Server\Completion\ClosureCompletionProvider;
+use Nexus\Mcp\Server\Completion\CompletionProviderInterface;
+use Nexus\Mcp\Server\Completion\CompletionStore;
 use Nexus\Mcp\Server\Completion\CompletionStoreInterface;
+use Nexus\Mcp\Server\Completion\PromptCompletionEntry;
 use Nexus\Mcp\Server\Discovery\AttributeScanner;
 use Nexus\Mcp\Server\Dispatch\ServerMessageDispatcher;
 use Nexus\Mcp\Server\Exception\BuilderAlreadyBuiltException;
@@ -135,6 +140,16 @@ final class ServerBuilder
      * @var array<non-empty-string, ResourceTemplateEntry>
      */
     private array $resourceTemplates = [];
+
+    /**
+     * @var array<non-empty-string, array<non-empty-string, CompletionProviderInterface>>
+     */
+    private array $promptCompletions = [];
+
+    /**
+     * @var array<non-empty-string, array<non-empty-string, CompletionProviderInterface>>
+     */
+    private array $templateCompletions = [];
 
     private int $pageSize = CursorPaginator::DEFAULT_PAGE_SIZE;
     private int $ttlMs = 0;
@@ -510,11 +525,64 @@ final class ServerBuilder
     }
 
     /**
-     * Registers the server identity (`#[AsServer]`) plus the tools, prompts, resources, and
-     * resource templates discovered from `#[AsTool]`, `#[AsPrompt]`, `#[AsResource]`, and
-     * `#[AsResourceTemplate]` methods on each source object. An explicit `setServerInfo()` or
-     * `setInstructions()` call takes precedence over the matching `#[AsServer]` field, and at
-     * most one registered source may declare `#[AsServer]`.
+     * @param (\Closure(string, ?array<string, string>, ServerContext): CompleteResult)|CompletionProviderInterface $provider
+     */
+    public function addPromptCompletion(string $prompt, string $argument, \Closure|CompletionProviderInterface $provider): self
+    {
+        $this->assertNotBuilt();
+
+        Assert::that($prompt)->isNonEmptyString('Completion prompt name must be a non-empty string.');
+        Assert::that($argument)->isNonEmptyString('Completion argument name must be a non-empty string.');
+
+        $this->promptCompletions[$prompt][$argument] = $provider instanceof CompletionProviderInterface
+            ? $provider
+            : new ClosureCompletionProvider($provider);
+
+        return $this;
+    }
+
+    /**
+     * @param (\Closure(string, ?array<string, string>, ServerContext): CompleteResult)|CompletionProviderInterface $provider
+     */
+    public function addResourceTemplateCompletion(string $uriTemplate, string $argument, \Closure|CompletionProviderInterface $provider): self
+    {
+        $this->assertNotBuilt();
+
+        Assert::that($uriTemplate)->isNonEmptyString('Completion URI template must be a non-empty string.');
+        Assert::that($argument)->isNonEmptyString('Completion argument name must be a non-empty string.');
+
+        $this->templateCompletions[$uriTemplate][$argument] = $provider instanceof CompletionProviderInterface
+            ? $provider
+            : new ClosureCompletionProvider($provider);
+
+        return $this;
+    }
+
+    /**
+     * The completion store the built server serves, or null when it serves no completions. Assembled
+     * from the `addPromptCompletion()`, `addResourceTemplateCompletion()`, and `register()` entries
+     * unless `setCompletionStore()` supplied one.
+     *
+     * Call it once every completion is registered, since it holds the store it returns.
+     */
+    public function getCompletionStore(): ?CompletionStoreInterface
+    {
+        if (null === $this->completionStore && [] === $this->promptCompletions && [] === $this->templateCompletions) {
+            return null;
+        }
+
+        $this->completionStore ??= new CompletionStore($this->promptCompletions, $this->templateCompletions);
+
+        return $this->completionStore;
+    }
+
+    /**
+     * Registers the server identity (`#[AsServer]`) plus the tools, prompts, resources,
+     * resource templates, and completion providers discovered from `#[AsTool]`, `#[AsPrompt]`,
+     * `#[AsResource]`, `#[AsResourceTemplate]`, and `#[AsCompletion]` methods on each source
+     * object. An explicit `setServerInfo()` or `setInstructions()` call takes precedence over
+     * the matching `#[AsServer]` field, and at most one registered source may declare
+     * `#[AsServer]`.
      *
      * @throws DuplicateServerMetadataException
      * @throws MissingDiscoveryAttributeException
@@ -541,15 +609,14 @@ final class ServerBuilder
             foreach ($scanner->scan($source) as $entry) {
                 $contributed = true;
 
-                if ($entry instanceof ToolEntry) {
-                    $this->addTool($entry->tool, $entry->executor);
-                } elseif ($entry instanceof PromptEntry) {
-                    $this->addPrompt($entry->prompt, $entry->renderer);
-                } elseif ($entry instanceof ResourceEntry) {
-                    $this->addResource($entry->resource, $entry->reader);
-                } else {
-                    $this->addResourceTemplate($entry->template, $entry->reader);
-                }
+                match (true) {
+                    $entry instanceof ToolEntry => $this->addTool($entry->tool, $entry->executor),
+                    $entry instanceof PromptEntry => $this->addPrompt($entry->prompt, $entry->renderer),
+                    $entry instanceof ResourceEntry => $this->addResource($entry->resource, $entry->reader),
+                    $entry instanceof ResourceTemplateEntry => $this->addResourceTemplate($entry->template, $entry->reader),
+                    $entry instanceof PromptCompletionEntry => $this->addPromptCompletion($entry->prompt, $entry->argument, $entry->provider),
+                    default => $this->addResourceTemplateCompletion($entry->uriTemplate, $entry->argument, $entry->provider),
+                };
             }
 
             if (! $contributed) {
@@ -878,7 +945,7 @@ final class ServerBuilder
 
     private function hasCompletionsCapability(): bool
     {
-        return null !== $this->completionStore
+        return $this->getCompletionStore() !== null
             || isset($this->customRequestHandlers[CompleteRequest::getMethod()]);
     }
 
@@ -960,8 +1027,10 @@ final class ServerBuilder
             );
         }
 
-        if (null !== $this->completionStore) {
-            $defaults[CompleteRequest::getMethod()] = new CompleteRequestHandler($this->completionStore);
+        $completionStore = $this->getCompletionStore();
+
+        if (null !== $completionStore) {
+            $defaults[CompleteRequest::getMethod()] = new CompleteRequestHandler($completionStore);
         }
 
         if (null !== $this->subscriptionStore) {

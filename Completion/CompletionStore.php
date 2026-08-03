@@ -22,24 +22,38 @@ use Nexus\Mcp\Server\ServerContext;
 /**
  * In-memory implementation of `CompletionStoreInterface`.
  *
- * @phpstan-type ArgumentMap array<non-empty-string, \Closure(string, ?array<string, string>, ServerContext): CompleteResult>
+ * @phpstan-type ArgumentMap array<non-empty-string, (\Closure(string, ?array<string, string>, ServerContext): CompleteResult)|CompletionProviderInterface>
+ * @phpstan-type ProviderMap array<non-empty-string, array<non-empty-string, CompletionProviderInterface>>
  */
 final readonly class CompletionStore implements CompletionStoreInterface
 {
     /**
+     * @var ProviderMap
+     */
+    private array $promptCompletions;
+
+    /**
+     * @var ProviderMap
+     */
+    private array $templateCompletions;
+
+    /**
      * @param array<non-empty-string, ArgumentMap> $promptCompletions
      * @param array<non-empty-string, ArgumentMap> $templateCompletions
      */
-    public function __construct(private array $promptCompletions = [], private array $templateCompletions = [])
+    public function __construct(array $promptCompletions = [], array $templateCompletions = [])
     {
-        Assert::that($this->promptCompletions)
+        Assert::that($promptCompletions)
             ->keys()
             ->isNonEmptyString('Completion store prompt key must be a non-empty string.')
         ;
-        Assert::that($this->templateCompletions)
+        Assert::that($templateCompletions)
             ->keys()
             ->isNonEmptyString('Completion store template key must be a non-empty string.')
         ;
+
+        $this->promptCompletions = self::normalize($promptCompletions);
+        $this->templateCompletions = self::normalize($templateCompletions);
     }
 
     #[\Override]
@@ -60,6 +74,37 @@ final readonly class CompletionStore implements CompletionStoreInterface
             return new CompleteResult(completion: ['values' => []]);
         }
 
-        return ($providers[$argumentName])($argumentValue, $contextArguments, $context);
+        return $providers[$argumentName]->complete($argumentValue, $contextArguments, $context);
+    }
+
+    /**
+     * @param array<non-empty-string, ArgumentMap> $completions
+     *
+     * @return ProviderMap
+     */
+    private static function normalize(array $completions): array
+    {
+        $normalized = [];
+
+        foreach ($completions as $key => $providers) {
+            Assert::that($providers)
+                ->keys()
+                ->isNonEmptyString('Completion store argument key must be a non-empty string.')
+            ;
+
+            foreach ($providers as $argument => $provider) {
+                if (! $provider instanceof CompletionProviderInterface) {
+                    Assert::that($provider)->isInstanceOf(
+                        \Closure::class,
+                        'Completion provider must be a closure or implement CompletionProviderInterface, {type} given.',
+                    );
+                    $provider = new ClosureCompletionProvider($provider);
+                }
+
+                $normalized[$key][$argument] = $provider;
+            }
+        }
+
+        return $normalized;
     }
 }
