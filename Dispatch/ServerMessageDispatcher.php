@@ -22,6 +22,7 @@ use Nexus\Mcp\Core\Dispatch\RequestBoundSender;
 use Nexus\Mcp\Core\Dispatch\ResponseSender;
 use Nexus\Mcp\Core\Exception\AbstractJsonRpcProtocolException;
 use Nexus\Mcp\Core\Exception\DuplicateInboundRequestIdException;
+use Nexus\Mcp\Core\Exception\InvalidRequestException;
 use Nexus\Mcp\Core\Exception\MethodMisroutedException;
 use Nexus\Mcp\Core\Exception\MethodNotFoundException;
 use Nexus\Mcp\Core\Exception\TransportAlreadyClosedException;
@@ -223,8 +224,11 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                         throw new MethodNotFoundException($method, $request->id);
                     }
 
-                    // A ClientRequest always carries the heavy RequestParams (the required _meta).
-                    \assert($request->params instanceof RequestParams);
+                    if (! $request->params instanceof RequestParams) {
+                        // A user-registered request class may parse without the heavy RequestParams,
+                        // leaving no lifecycle _meta to validate the request against.
+                        throw new InvalidRequestException($request->id, '"params" must be an object carrying the lifecycle "_meta" fields.');
+                    }
 
                     $requestedVersion = $request->params->meta->protocolVersion->version;
 
