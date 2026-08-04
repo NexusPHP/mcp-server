@@ -33,7 +33,7 @@ final class MissingRequiredClientCapabilityException extends AbstractJsonRpcProt
             $requestId,
             \sprintf(
                 'This request requires client capabilities the client did not declare: %s.',
-                implode(', ', array_keys($requiredCapabilities->toArray())),
+                implode(', ', self::describeCapabilities($requiredCapabilities->toArray())),
             ),
             $previous,
             errorData: ['requiredCapabilities' => $requiredCapabilities->toArray()],
@@ -44,5 +44,33 @@ final class MissingRequiredClientCapabilityException extends AbstractJsonRpcProt
     public static function getErrorCode(): ProtocolErrorCode
     {
         return ProtocolErrorCode::MissingRequiredClientCapability;
+    }
+
+    /**
+     * Renders each required slot, naming the nested members of a map-valued
+     * slot (`extensions.com.example/feature`) so the refusal says which one
+     * is missing.
+     *
+     * @param array<string, mixed> $capabilities
+     *
+     * @return list<string>
+     */
+    private static function describeCapabilities(array $capabilities): array
+    {
+        $described = [];
+
+        foreach ($capabilities as $slot => $members) {
+            if (\is_array($members) && [] !== $members && array_all($members, static fn(mixed $value, mixed $key): bool => \is_string($key))) {
+                foreach (array_keys($members) as $member) {
+                    $described[] = \sprintf('%s.%s', $slot, $member);
+                }
+
+                continue;
+            }
+
+            $described[] = $slot;
+        }
+
+        return $described;
     }
 }
