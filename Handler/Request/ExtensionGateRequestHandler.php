@@ -15,10 +15,8 @@ namespace Nexus\Mcp\Server\Handler\Request;
 
 use Nexus\Mcp\Core\Handler\AbstractContext;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
-use Nexus\Mcp\Core\Schema\ClientCapabilities;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\Result;
-use Nexus\Mcp\Server\Exception\MissingRequiredClientCapabilityException;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
@@ -43,13 +41,9 @@ final readonly class ExtensionGateRequestHandler implements RequestHandlerInterf
     public function handle(JsonRpcRequest $request, AbstractContext $context): Result
     {
         \assert($context instanceof ServerContext);
-        $declared = $context->meta->clientCapabilities->extensions;
 
-        if (null === $declared || ! \array_key_exists($this->identifier, $declared)) {
-            throw new MissingRequiredClientCapabilityException(
-                new ClientCapabilities(extensions: [$this->identifier => []]),
-                $context->requestId,
-            );
+        if (! ExtensionDeclarationGate::declares($context, $this->identifier)) {
+            throw ExtensionDeclarationGate::refuse($context, $this->identifier);
         }
 
         return $this->handler->handle($request, $context);

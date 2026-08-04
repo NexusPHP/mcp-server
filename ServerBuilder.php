@@ -109,6 +109,8 @@ use Psr\Log\NullLogger;
 /**
  * Fluent builder that wires the per-feature stores, the dispatch kernel, and
  * the lifecycle shell into a runnable `Server` instance.
+ *
+ * @phpstan-import-type RequestHandlerDecorator from RequestHandlerDecoratorInterface
  */
 final class ServerBuilder
 {
@@ -668,6 +670,9 @@ final class ServerBuilder
             claimedRequests: array_keys($this->customRequestHandlers),
             claimedNotifications: array_keys($this->customNotificationHandlers),
             requireClientRequests: true,
+            requestDecorators: $extension instanceof RequestHandlerDecoratorInterface
+                ? $extension->getRequestHandlerDecorators()
+                : [],
         );
 
         return $this;
@@ -1109,7 +1114,7 @@ final class ServerBuilder
             $defaults[SubscriptionsListenRequest::getMethod()] = new SubscriptionsListenRequestHandler($this->subscriptionStore);
         }
 
-        return [...$defaults, ...$this->buildExtensionRequestHandlers(), ...$this->customRequestHandlers];
+        return $this->applyRequestDecorators([...$defaults, ...$this->buildExtensionRequestHandlers(), ...$this->customRequestHandlers]);
     }
 
     /**
@@ -1124,6 +1129,41 @@ final class ServerBuilder
         foreach ($this->extensions->getRequestHandlerGroups() as $identifier => $group) {
             foreach ($group as $method => $handler) {
                 $handlers[$method] = new ExtensionGateRequestHandler($identifier, $handler);
+            }
+        }
+
+        return $handlers;
+    }
+
+    /**
+     * Wraps decorated methods' effective handlers, replacement or default, with
+     * each enabled extension's decorators in enable order.
+     *
+     * @param array<non-empty-string, RequestHandlerInterface<non-empty-string, Result, ServerContext>> $handlers
+     *
+     * @return array<non-empty-string, RequestHandlerInterface<non-empty-string, Result, ServerContext>>
+     */
+    private function applyRequestDecorators(array $handlers): array
+    {
+        /** @var array<non-empty-string, array<non-empty-string, RequestHandlerDecorator>> $groups */
+        $groups = $this->extensions->getRequestDecoratorGroups();
+
+        foreach ($groups as $identifier => $decorators) {
+            foreach ($decorators as $method => $decorate) {
+                Assert::that($handlers)->hasOffset($method, \sprintf(
+                    'Extension "%s" decorates "%s", but no handler serves that method.',
+                    $identifier,
+                    $method,
+                ));
+
+                $decorated = $decorate($handlers[$method]);
+                Assert::that($decorated)->isInstanceOf(RequestHandlerInterface::class, \sprintf(
+                    'Extension "%s" decorator for "%s" must return a request handler, {type} given.',
+                    $identifier,
+                    $method,
+                ));
+
+                $handlers[$method] = $decorated;
             }
         }
 
