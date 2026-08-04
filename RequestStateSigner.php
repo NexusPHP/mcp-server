@@ -42,7 +42,8 @@ final readonly class RequestStateSigner
     public function __construct(private string $secret, private string $algorithm = 'sha256')
     {
         Assert::that($secret)->isNonEmptyString('The request-state signing secret must be a non-empty string.');
-        Assert::that(\in_array($algorithm, hash_hmac_algos(), true))->isTrue(
+        Assert::that($algorithm)->isOneOf(
+            hash_hmac_algos(),
             \sprintf('The request-state signing algorithm "%s" is not available.', $algorithm),
         );
     }
