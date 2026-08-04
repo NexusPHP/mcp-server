@@ -15,17 +15,24 @@ namespace Nexus\Mcp\Server;
 
 use Nexus\Assert\Assert;
 use Nexus\Mcp\Core\Dispatch\PendingInboundRequests;
+use Nexus\Mcp\Core\Exception\DuplicateExtensionException;
+use Nexus\Mcp\Core\Exception\ExtensionMethodCollisionException;
+use Nexus\Mcp\Core\Extension\ExtensionCollection;
 use Nexus\Mcp\Core\Handler\HandlerRegistry;
 use Nexus\Mcp\Core\Handler\Notification\CancelledNotificationHandler;
 use Nexus\Mcp\Core\Handler\NotificationHandlerInterface;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
+use Nexus\Mcp\Core\JsonRpc\JsonRpcMessageParser;
 use Nexus\Mcp\Core\JsonRpc\JsonRpcMethodRegistry;
 use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Icon;
 use Nexus\Mcp\Core\Schema\Implementation;
+use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
+use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\Notification\CancelledNotification;
 use Nexus\Mcp\Core\Schema\Prompt\Prompt;
 use Nexus\Mcp\Core\Schema\Request\CallToolRequest;
+use Nexus\Mcp\Core\Schema\Request\ClientRequest;
 use Nexus\Mcp\Core\Schema\Request\CompleteRequest;
 use Nexus\Mcp\Core\Schema\Request\DiscoverRequest;
 use Nexus\Mcp\Core\Schema\Request\GetPromptRequest;
@@ -47,6 +54,7 @@ use Nexus\Mcp\Core\Schema\ServerCapabilities;
 use Nexus\Mcp\Core\Schema\SubscriptionFilter;
 use Nexus\Mcp\Core\Schema\Tool\Tool;
 use Nexus\Mcp\Core\UriTemplate\Validator;
+use Nexus\Mcp\Core\Validation\MethodClassValidator;
 use Nexus\Mcp\Server\Attribute\AsServer;
 use Nexus\Mcp\Server\Completion\ClosureCompletionProvider;
 use Nexus\Mcp\Server\Completion\CompletionProviderInterface;
@@ -63,6 +71,7 @@ use Nexus\Mcp\Server\Exception\UnreservedMethodException;
 use Nexus\Mcp\Server\Handler\Request\CallToolRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\CompleteRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\DiscoverRequestHandler;
+use Nexus\Mcp\Server\Handler\Request\ExtensionGateRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\GetPromptRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\ListPromptsRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\ListResourcesRequestHandler;
@@ -172,10 +181,26 @@ final class ServerBuilder
      */
     private array $customNotificationHandlers = [];
 
+    /**
+     * @var array<non-empty-string, class-string<JsonRpcRequest<non-empty-string>>>
+     */
+    private array $customRequestClasses = [];
+
+    /**
+     * @var array<non-empty-string, class-string<JsonRpcNotification<non-empty-string>>>
+     */
+    private array $customNotificationClasses = [];
+
+    /**
+     * @var ExtensionCollection<ServerContext>
+     */
+    private readonly ExtensionCollection $extensions;
+
     public function __construct()
     {
         $this->logger = new NullLogger();
         $this->schemaValidator = new OpisSchemaValidator();
+        $this->extensions = new ExtensionCollection();
     }
 
     /**
@@ -628,16 +653,39 @@ final class ServerBuilder
     }
 
     /**
+     * Enables `$extension`, advertising its capability identifier and serving its methods
+     * behind the per-request declared-capability gate.
+     *
+     * @throws DuplicateExtensionException
+     * @throws ExtensionMethodCollisionException
+     */
+    public function enableExtension(ServerExtensionInterface $extension): self
+    {
+        $this->assertNotBuilt();
+
+        $this->extensions->add(
+            $extension,
+            claimedRequests: array_keys($this->customRequestHandlers),
+            claimedNotifications: array_keys($this->customNotificationHandlers),
+            requireClientRequests: true,
+        );
+
+        return $this;
+    }
+
+    /**
      * Registers a handler for a vendor-extension request method.
      *
      * @param non-empty-string                                                 $method
      * @param RequestHandlerInterface<non-empty-string, Result, ServerContext> $handler
+     * @param class-string<JsonRpcRequest<non-empty-string>>                   $requestClass Parses inbound `$method` envelopes into typed requests
      *
+     * @throws ExtensionMethodCollisionException
      * @throws ReservedMethodException
      *
      * @see self::replaceRequestHandler()
      */
-    public function addRequestHandler(string $method, RequestHandlerInterface $handler): self
+    public function addRequestHandler(string $method, RequestHandlerInterface $handler, string $requestClass): self
     {
         $this->assertNotBuilt();
 
@@ -645,7 +693,19 @@ final class ServerBuilder
             throw new ReservedMethodException($method);
         }
 
+        $this->extensions->assertNotOwned($method);
+
+        MethodClassValidator::validate($requestClass, $method);
+
+        // TODO: switch to Assert's isSubclassOf() once nexusphp/assert ships it.
+        Assert::that(is_subclass_of($requestClass, ClientRequest::class))->isTrue(\sprintf(
+            'Request class "%s" must implement "%s" for the server to dispatch it.',
+            $requestClass,
+            ClientRequest::class,
+        ));
+
         $this->customRequestHandlers[$method] = $handler;
+        $this->customRequestClasses[$method] = $requestClass;
 
         return $this;
     }
@@ -676,14 +736,16 @@ final class ServerBuilder
     /**
      * Registers a handler for a vendor-extension notification method.
      *
-     * @param non-empty-string                               $method
-     * @param NotificationHandlerInterface<non-empty-string> $handler
+     * @param non-empty-string                                    $method
+     * @param NotificationHandlerInterface<non-empty-string>      $handler
+     * @param class-string<JsonRpcNotification<non-empty-string>> $notificationClass Parses inbound `$method` envelopes into typed notifications
      *
+     * @throws ExtensionMethodCollisionException
      * @throws ReservedMethodException
      *
      * @see self::replaceNotificationHandler()
      */
-    public function addNotificationHandler(string $method, NotificationHandlerInterface $handler): self
+    public function addNotificationHandler(string $method, NotificationHandlerInterface $handler, string $notificationClass): self
     {
         $this->assertNotBuilt();
 
@@ -691,7 +753,12 @@ final class ServerBuilder
             throw new ReservedMethodException($method, isNotification: true);
         }
 
+        $this->extensions->assertNotOwned($method, isNotification: true);
+
+        MethodClassValidator::validate($notificationClass, $method, isNotification: true);
+
         $this->customNotificationHandlers[$method] = $handler;
+        $this->customNotificationClasses[$method] = $notificationClass;
 
         return $this;
     }
@@ -750,6 +817,10 @@ final class ServerBuilder
                     'Notification handler',
                 ),
                 logger: $this->logger,
+                parser: new JsonRpcMessageParser(
+                    [...$this->extensions->buildRequestClasses(), ...$this->customRequestClasses],
+                    [...$this->extensions->buildNotificationClasses(), ...$this->customNotificationClasses],
+                ),
                 serverInfo: $this->serverInfoDisclosure->project($serverInfo),
                 maxInFlight: $this->maxInFlight,
                 inboundRequests: $inboundRequests,
@@ -804,7 +875,7 @@ final class ServerBuilder
             CancelledNotification::getMethod() => new CancelledNotificationHandler($inboundRequests, $this->logger),
         ];
 
-        return [...$defaults, ...$this->customNotificationHandlers];
+        return [...$defaults, ...$this->extensions->buildNotificationHandlers(), ...$this->customNotificationHandlers];
     }
 
     /**
@@ -880,6 +951,7 @@ final class ServerBuilder
 
         return new ServerCapabilities(
             completions: $this->hasCompletionsCapability() ? [] : null,
+            extensions: $this->extensions->buildCapabilitySlot(),
             prompts: $this->hasPromptsCapability()
                 ? self::listChangedFlag($this->getPromptStore() instanceof ListChangeSourceInterface, $honoured?->promptsListChanged)
                 : null,
@@ -1037,6 +1109,24 @@ final class ServerBuilder
             $defaults[SubscriptionsListenRequest::getMethod()] = new SubscriptionsListenRequestHandler($this->subscriptionStore);
         }
 
-        return [...$defaults, ...$this->customRequestHandlers];
+        return [...$defaults, ...$this->buildExtensionRequestHandlers(), ...$this->customRequestHandlers];
+    }
+
+    /**
+     * Wraps each enabled extension's request handlers in the declared-capability gate.
+     *
+     * @return array<non-empty-string, RequestHandlerInterface<non-empty-string, Result, ServerContext>>
+     */
+    private function buildExtensionRequestHandlers(): array
+    {
+        $handlers = [];
+
+        foreach ($this->extensions->getRequestHandlerGroups() as $identifier => $group) {
+            foreach ($group as $method => $handler) {
+                $handlers[$method] = new ExtensionGateRequestHandler($identifier, $handler);
+            }
+        }
+
+        return $handlers;
     }
 }
