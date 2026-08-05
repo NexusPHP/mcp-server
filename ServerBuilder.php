@@ -702,8 +702,7 @@ final class ServerBuilder
 
         MethodClassValidator::validate($requestClass, $method);
 
-        // TODO: switch to Assert's isSubclassOf() once nexusphp/assert ships it.
-        Assert::that(is_subclass_of($requestClass, ClientRequest::class))->isTrue(\sprintf(
+        Assert::that($requestClass)->isSubclassOf(ClientRequest::class, \sprintf(
             'Request class "%s" must implement "%s" for the server to dispatch it.',
             $requestClass,
             ClientRequest::class,
