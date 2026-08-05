@@ -16,6 +16,7 @@ namespace Nexus\Mcp\Server\Auth;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Nexus\Mcp\Core\Auth\VerifiedAccessToken;
+use Nexus\Mcp\Core\Validation\SuggestedDependencyGuard;
 
 /**
  * Validates JWT bearer tokens against a key set, reading the claim spellings the common
