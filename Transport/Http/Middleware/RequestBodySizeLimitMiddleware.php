@@ -34,21 +34,14 @@ use Psr\Http\Server\RequestHandlerInterface;
 final readonly class RequestBodySizeLimitMiddleware implements MiddlewareInterface
 {
     /**
-     * @var int<0, max>
-     */
-    private int $maxBytes;
-
-    /**
-     * @param int $maxBytes Maximum permitted request body size in bytes
+     * @param int<0, max> $maxBytes Maximum permitted request body size in bytes
      */
     public function __construct(
-        int $maxBytes,
+        private int $maxBytes,
         private ResponseFactoryInterface $responseFactory,
         private StreamFactoryInterface $streamFactory,
     ) {
         Assert::that($maxBytes)->isNaturalInt('The maximum request body size must be a non-negative integer, {value} given.');
-
-        $this->maxBytes = $maxBytes;
     }
 
     #[\Override]

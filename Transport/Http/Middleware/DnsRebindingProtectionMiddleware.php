@@ -100,6 +100,9 @@ final readonly class DnsRebindingProtectionMiddleware implements MiddlewareInter
             || \in_array(strtolower($value), $allowed, true);
     }
 
+    /**
+     * @param non-empty-string $message
+     */
     private function reject(string $message): ResponseInterface
     {
         $envelope = new JsonRpcErrorResponse(
