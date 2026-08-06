@@ -370,7 +370,7 @@ final class ServerBuilder
     }
 
     /**
-     * @param (\Closure(string, ServerContext): (InputRequiredResult|ReadResourceResult))|ResourceReaderInterface $reader
+     * @param (\Closure(non-empty-string, ServerContext): (InputRequiredResult|ReadResourceResult))|ResourceReaderInterface $reader
      */
     public function addResource(Resource $resource, \Closure|ResourceReaderInterface $reader): self
     {
@@ -385,7 +385,7 @@ final class ServerBuilder
     }
 
     /**
-     * @param (\Closure(string, array<string, string>, ServerContext): (InputRequiredResult|ReadResourceResult))|TemplatedResourceReaderInterface $reader
+     * @param (\Closure(non-empty-string, array<string, string>, ServerContext): (InputRequiredResult|ReadResourceResult))|TemplatedResourceReaderInterface $reader
      */
     public function addResourceTemplate(
         ResourceTemplate $template,

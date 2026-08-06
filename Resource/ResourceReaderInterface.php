@@ -22,5 +22,8 @@ use Nexus\Mcp\Server\ServerContext;
  */
 interface ResourceReaderInterface
 {
+    /**
+     * @param non-empty-string $uri
+     */
     public function read(string $uri, ServerContext $context): InputRequiredResult|ReadResourceResult;
 }

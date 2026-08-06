@@ -35,6 +35,8 @@ interface ResourceTemplateStoreInterface
      * Reads `$uri` against the registered templates, returning the result of the
      * first template that matches.
      *
+     * @param non-empty-string $uri
+     *
      * @throws ResourceNotFoundException
      */
     public function read(string $uri, ServerContext $context): InputRequiredResult|ReadResourceResult;

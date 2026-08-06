@@ -32,6 +32,8 @@ interface ResourceStoreInterface
     public function list(?Cursor $cursor): ListResourcesResult;
 
     /**
+     * @param non-empty-string $uri
+     *
      * @throws ResourceNotFoundException
      */
     public function read(string $uri, ServerContext $context): InputRequiredResult|ReadResourceResult;

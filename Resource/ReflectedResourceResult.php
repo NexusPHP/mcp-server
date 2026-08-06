@@ -28,6 +28,9 @@ use Nexus\Mcp\Server\Exception\UnsupportedReturnValueException;
  */
 final class ReflectedResourceResult
 {
+    /**
+     * @param non-empty-string $uri
+     */
     public static function adapt(mixed $result, string $uri, \ReflectionMethod $method): InputRequiredResult|ReadResourceResult
     {
         if ($result instanceof ReadResourceResult || $result instanceof InputRequiredResult) {

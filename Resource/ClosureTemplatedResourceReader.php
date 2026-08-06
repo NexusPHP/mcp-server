@@ -23,7 +23,7 @@ use Nexus\Mcp\Server\ServerContext;
 final readonly class ClosureTemplatedResourceReader implements TemplatedResourceReaderInterface
 {
     /**
-     * @param \Closure(string, array<string, string>, ServerContext): (InputRequiredResult|ReadResourceResult) $closure
+     * @param \Closure(non-empty-string, array<string, string>, ServerContext): (InputRequiredResult|ReadResourceResult) $closure
      */
     public function __construct(private \Closure $closure)
     {
