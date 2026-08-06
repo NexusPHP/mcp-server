@@ -37,7 +37,7 @@ final class PromptStore implements MutablePromptStoreInterface
     private array $listChangedListeners = [];
 
     /**
-     * @param array<array-key, PromptEntry> $entries
+     * @param array<int|non-empty-string, PromptEntry> $entries
      */
     public function __construct(
         private array $entries = [],

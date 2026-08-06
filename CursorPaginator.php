@@ -35,7 +35,7 @@ final readonly class CursorPaginator
     /**
      * @template TEntry of object
      *
-     * @param array<array-key, TEntry> $entries
+     * @param array<int|non-empty-string, TEntry> $entries
      *
      * @return CursorPage<TEntry>
      *
@@ -49,15 +49,16 @@ final readonly class CursorPaginator
         // would mint a cursor naming a position rather than an entry.
         $page = \array_slice($entries, $startIndex, $this->pageSize, preserve_keys: true);
         $hasMore = $startIndex + \count($page) < \count($entries);
+        $lastKey = array_key_last($page);
 
         return new CursorPage(
             array_values($page),
-            $hasMore ? new Cursor(cursor: (string) array_key_last($page)) : null,
+            $hasMore && null !== $lastKey ? new Cursor(cursor: \is_int($lastKey) ? (string) $lastKey : $lastKey) : null,
         );
     }
 
     /**
-     * @param array<array-key, object> $entries
+     * @param array<int|non-empty-string, object> $entries
      *
      * @return int<0, max>
      *

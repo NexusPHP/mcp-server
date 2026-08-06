@@ -41,7 +41,7 @@ final class ToolStore implements MutableToolStoreInterface
     private array $listChangedListeners = [];
 
     /**
-     * @param array<array-key, ToolEntry> $entries
+     * @param array<int|non-empty-string, ToolEntry> $entries
      */
     public function __construct(
         private array $entries = [],
