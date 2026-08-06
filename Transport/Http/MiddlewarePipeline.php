@@ -21,8 +21,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 /**
  * Composes PSR-15 middleware in front of an inner request handler, typically the Streamable HTTP transport.
  *
- * The middleware run outermost-first. The pipeline is re-entrant: one instance serves concurrent requests,
- * since each `handle()` recurses over a fresh immutable tail rather than mutating shared state.
+ * The middleware run outermost-first. The pipeline is re-entrant: one instance serves concurrent requests.
  */
 final readonly class MiddlewarePipeline implements RequestHandlerInterface
 {

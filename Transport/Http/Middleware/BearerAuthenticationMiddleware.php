@@ -148,8 +148,7 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
             return null;
         }
 
-        // The scheme was matched case-insensitively before this, so only what follows it is read, and that
-        // is compared as sent.
+        // The scheme was matched case-insensitively before this, so a fixed-length strip is safe.
         $token = trim(substr(reset($headers), \strlen(self::BEARER_PREFIX)));
 
         return '' === $token ? null : $token;
