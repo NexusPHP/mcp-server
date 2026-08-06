@@ -22,6 +22,8 @@ use Nexus\Mcp\Core\Schema\Icon;
 final readonly class AsPrompt
 {
     /**
+     * @param null|non-empty-string     $name
+     * @param null|non-empty-string     $title
      * @param null|list<Icon>           $icons
      * @param null|array<string, mixed> $meta
      */
