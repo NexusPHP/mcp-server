@@ -23,8 +23,11 @@ use Nexus\Mcp\Core\Schema\Icon;
 final readonly class AsResourceTemplate
 {
     /**
+     * @param non-empty-string          $uriTemplate
      * @param null|non-empty-string     $name
      * @param null|non-empty-string     $title
+     * @param null|non-empty-string     $description
+     * @param null|non-empty-string     $mimeType
      * @param null|list<Icon>           $icons
      * @param null|array<string, mixed> $meta
      */

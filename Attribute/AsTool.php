@@ -25,6 +25,7 @@ final readonly class AsTool
     /**
      * @param null|non-empty-string     $name
      * @param null|non-empty-string     $title
+     * @param null|non-empty-string     $description
      * @param null|list<Icon>           $icons
      * @param null|array<string, mixed> $outputSchema
      * @param null|array<string, mixed> $meta
