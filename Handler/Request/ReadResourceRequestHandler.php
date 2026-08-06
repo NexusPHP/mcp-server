@@ -19,7 +19,6 @@ use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\Request\ReadResourceRequest;
 use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
-use Nexus\Mcp\Server\Exception\ResourceNotFoundException;
 use Nexus\Mcp\Server\Resource\ResourceStoreInterface;
 use Nexus\Mcp\Server\ServerContext;
 
@@ -40,12 +39,6 @@ final readonly class ReadResourceRequestHandler implements RequestHandlerInterfa
         \assert($request instanceof ReadResourceRequest);
         \assert($context instanceof ServerContext);
 
-        $uri = $request->params->uri;
-
-        if ('' === $uri) {
-            throw new ResourceNotFoundException($uri, $context->requestId);
-        }
-
-        return $this->store->read($uri, $context);
+        return $this->store->read($request->params->uri, $context);
     }
 }
