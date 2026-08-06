@@ -937,7 +937,7 @@ final class ServerBuilder
 
     private static function findServerMetadata(object $source): ?AsServer
     {
-        $attributes = new \ReflectionObject($source)->getAttributes(AsServer::class);
+        $attributes = (new \ReflectionObject($source))->getAttributes(AsServer::class);
 
         return [] === $attributes ? null : $attributes[0]->newInstance();
     }

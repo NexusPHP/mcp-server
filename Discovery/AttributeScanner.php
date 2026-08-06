@@ -58,7 +58,7 @@ final readonly class AttributeScanner
      */
     public function scan(object $source): iterable
     {
-        foreach (new \ReflectionObject($source)->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
+        foreach ((new \ReflectionObject($source))->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
             foreach ($method->getAttributes(AsTool::class) as $attribute) {
                 yield new ToolEntry(
                     $this->buildTool($method, $attribute->newInstance()),
@@ -162,13 +162,12 @@ final readonly class AttributeScanner
     private static function acceptsRawStringArgument(?\ReflectionType $type): bool
     {
         if ($type instanceof \ReflectionUnionType) {
-            return array_any(
-                $type->getTypes(),
-                static fn(\ReflectionType $member): bool => self::acceptsRawStringArgument($member),
-            );
-        }
-
-        if ($type instanceof \ReflectionNamedType) {
+            foreach ($type->getTypes() as $member) {
+                if (self::acceptsRawStringArgument($member)) {
+                    return true;
+                }
+            }
+        } elseif ($type instanceof \ReflectionNamedType) {
             return $type->isBuiltin() && ($type->getName() === 'string' || $type->getName() === 'mixed');
         }
 
@@ -287,13 +286,12 @@ final readonly class AttributeScanner
     private static function acceptsStringArgument(?\ReflectionType $type): bool
     {
         if ($type instanceof \ReflectionUnionType) {
-            return array_any(
-                $type->getTypes(),
-                static fn(\ReflectionType $member): bool => self::acceptsStringArgument($member),
-            );
-        }
-
-        if ($type instanceof \ReflectionNamedType) {
+            foreach ($type->getTypes() as $member) {
+                if (self::acceptsStringArgument($member)) {
+                    return true;
+                }
+            }
+        } elseif ($type instanceof \ReflectionNamedType) {
             return $type->isBuiltin()
                 ? $type->getName() === 'string' || $type->getName() === 'mixed'
                 : self::isStringResolvableEnum($type->getName());
@@ -309,7 +307,7 @@ final readonly class AttributeScanner
             return false;
         }
 
-        $backingType = new \ReflectionEnum($name)->getBackingType();
+        $backingType = (new \ReflectionEnum($name))->getBackingType();
 
         return ! $backingType instanceof \ReflectionNamedType || $backingType->getName() === 'string';
     }

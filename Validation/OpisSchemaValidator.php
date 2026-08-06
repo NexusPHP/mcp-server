@@ -39,7 +39,7 @@ final readonly class OpisSchemaValidator implements SchemaValidatorInterface
         }
 
         /** @var list<string> $messages */
-        $messages = new ErrorFormatter()->formatFlat($error);
+        $messages = (new ErrorFormatter())->formatFlat($error);
 
         return $messages;
     }

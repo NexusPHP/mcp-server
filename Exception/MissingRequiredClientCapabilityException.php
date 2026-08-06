@@ -60,7 +60,7 @@ final class MissingRequiredClientCapabilityException extends AbstractJsonRpcProt
         $described = [];
 
         foreach ($capabilities as $slot => $members) {
-            if (\is_array($members) && [] !== $members && array_all($members, static fn(mixed $value, mixed $key): bool => \is_string($key))) {
+            if (\is_array($members) && [] !== $members && self::hasOnlyStringKeys($members)) {
                 foreach (array_keys($members) as $member) {
                     $described[] = \sprintf('%s.%s', $slot, $member);
                 }
@@ -72,5 +72,21 @@ final class MissingRequiredClientCapabilityException extends AbstractJsonRpcProt
         }
 
         return $described;
+    }
+
+    /**
+     * Whether every key names a member, which is what separates a map-valued slot from a list.
+     *
+     * @param non-empty-array<array-key, mixed> $members
+     */
+    private static function hasOnlyStringKeys(array $members): bool
+    {
+        foreach (array_keys($members) as $key) {
+            if (! \is_string($key)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

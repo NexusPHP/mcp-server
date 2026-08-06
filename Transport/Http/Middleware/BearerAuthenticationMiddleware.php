@@ -88,7 +88,7 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
             return $this->challenge(HttpStatus::Unauthorized, 'invalid_token');
         }
 
-        if (! new ScopeSet($token->scopes)->containsAll($this->requiredScopes)) {
+        if (! (new ScopeSet($token->scopes))->containsAll($this->requiredScopes)) {
             return $this->challenge(HttpStatus::Forbidden, 'insufficient_scope');
         }
 
@@ -110,10 +110,10 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
         }
 
         return $this->responseFactory->createResponse($status->value)
-            ->withHeader('WWW-Authenticate', new WwwAuthenticateChallenge(
+            ->withHeader('WWW-Authenticate', (new WwwAuthenticateChallenge(
                 WwwAuthenticateChallenge::BEARER_SCHEME,
                 $parameters,
-            )->toHeaderValue())
+            ))->toHeaderValue())
         ;
     }
 

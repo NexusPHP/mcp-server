@@ -528,7 +528,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     private function buildErrorResponse(Error $error, ?int $status = null, ?RequestId $id = null): ResponseInterface
     {
         $status ??= HttpStatusResolver::resolve($error->code, fromHandler: false);
-        $envelope = new JsonRpcErrorResponse(id: $id, error: $error)->jsonSerialize();
+        $envelope = (new JsonRpcErrorResponse(id: $id, error: $error))->jsonSerialize();
 
         return $this->responseFactory->createResponse($status)
             ->withHeader('Content-Type', 'application/json')

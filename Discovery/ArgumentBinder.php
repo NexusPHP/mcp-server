@@ -50,6 +50,7 @@ final class ArgumentBinder
      * @return list<mixed>
      *
      * @throws ExpectationFailedException
+     * @throws UnsupportedNestedParameterException
      */
     private static function resolveBindings(\ReflectionMethod $method, array $values, ServerContext $context): array
     {
@@ -90,6 +91,7 @@ final class ArgumentBinder
      * @param class-string $class
      *
      * @throws ExpectationFailedException
+     * @throws UnsupportedNestedParameterException
      */
     private static function construct(string $class, mixed $value): object
     {
