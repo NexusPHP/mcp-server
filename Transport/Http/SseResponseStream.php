@@ -28,7 +28,7 @@ use Psr\Http\Message\StreamInterface;
  */
 final class SseResponseStream implements StreamInterface
 {
-    private const int CHUNK = 8192;
+    private const int CHUNK = 8_192;
     private const string KEEP_ALIVE_FRAME = ": keep-alive\n\n";
 
     private string $buffer = '';

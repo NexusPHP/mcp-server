@@ -43,7 +43,7 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     /**
      * How many streams one store holds open before it starts refusing new ones.
      */
-    public const int DEFAULT_MAX_SUBSCRIPTIONS = 1024;
+    public const int DEFAULT_MAX_SUBSCRIPTIONS = 1_024;
 
     private const string TOOLS = 'tools';
     private const string PROMPTS = 'prompts';
