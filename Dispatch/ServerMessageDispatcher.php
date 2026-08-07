@@ -46,7 +46,7 @@ use Nexus\Mcp\Core\Schema\Request\ClientRequest;
 use Nexus\Mcp\Core\Schema\Request\SubscriptionsListenRequest;
 use Nexus\Mcp\Core\Schema\RequestId;
 use Nexus\Mcp\Core\Schema\RequestParams;
-use Nexus\Mcp\Core\Schema\RequestParams\InputResponseRequestParams;
+use Nexus\Mcp\Core\Schema\RequestParams\InputResponseCarrierInterface;
 use Nexus\Mcp\Core\Schema\Result;
 use Nexus\Mcp\Core\Transport\ReceiveContext;
 use Nexus\Mcp\Core\Transport\SendContext;
@@ -249,14 +249,15 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
 
                     $sender = new RequestBoundSender($transport, $request->id);
                     $params = $request->params;
+                    $carrier = $params instanceof InputResponseCarrierInterface ? $params : null;
                     $serverContext = new ServerContext(
                         $request->id,
                         $cancellation,
                         $params->meta,
                         $sender,
                         $context,
-                        $params instanceof InputResponseRequestParams ? $params->inputResponses : null,
-                        $params instanceof InputResponseRequestParams ? $params->requestState : null,
+                        $carrier?->getInputResponses(),
+                        $carrier?->getRequestState(),
                     );
                     $result = $handler->handle($request, $serverContext);
 
