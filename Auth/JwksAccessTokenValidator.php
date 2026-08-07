@@ -15,6 +15,7 @@ namespace Nexus\Mcp\Server\Auth;
 
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
+use Nexus\Assert\Assert;
 use Nexus\Mcp\Core\Auth\VerifiedAccessToken;
 use Nexus\Mcp\Core\Validation\SuggestedDependencyGuard;
 
@@ -25,34 +26,61 @@ use Nexus\Mcp\Core\Validation\SuggestedDependencyGuard;
 final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInterface
 {
     /**
-     * @param array<string, Key>|\ArrayAccess<string, Key> $keys Keys by `kid`, typically a `Firebase\JWT\CachedKeySet`
+     * @param array<string, Key>|\ArrayAccess<string, Key> $keys           Keys by `kid`, typically a `Firebase\JWT\CachedKeySet`
+     * @param non-empty-string                             $expectedIssuer The `iss` every accepted token must carry
      */
-    public function __construct(private array|\ArrayAccess $keys)
+    public function __construct(private array|\ArrayAccess $keys, private string $expectedIssuer)
     {
         SuggestedDependencyGuard::verify(self::class, JWT::class, 'firebase/php-jwt', '^7.0');
+        Assert::that($expectedIssuer)->isNonEmptyString('JWKS validator expected issuer must be a non-empty string, {type} given.');
     }
 
     #[\Override]
     public function validate(string $token): ?VerifiedAccessToken
     {
-        try {
-            $claims = (array) JWT::decode($token, $this->keys);
-        } catch (\Exception) {
-            // Signature, expiry, and shape failures all mean the same thing to the caller: no grant.
+        $claims = $this->decode($token);
+
+        if (null === $claims) {
+            return null;
+        }
+
+        $audience = self::readAudience($claims);
+
+        // A key set may sign for more than one issuer, so audience alone is not a tenant boundary.
+        if (($claims['iss'] ?? null) !== $this->expectedIssuer) {
+            return null;
+        }
+
+        $expiresAt = $claims['exp'] ?? null;
+
+        // `JWT::decode` checks expiry only when the claim is present, so absence is what must be refused.
+        if (! is_numeric($expiresAt)) {
             return null;
         }
 
         $clientId = $claims['azp'] ?? $claims['client_id'] ?? $claims['cid'] ?? null;
         $subject = $claims['sub'] ?? null;
-        $expiresAt = $claims['exp'] ?? null;
 
         return new VerifiedAccessToken(
-            audience: self::readAudience($claims),
+            audience: $audience,
             scopes: self::readScopes($claims),
             subject: \is_string($subject) ? $subject : null,
             clientId: \is_string($clientId) ? $clientId : null,
-            expiresAt: \is_int($expiresAt) || \is_float($expiresAt) ? (int) $expiresAt : null,
+            expiresAt: (int) $expiresAt,
         );
+    }
+
+    /**
+     * @return null|array<array-key, mixed>
+     */
+    private function decode(string $token): ?array
+    {
+        try {
+            return (array) JWT::decode($token, $this->keys);
+        } catch (\Exception) {
+            // Signature, expiry, and shape failures all mean the same thing to the caller: no grant.
+            return null;
+        }
     }
 
     /**
