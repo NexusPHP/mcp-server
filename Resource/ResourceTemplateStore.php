@@ -22,6 +22,7 @@ use Nexus\Mcp\Core\Schema\Result\ListResourceTemplatesResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Core\UriTemplate\Matcher;
 use Nexus\Mcp\Core\UriTemplate\Validator;
+use Nexus\Mcp\Core\Validation\IdentifierNameValidator;
 use Nexus\Mcp\Server\CursorPaginator;
 use Nexus\Mcp\Server\Exception\ResourceNotFoundException;
 use Nexus\Mcp\Server\ServerContext;
@@ -58,6 +59,10 @@ final class ResourceTemplateStore implements MutableResourceTemplateStoreInterfa
             ->keys()
             ->isNonEmptyString('Resource template store entry key must be a non-empty string.')
         ;
+
+        foreach ($entries as $entry) {
+            IdentifierNameValidator::validate($entry->template->name, 'resource template "name"');
+        }
         Assert::that($pageSize)
             ->isPositiveInt('Resource template store page size must be a positive integer, {value} given.')
         ;
@@ -84,6 +89,8 @@ final class ResourceTemplateStore implements MutableResourceTemplateStoreInterfa
     #[\Override]
     public function addResourceTemplate(ResourceTemplate $template, TemplatedResourceReaderInterface $reader): void
     {
+        IdentifierNameValidator::validate($template->name, 'resource template "name"');
+
         $uriTemplate = $template->uriTemplate;
         $entry = new ResourceTemplateEntry($template, $reader);
 

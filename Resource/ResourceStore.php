@@ -20,6 +20,7 @@ use Nexus\Mcp\Core\Schema\Resource\Resource;
 use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ListResourcesResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
+use Nexus\Mcp\Core\Validation\IdentifierNameValidator;
 use Nexus\Mcp\Server\CursorPaginator;
 use Nexus\Mcp\Server\Exception\ResourceNotFoundException;
 use Nexus\Mcp\Server\ServerContext;
@@ -49,6 +50,10 @@ final class ResourceStore implements MutableResourceStoreInterface
             ->keys()
             ->isNonEmptyString('Resource store entry key must be a non-empty string.')
         ;
+
+        foreach ($entries as $entry) {
+            IdentifierNameValidator::validate($entry->resource->name, 'resource "name"');
+        }
         Assert::that($pageSize)
             ->isPositiveInt('Resource store page size must be a positive integer, {value} given.')
         ;
@@ -68,6 +73,8 @@ final class ResourceStore implements MutableResourceStoreInterface
     #[\Override]
     public function addResource(Resource $resource, ResourceReaderInterface $reader): void
     {
+        IdentifierNameValidator::validate($resource->name, 'resource "name"');
+
         $this->entries[$resource->uri] = new ResourceEntry($resource, $reader);
 
         $this->announceListChange();

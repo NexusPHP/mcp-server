@@ -54,6 +54,7 @@ use Nexus\Mcp\Core\Schema\ServerCapabilities;
 use Nexus\Mcp\Core\Schema\SubscriptionFilter;
 use Nexus\Mcp\Core\Schema\Tool\Tool;
 use Nexus\Mcp\Core\UriTemplate\Validator;
+use Nexus\Mcp\Core\Validation\IdentifierNameValidator;
 use Nexus\Mcp\Core\Validation\MethodClassValidator;
 use Nexus\Mcp\Server\Attribute\AsServer;
 use Nexus\Mcp\Server\Completion\ClosureCompletionProvider;
@@ -345,6 +346,7 @@ final class ServerBuilder
     public function addTool(Tool $tool, \Closure|ToolExecutorInterface $executor): self
     {
         $this->assertNotBuilt();
+        IdentifierNameValidator::validate($tool->name, 'tool "name"');
 
         $this->tools[$tool->name] = new ToolEntry(
             $tool,
@@ -360,6 +362,7 @@ final class ServerBuilder
     public function addPrompt(Prompt $prompt, \Closure|PromptRendererInterface $renderer): self
     {
         $this->assertNotBuilt();
+        IdentifierNameValidator::validate($prompt->name, 'prompt "name"');
 
         $this->prompts[$prompt->name] = new PromptEntry(
             $prompt,
@@ -375,6 +378,7 @@ final class ServerBuilder
     public function addResource(Resource $resource, \Closure|ResourceReaderInterface $reader): self
     {
         $this->assertNotBuilt();
+        IdentifierNameValidator::validate($resource->name, 'resource "name"');
 
         $this->resources[$resource->uri] = new ResourceEntry(
             $resource,
@@ -392,6 +396,7 @@ final class ServerBuilder
         \Closure|TemplatedResourceReaderInterface $reader,
     ): self {
         $this->assertNotBuilt();
+        IdentifierNameValidator::validate($template->name, 'resource template "name"');
 
         Validator::validate($template->uriTemplate, 'ResourceTemplate');
 

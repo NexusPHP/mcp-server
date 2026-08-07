@@ -21,6 +21,7 @@ use Nexus\Mcp\Core\Schema\Result\CallToolResult;
 use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ListToolsResult;
 use Nexus\Mcp\Core\Schema\Tool\Tool;
+use Nexus\Mcp\Core\Validation\IdentifierNameValidator;
 use Nexus\Mcp\Server\CursorPaginator;
 use Nexus\Mcp\Server\Exception\ToolNotFoundException;
 use Nexus\Mcp\Server\Exception\ToolOutputValidationException;
@@ -52,6 +53,7 @@ final class ToolStore implements MutableToolStoreInterface
     ) {
         foreach ($entries as $key => $entry) {
             // A decimal-int-string name arrives as an int key, so the comparison is on the stringified key.
+            IdentifierNameValidator::validate($entry->tool->name, 'tool "name"');
             Assert::that($entry->tool->name)->isIdentical(
                 (string) $key,
                 'Tool store entry key "{other}" must match its tool name "{value}".',
@@ -77,6 +79,8 @@ final class ToolStore implements MutableToolStoreInterface
     #[\Override]
     public function addTool(Tool $tool, ToolExecutorInterface $executor): void
     {
+        IdentifierNameValidator::validate($tool->name, 'tool "name"');
+
         $this->entries[$tool->name] = new ToolEntry($tool, $executor);
 
         $this->announceListChange();
