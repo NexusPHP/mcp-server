@@ -138,7 +138,12 @@ final class ToolStore implements MutableToolStoreInterface
         }
 
         if (null !== $tool->outputSchema && true !== $result->isError && null !== $result->structuredContent) {
-            $outputData = [] === $result->structuredContent ? new \stdClass() : $result->structuredContent;
+            $outputData = $result->structuredContent;
+
+            if ([] === $outputData && ! self::schemaAcceptsArray($tool->outputSchema)) {
+                $outputData = new \stdClass();
+            }
+
             $outputErrors = $this->validator->validate($outputData, $tool->outputSchema);
 
             if ([] !== $outputErrors) {
@@ -147,6 +152,16 @@ final class ToolStore implements MutableToolStoreInterface
         }
 
         return $result;
+    }
+
+    /**
+     * @param array<string, mixed> $schema
+     */
+    private static function schemaAcceptsArray(array $schema): bool
+    {
+        $type = $schema['type'] ?? null;
+
+        return 'array' === $type || (\is_array($type) && \in_array('array', $type, true));
     }
 
     private function announceListChange(): void
