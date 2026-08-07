@@ -68,7 +68,11 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
     #[\Override]
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        $envelope = self::readEnvelope($request);
+        // Reading the body consumes it when the host's stream cannot rewind, so re-seat it before the
+        // request travels on. The transport downstream reads the body again to parse the envelope.
+        $body = (string) $request->getBody();
+        $request = $request->withBody($this->streamFactory->createStream($body));
+        $envelope = self::readEnvelope($body);
 
         if (CallToolRequest::getMethod() !== ($envelope['method'] ?? null)) {
             // Only a tool call mirrors arguments into headers. Every other method, malformed bodies included,
@@ -140,14 +144,14 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
     }
 
     /**
-     * Peeks at the request body. PSR-7 has `__toString()` seek to the start, so the transport downstream
-     * still reads a whole body. An int-keyed decode yields no envelope keys and so governs nothing.
+     * Decodes the already-read request body. An int-keyed decode yields no envelope keys and so governs
+     * nothing.
      *
      * @return array<string, mixed>
      */
-    private static function readEnvelope(ServerRequestInterface $request): array
+    private static function readEnvelope(string $body): array
     {
-        $decoded = json_decode((string) $request->getBody(), associative: true);
+        $decoded = json_decode($body, associative: true);
 
         return \is_array($decoded) ? array_filter($decoded, is_string(...), \ARRAY_FILTER_USE_KEY) : [];
     }
