@@ -126,7 +126,9 @@ final readonly class InputSchemaGenerator
             }
 
             $name = $parameter->getName();
-            $properties[$name] = $this->buildParameterSchema($parameter, $tags[$name] ?? null, $topLevel);
+            $properties[$name] = TypeNodeSchemaMapper::asSubSchema(
+                $this->buildParameterSchema($parameter, $tags[$name] ?? null, $topLevel),
+            );
 
             if (! $parameter->isOptional()) {
                 $required[] = $name;

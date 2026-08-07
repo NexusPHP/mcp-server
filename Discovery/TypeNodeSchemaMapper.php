@@ -116,6 +116,20 @@ final class TypeNodeSchemaMapper
     }
 
     /**
+     * Prepares a mapped fragment for a position that requires a schema. An unconstrained type maps to no
+     * keywords, and an empty PHP array encodes as `[]`, which is not a schema. JSON Schema 2020-12 spells
+     * the always-valid schema as `true`.
+     *
+     * @param array<string, mixed> $schema
+     *
+     * @return array<string, mixed>|true
+     */
+    public static function asSubSchema(array $schema): array|true
+    {
+        return [] === $schema ? true : $schema;
+    }
+
+    /**
      * Whether the docblock type is a more specific stand-in for the native type.
      */
     private function docRefinesNative(TypeNode $native, TypeNode $doc): bool
@@ -432,7 +446,7 @@ final class TypeNodeSchemaMapper
         $prefixItems = [];
 
         foreach ($node->items as $item) {
-            $prefixItems[] = $this->map($item->valueType);
+            $prefixItems[] = self::asSubSchema($this->map($item->valueType));
         }
 
         return [
@@ -458,7 +472,7 @@ final class TypeNodeSchemaMapper
                 throw new UnsupportedSchemaTypeException((string) $node);
             }
 
-            $properties[$key] = $this->map($item->valueType);
+            $properties[$key] = self::asSubSchema($this->map($item->valueType));
 
             if (! $item->optional) {
                 $required[] = $key;
