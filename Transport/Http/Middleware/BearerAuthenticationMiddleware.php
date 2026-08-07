@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Transport\Http\Middleware;
 
+use Nexus\Assert\Assert;
 use Nexus\Mcp\Core\Auth\ResourceIdentifier;
 use Nexus\Mcp\Core\Auth\ScopeSet;
 use Nexus\Mcp\Core\Auth\VerifiedAccessToken;
@@ -27,12 +28,13 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 /**
  * Makes the MCP endpoint an OAuth 2.1 resource server: it requires a bearer token, binds that token's audience
- * to this server, and enforces the scopes the endpoint calls for.
+ * to this server, refuses one whose reported expiry has passed, and enforces the scopes the endpoint calls for.
  *
  * A request presenting no bearer credential is answered `401` with a `WWW-Authenticate` challenge naming the
  * Protected Resource Metadata document, one presenting a bearer credential that cannot be read is answered
- * `400 invalid_request`, and a token that is valid but too narrow is answered `403 insufficient_scope`. The
- * validated token reaches request handlers on `ServerContext::$receiveContext->authInfo`.
+ * `400 invalid_request`, an expired one `401 invalid_token`, and a token that is valid but too narrow is
+ * answered `403 insufficient_scope`. The validated token reaches request handlers on
+ * `ServerContext::$receiveContext->authInfo`.
  *
  * @see https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#error-handling
  */
@@ -44,9 +46,16 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
     private ScopeSet $requiredScopes;
 
     /**
+     * @var \Closure(): int
+     */
+    private \Closure $clock;
+
+    /**
      * @param string                 $resource            Canonical URI of this MCP server, which a token's audience must name
      * @param string                 $resourceMetadataUrl URL of this server's Protected Resource Metadata document
      * @param list<non-empty-string> $requiredScopes      Scopes every request to the endpoint must carry
+     * @param int<0, max>            $expiryLeewaySeconds Clock skew tolerated when refusing an expired token
+     * @param null|\Closure(): int   $clock               Reads the current Unix timestamp
      */
     public function __construct(
         private AccessTokenValidatorInterface $validator,
@@ -54,9 +63,14 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
         private string $resourceMetadataUrl,
         private ResponseFactoryInterface $responseFactory,
         array $requiredScopes = [],
+        private int $expiryLeewaySeconds = 0,
+        ?\Closure $clock = null,
     ) {
+        Assert::that($expiryLeewaySeconds)->isNaturalInt('Expiry leeway must be a non-negative integer, {value} given.');
+
         $this->resource = new ResourceIdentifier($resource);
         $this->requiredScopes = new ScopeSet($requiredScopes);
+        $this->clock = $clock ?? static fn(): int => time();
     }
 
     #[\Override]
@@ -80,6 +94,12 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
         $token = $this->validator->validate($presented);
 
         if (null === $token) {
+            return $this->challenge(HttpStatus::Unauthorized, 'invalid_token');
+        }
+
+        // The validator owns expiry, so a lapsed token here means it reported one and served it anyway. A
+        // validator configured for clock skew needs the same leeway repeated, since its own does not travel.
+        if (null !== $token->expiresAt && ($this->clock)() >= $token->expiresAt + $this->expiryLeewaySeconds) {
             return $this->challenge(HttpStatus::Unauthorized, 'invalid_token');
         }
 

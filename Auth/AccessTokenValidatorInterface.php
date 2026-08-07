@@ -20,9 +20,8 @@ use Nexus\Mcp\Core\Auth\VerifiedAccessToken;
  * supplies the verification its authorization server calls for.
  *
  * An implementation owns the whole of token validation: signature or introspection, issuer, and expiry.
- * It rejects what it cannot verify by returning `null`, a token carrying no expiry included. Only two
- * checks are not its job: `BearerAuthenticationMiddleware` binds the returned audience to this server and
- * enforces the scopes the endpoint requires.
+ * It rejects what it cannot verify by returning `null`, a token carrying no expiry included.
+ * `BearerAuthenticationMiddleware` documents what it enforces on top.
  *
  * @see https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#token-handling
  */
