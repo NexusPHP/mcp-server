@@ -22,7 +22,7 @@ use Nexus\Mcp\Server\ServerContext;
 /**
  * In-memory implementation of `CompletionStoreInterface`.
  *
- * @phpstan-type ArgumentMap array<non-empty-string, (\Closure(string, ?array<string, string>, ServerContext): CompleteResult)|CompletionProviderInterface>
+ * @phpstan-type ArgumentMap array<non-empty-string, (\Closure(string, ?array<array-key, string>, ServerContext): CompleteResult)|CompletionProviderInterface>
  * @phpstan-type ProviderMap array<non-empty-string, array<non-empty-string, CompletionProviderInterface>>
  */
 final readonly class CompletionStore implements CompletionStoreInterface

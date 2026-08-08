@@ -90,7 +90,7 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
         $arguments = \is_array($params) ? $params['arguments'] ?? [] : [];
         $mismatch = ParameterHeaders::validate(
             $this->resolveBindings($name),
-            \is_array($arguments) ? array_filter($arguments, is_string(...), \ARRAY_FILTER_USE_KEY) : [],
+            \is_array($arguments) ? $arguments : [],
             self::readHeaders($request),
         );
 

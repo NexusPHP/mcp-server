@@ -23,7 +23,7 @@ use Nexus\Mcp\Server\ServerContext;
 interface ToolExecutorInterface
 {
     /**
-     * @param null|array<string, mixed> $arguments
+     * @param null|array<array-key, mixed> $arguments
      */
     public function execute(?array $arguments, ServerContext $context): CallToolResult|InputRequiredResult;
 }

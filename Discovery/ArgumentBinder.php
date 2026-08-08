@@ -28,7 +28,7 @@ use Nexus\Mcp\Server\ServerContext;
 final class ArgumentBinder
 {
     /**
-     * @param array<string, mixed> $values
+     * @param array<array-key, mixed> $values
      *
      * @return list<mixed>
      *
@@ -45,7 +45,7 @@ final class ArgumentBinder
     }
 
     /**
-     * @param array<string, mixed> $values
+     * @param array<array-key, mixed> $values
      *
      * @return list<mixed>
      *

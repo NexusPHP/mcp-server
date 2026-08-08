@@ -23,7 +23,7 @@ use Nexus\Mcp\Server\ServerContext;
 interface PromptRendererInterface
 {
     /**
-     * @param null|array<string, string> $arguments
+     * @param null|array<array-key, string> $arguments
      */
     public function render(?array $arguments, ServerContext $context): GetPromptResult|InputRequiredResult;
 }

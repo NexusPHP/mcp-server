@@ -23,7 +23,7 @@ use Nexus\Mcp\Server\ServerContext;
 final readonly class ClosureToolExecutor implements ToolExecutorInterface
 {
     /**
-     * @param \Closure(?array<string, mixed>, ServerContext): (CallToolResult|InputRequiredResult) $closure
+     * @param \Closure(?array<array-key, mixed>, ServerContext): (CallToolResult|InputRequiredResult) $closure
      */
     public function __construct(private \Closure $closure)
     {

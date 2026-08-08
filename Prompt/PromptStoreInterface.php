@@ -32,7 +32,7 @@ interface PromptStoreInterface
     public function list(?Cursor $cursor): ListPromptsResult;
 
     /**
-     * @param null|array<string, string> $arguments
+     * @param null|array<array-key, string> $arguments
      *
      * @throws PromptNotFoundException
      */

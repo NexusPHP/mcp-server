@@ -19,7 +19,7 @@ namespace Nexus\Mcp\Server\Validation;
 interface SchemaValidatorInterface
 {
     /**
-     * @param array<string, mixed> $schema
+     * @param array<array-key, mixed> $schema
      *
      * @return list<string> validation error messages, empty when the data is valid
      */

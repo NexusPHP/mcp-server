@@ -22,7 +22,7 @@ use Nexus\Mcp\Server\ServerContext;
 final readonly class ClosureCompletionProvider implements CompletionProviderInterface
 {
     /**
-     * @param \Closure(string, ?array<string, string>, ServerContext): CompleteResult $provider
+     * @param \Closure(string, ?array<array-key, string>, ServerContext): CompleteResult $provider
      */
     public function __construct(private \Closure $provider)
     {

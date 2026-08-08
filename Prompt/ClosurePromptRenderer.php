@@ -23,7 +23,7 @@ use Nexus\Mcp\Server\ServerContext;
 final readonly class ClosurePromptRenderer implements PromptRendererInterface
 {
     /**
-     * @param \Closure(?array<string, string>, ServerContext): (GetPromptResult|InputRequiredResult) $closure
+     * @param \Closure(?array<array-key, string>, ServerContext): (GetPromptResult|InputRequiredResult) $closure
      */
     public function __construct(private \Closure $closure)
     {

@@ -120,8 +120,16 @@ final class ToolStore implements MutableToolStoreInterface
 
         $tool = $entry->tool;
 
+        $encoded = $tool->jsonSerialize();
         $inputData = null === $arguments || [] === $arguments ? new \stdClass() : $arguments;
-        $inputErrors = $this->validator->validate($inputData, $tool->inputSchema);
+
+        // An argument name that is all digits decodes to a PHP int key, so a name set running 0..n-1
+        // reaches the validator as a JSON array unless it is handed over as an object.
+        if (\is_array($inputData) && array_is_list($inputData)) {
+            $inputData = (object) $inputData;
+        }
+
+        $inputErrors = $this->validator->validate($inputData, (array) $encoded['inputSchema']);
 
         if ([] !== $inputErrors) {
             throw new InvalidParamsException(
@@ -144,7 +152,7 @@ final class ToolStore implements MutableToolStoreInterface
                 $outputData = new \stdClass();
             }
 
-            $outputErrors = $this->validator->validate($outputData, $tool->outputSchema);
+            $outputErrors = $this->validator->validate($outputData, (array) ($encoded['outputSchema'] ?? []));
 
             if ([] !== $outputErrors) {
                 throw new ToolOutputValidationException($name, $outputErrors);

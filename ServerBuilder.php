@@ -341,7 +341,7 @@ final class ServerBuilder
     }
 
     /**
-     * @param (\Closure(?array<string, mixed>, ServerContext): (CallToolResult|InputRequiredResult))|ToolExecutorInterface $executor
+     * @param (\Closure(?array<array-key, mixed>, ServerContext): (CallToolResult|InputRequiredResult))|ToolExecutorInterface $executor
      */
     public function addTool(Tool $tool, \Closure|ToolExecutorInterface $executor): self
     {
@@ -357,7 +357,7 @@ final class ServerBuilder
     }
 
     /**
-     * @param (\Closure(?array<string, string>, ServerContext): (GetPromptResult|InputRequiredResult))|PromptRendererInterface $renderer
+     * @param (\Closure(?array<array-key, string>, ServerContext): (GetPromptResult|InputRequiredResult))|PromptRendererInterface $renderer
      */
     public function addPrompt(Prompt $prompt, \Closure|PromptRendererInterface $renderer): self
     {
@@ -562,7 +562,7 @@ final class ServerBuilder
     }
 
     /**
-     * @param (\Closure(string, ?array<string, string>, ServerContext): CompleteResult)|CompletionProviderInterface $provider
+     * @param (\Closure(string, ?array<array-key, string>, ServerContext): CompleteResult)|CompletionProviderInterface $provider
      */
     public function addPromptCompletion(string $prompt, string $argument, \Closure|CompletionProviderInterface $provider): self
     {
@@ -579,7 +579,7 @@ final class ServerBuilder
     }
 
     /**
-     * @param (\Closure(string, ?array<string, string>, ServerContext): CompleteResult)|CompletionProviderInterface $provider
+     * @param (\Closure(string, ?array<array-key, string>, ServerContext): CompleteResult)|CompletionProviderInterface $provider
      */
     public function addResourceTemplateCompletion(string $uriTemplate, string $argument, \Closure|CompletionProviderInterface $provider): self
     {

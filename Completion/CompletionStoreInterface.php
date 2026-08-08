@@ -24,7 +24,7 @@ use Nexus\Mcp\Server\ServerContext;
 interface CompletionStoreInterface
 {
     /**
-     * @param null|array<string, string> $contextArguments
+     * @param null|array<array-key, string> $contextArguments
      */
     public function complete(
         PromptReference|ResourceTemplateReference $ref,

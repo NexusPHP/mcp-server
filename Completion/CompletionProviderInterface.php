@@ -22,8 +22,8 @@ use Nexus\Mcp\Server\ServerContext;
 interface CompletionProviderInterface
 {
     /**
-     * @param string                     $argumentValue    Partial value the user has typed so far
-     * @param null|array<string, string> $contextArguments Values the client has already resolved for the other arguments
+     * @param string                        $argumentValue    Partial value the user has typed so far
+     * @param null|array<array-key, string> $contextArguments Values the client has already resolved for the other arguments
      */
     public function complete(string $argumentValue, ?array $contextArguments, ServerContext $context): CompleteResult;
 }

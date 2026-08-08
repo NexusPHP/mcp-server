@@ -34,7 +34,7 @@ interface ToolStoreInterface
     public function list(?Cursor $cursor): ListToolsResult;
 
     /**
-     * @param null|array<string, mixed> $arguments
+     * @param null|array<array-key, mixed> $arguments
      *
      * @throws InvalidParamsException
      * @throws ToolNotFoundException
