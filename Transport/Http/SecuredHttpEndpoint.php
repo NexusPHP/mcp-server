@@ -61,12 +61,12 @@ final readonly class SecuredHttpEndpoint implements RequestHandlerInterface
             $middleware[] = $authentication;
         }
 
-        if (null !== $toolStore) {
-            $middleware[] = new ParameterHeaderValidationMiddleware($toolStore, $responseFactory, $streamFactory, $logger);
-        }
-
         if (null !== $maxBodyBytes) {
             $middleware[] = new RequestBodySizeLimitMiddleware($maxBodyBytes, $responseFactory, $streamFactory);
+        }
+
+        if (null !== $toolStore) {
+            $middleware[] = new ParameterHeaderValidationMiddleware($toolStore, $responseFactory, $streamFactory, $logger);
         }
 
         $this->pipeline = new MiddlewarePipeline($handler, ...$middleware);
