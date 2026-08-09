@@ -17,13 +17,8 @@ use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
 use Nexus\Mcp\Core\Schema\Result;
 
 /**
- * Optional add-on to `ServerExtensionInterface` for extensions that decorate
- * the handlers serving spec-registry request methods.
- *
- * Decorators are applied at `build()` time around the handler that finally
- * serves the method, whether the built-in default or a replacement, and their
- * output is served ungated: refusing a request stays the decorator's own
- * per-request decision.
+ * Optional add-on to `ServerExtensionInterface` for extensions decorating the
+ * handlers that serve spec-registry request methods.
  *
  * @phpstan-type RequestHandlerDecorator \Closure(RequestHandlerInterface<non-empty-string, Result, ServerContext>): RequestHandlerInterface<non-empty-string, Result, ServerContext>
  */

@@ -24,8 +24,7 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 /**
- * Thin shell that drives a single transport's lifecycle, exposing a blocking
- * `run()` and a non-blocking `listen()`.
+ * Thin shell that drives a single transport's lifecycle.
  */
 final readonly class Server
 {
@@ -37,9 +36,8 @@ final readonly class Server
     }
 
     /**
-     * Runs the server on the transport, blocking until it closes. Use for a
-     * long-lived transport that owns its read loop (stdio). For a request-scoped
-     * transport the host drives per request, use `listen()` instead.
+     * Runs the server on the transport, blocking until it closes, for a long-lived
+     * transport that owns its read loop (stdio).
      */
     public function run(TransportInterface $transport): void
     {
@@ -50,8 +48,6 @@ final readonly class Server
         $this->attachDispatchListeners($transport);
 
         $transport->onClose(static function () use ($deferred): void {
-            // Transports may emit `close` more than once if an error raises during shutdown
-            // (e.g. stdin EOF followed by a write failure). Ignore the duplicate.
             if ($deferred->isComplete()) {
                 return;
             }
@@ -66,9 +62,8 @@ final readonly class Server
     }
 
     /**
-     * Attaches the dispatcher and starts the transport without blocking. Use for
-     * a request-scoped transport (streamable HTTP mounted in a PSR-15 stack) the
-     * host drives per request. For a long-lived transport, use `run()` instead.
+     * Attaches the dispatcher and starts the transport without blocking, for a
+     * request-scoped transport (streamable HTTP in a PSR-15 stack) the host drives per request.
      */
     public function listen(TransportInterface $transport): void
     {
@@ -86,8 +81,6 @@ final readonly class Server
             $this->logger->error('Transport error.', ['exception' => $e]);
         });
         $transport->onDrain(function (): void {
-            // A held-open `subscriptions/listen` handler never settles on its own, so the streams close
-            // before the drain waits on the coroutines running them.
             $this->subscriptions?->closeAll();
             $this->dispatcher->flushPending();
         });

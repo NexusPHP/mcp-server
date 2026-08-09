@@ -25,14 +25,8 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
 /**
- * Rejects a request whose body exceeds a configured byte cap before it reaches the transport.
- *
- * An oversized body is answered with an id-less JSON-RPC error on HTTP 413, sparing the transport the cost of
- * stringifying and parsing it. The cap is measured against the buffered body size. A body whose size cannot be
- * determined passes through, leaving a streaming cap to the HTTP server.
- *
- * `ParameterHeaderValidationMiddleware` runs ahead of this one and re-seats the body it read, so where a tool
- * store is registered the size is always determinate by the time it is measured here.
+ * Rejects a request whose buffered body exceeds a configured byte cap with an id-less JSON-RPC error on
+ * HTTP 413, passing a body of indeterminate size through to the HTTP server's own streaming cap.
  */
 final readonly class RequestBodySizeLimitMiddleware implements MiddlewareInterface
 {

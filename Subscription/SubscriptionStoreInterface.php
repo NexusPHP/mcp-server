@@ -19,8 +19,7 @@ use Nexus\Mcp\Core\Schema\SubscriptionFilter;
 use Nexus\Mcp\Server\Exception\SubscriptionLimitReachedException;
 
 /**
- * Holds the open `subscriptions/listen` streams and fans server-side events out to the ones that asked
- * for them.
+ * Holds the open `subscriptions/listen` streams and fans server-side events out to the ones that asked for them.
  */
 interface SubscriptionStoreInterface
 {
@@ -29,19 +28,19 @@ interface SubscriptionStoreInterface
      *
      * @param RequestId $subscriptionId Id every message on the stream carries, as the client sent it
      *
-     * @throws SubscriptionLimitReachedException when the store already holds its maximum open streams
+     * @throws SubscriptionLimitReachedException
      */
     public function open(RequestId $subscriptionId, SubscriptionFilter $requested, SenderInterface $sender): SubscriptionEntry;
 
     /**
-     * Narrows `$requested` to the notification types this store delivers. The spec omits the types it does
-     * not honour rather than reporting them false.
+     * Narrows `$requested` to the notification types this store delivers, omitting rather than
+     * falsifying the ones it does not honour.
      */
     public function honour(SubscriptionFilter $requested): SubscriptionFilter;
 
     /**
-     * Tears `$entry` down: tells the client which `subscriptions/listen` is ending, then releases the
-     * handler holding it open. Does nothing for a stream that is already gone.
+     * Tears `$entry` down, naming the ending `subscriptions/listen` to the client and releasing the
+     * handler, and does nothing for a stream already gone.
      */
     public function close(SubscriptionEntry $entry): void;
 
@@ -51,8 +50,7 @@ interface SubscriptionStoreInterface
     public function discard(SubscriptionEntry $entry): void;
 
     /**
-     * Closes every open stream, releasing each handler so the server can drain. Streams opened afterwards
-     * are settled at once rather than held.
+     * Closes every open stream so the server can drain, settling any opened afterwards at once.
      */
     public function closeAll(): void;
 

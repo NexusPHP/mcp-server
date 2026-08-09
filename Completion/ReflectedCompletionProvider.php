@@ -19,9 +19,7 @@ use Nexus\Mcp\Server\Exception\UnsupportedReturnValueException;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * Adapts an attribute-discovered method to the `CompletionProviderInterface` contract. Parameters
- * are bound by type: a `ServerContext` parameter receives the context, an `array` parameter the
- * client's resolved context arguments, and any other parameter the partial value being typed.
+ * Adapts an attribute-discovered method to the `CompletionProviderInterface` contract.
  */
 final readonly class ReflectedCompletionProvider implements CompletionProviderInterface
 {
@@ -40,8 +38,6 @@ final readonly class ReflectedCompletionProvider implements CompletionProviderIn
             if (InputSchemaGenerator::isInjectedContext($parameter)) {
                 $arguments[] = $context;
             } elseif ($type instanceof \ReflectionNamedType && $type->getName() === 'array') {
-                // A request may legally omit the context arguments, so a slot that cannot take
-                // null receives an empty map instead.
                 $arguments[] = $contextArguments ?? ($type->allowsNull() ? null : []);
             } else {
                 $arguments[] = $argumentValue;

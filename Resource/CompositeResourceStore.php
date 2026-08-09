@@ -23,10 +23,7 @@ use Nexus\Mcp\Server\ServerContext;
 
 /**
  * Chains a primary `ResourceStoreInterface` (exact-URI matches) with a fallback
- * `ResourceTemplateStoreInterface` (URI-template matches). `read()` tries the
- * primary first. On `ResourceNotFoundException` it falls through to the template
- * store, only re-raising the not-found when neither side matches. `list()`
- * delegates to the primary unchanged.
+ * `ResourceTemplateStoreInterface` (URI-template matches).
  */
 final readonly class CompositeResourceStore implements ListChangeSourceInterface, ResourceStoreInterface
 {

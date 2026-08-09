@@ -19,10 +19,7 @@ use Amp\TimeoutCancellation;
 use Psr\Http\Message\StreamInterface;
 
 /**
- * Read-only, non-seekable PSR-7 body for a Server-Sent Events stream. The transport pushes frames while
- * the consumer reads, and a read blocks (suspending the fiber) until the next frame is pushed or the
- * stream ends. A read that stays idle for the keep-alive interval yields an SSE comment frame so the
- * connection is not reaped.
+ * Read-only, non-seekable PSR-7 body for a Server-Sent Events stream.
  *
  * @internal
  */
@@ -55,7 +52,7 @@ final class SseResponseStream implements StreamInterface
     }
 
     /**
-     * Appends a frame for the consumer to read. A frame pushed after the stream ended is discarded.
+     * Appends a frame for the consumer to read, discarding one pushed after the stream ended.
      */
     public function push(string $frame): void
     {
@@ -154,8 +151,6 @@ final class SseResponseStream implements StreamInterface
             try {
                 $this->reader->getFuture()->await(new TimeoutCancellation($this->keepAliveInterval));
             } catch (CancelledException) {
-                // Buffering it rather than returning it keeps the read honouring `$length` and `tell()`.
-                // A push during the await completes the reader, so reaching here leaves the buffer empty.
                 $this->buffer = self::KEEP_ALIVE_FRAME;
             }
         }

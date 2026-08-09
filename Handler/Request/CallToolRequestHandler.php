@@ -48,12 +48,10 @@ final readonly class CallToolRequestHandler implements RequestHandlerInterface
             $result = $this->store->call($request->params->name, $request->params->arguments, $context);
 
             if ($result instanceof InputRequiredResult) {
-                // The tool is asking the client for input, so it has produced no content to back-fill.
                 return $result;
             }
 
-            // Spec, "Structured Content": "For backwards compatibility, a tool that returns
-            // structured content SHOULD also return the serialized JSON in a TextContent block."
+            // Spec, "Structured Content": a tool returning structured content SHOULD also return the serialized JSON in a TextContent block.
             if (null !== $result->structuredContent && [] === $result->content) {
                 return new CallToolResult(
                     content: [new TextContent(text: json_encode(
@@ -80,7 +78,6 @@ final readonly class CallToolRequestHandler implements RequestHandlerInterface
                 isError: true,
             );
         } catch (\Throwable $e) {
-            // Generic peer-facing text. Raw $e->getMessage() can carry paths or secrets.
             $this->logger->error(
                 'Uncaught tool executor exception. Returning generic error to peer.',
                 ['tool' => $request->params->name, 'exception' => $e],

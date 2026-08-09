@@ -108,8 +108,7 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 /**
- * Fluent builder that wires the per-feature stores, the dispatch kernel, and
- * the lifecycle shell into a runnable `Server` instance.
+ * Fluent builder for a runnable `Server` instance.
  *
  * @phpstan-import-type RequestHandlerDecorator from RequestHandlerDecoratorInterface
  */
@@ -237,10 +236,8 @@ final class ServerBuilder
     }
 
     /**
-     * Caps how many inbound messages the server processes at once. Past the cap a request is
-     * answered `-32000` and a notification is dropped, until running handlers finish. Null lifts
-     * the cap, which is the default. A `subscriptions/listen` is exempt: it opens a subscription rather
-     * than being processed, and the subscription store bounds how many streams may be open.
+     * Caps how many inbound messages the server processes at once, with null (the default) lifting the cap.
+     * Past the cap a request is answered `-32000` and a notification is dropped, `subscriptions/listen` excepted.
      */
     public function setMaxInFlightDispatches(?int $max): self
     {
@@ -253,9 +250,6 @@ final class ServerBuilder
         return $this;
     }
 
-    /**
-     * Controls how much of the server's identity rides the `_meta` of the results it sends.
-     */
     public function setServerInfoDisclosure(ServerInfoDisclosure $disclosure): self
     {
         $this->assertNotBuilt();
@@ -298,8 +292,7 @@ final class ServerBuilder
     }
 
     /**
-     * Sets how many entries one page of a list result carries, for every store the builder assembles
-     * from its `add*()` entries. A store supplied through `setToolStore()` and its siblings keeps its own.
+     * Sets how many entries one page of a list result carries, for every store the builder assembles itself.
      */
     public function setPageSize(int $pageSize): self
     {
@@ -313,8 +306,8 @@ final class ServerBuilder
     }
 
     /**
-     * Sets how many milliseconds a client may treat a list result as fresh, for every store the builder
-     * assembles from its `add*()` entries. Zero asks the client to re-fetch every time.
+     * Sets how many milliseconds a client may treat a list result as fresh (zero re-fetches every time),
+     * for every store the builder assembles itself.
      */
     public function setTtlMs(int $ttlMs): self
     {
@@ -328,8 +321,7 @@ final class ServerBuilder
     }
 
     /**
-     * Sets which caches may serve a list result, for every store the builder assembles from its
-     * `add*()` entries.
+     * Sets which caches may serve a list result, for every store the builder assembles itself.
      */
     public function setCacheScope(CacheScope $cacheScope): self
     {
@@ -418,11 +410,8 @@ final class ServerBuilder
     }
 
     /**
-     * The tool store the built server serves, or null when it exposes no tools. Assembled from the
-     * `addTool()` and `register()` entries unless `setToolStore()` supplied one.
-     *
-     * Call it once every tool is registered, since it holds the store it returns. Pass the result to
-     * `SecuredHttpEndpoint` so `Mcp-Param-{Name}` validation reads the same tools the handlers serve.
+     * The tool store the built server serves, or null when it exposes no tools. Call it once every tool is
+     * registered, since it holds the store it returns.
      */
     public function getToolStore(): ?ToolStoreInterface
     {
@@ -451,10 +440,8 @@ final class ServerBuilder
     }
 
     /**
-     * The prompt store the built server serves, or null when it exposes no prompts. Assembled from the
-     * `addPrompt()` and `register()` entries unless `setPromptStore()` supplied one.
-     *
-     * Call it once every prompt is registered, since it holds the store it returns.
+     * The prompt store the built server serves, or null when it exposes no prompts. Call it once every
+     * prompt is registered, since it holds the store it returns.
      */
     public function getPromptStore(): ?PromptStoreInterface
     {
@@ -482,15 +469,11 @@ final class ServerBuilder
     }
 
     /**
-     * The resource store the built server serves, or null when it exposes neither resources nor resource
-     * templates. Assembled from the `addResource()` and `register()` entries unless `setResourceStore()`
-     * supplied one.
-     *
+     * The resource store the built server serves, or null when it exposes neither resources nor templates.
      * Call it once every resource is registered, since it holds the store it returns.
      */
     public function getResourceStore(): ?ResourceStoreInterface
     {
-        // A template store alone still needs a resource store, since `resources/read` composes the two.
         $templateStore = $this->getResourceTemplateStore();
 
         if (null === $this->resourceStore && [] === $this->resources && null === $templateStore) {
@@ -517,11 +500,8 @@ final class ServerBuilder
     }
 
     /**
-     * The resource template store the built server serves, or null when it exposes no templates. Assembled
-     * from the `addResourceTemplate()` and `register()` entries unless `setResourceTemplateStore()` supplied
-     * one.
-     *
-     * Call it once every template is registered, since it holds the store it returns.
+     * The resource template store the built server serves, or null when it exposes no templates. Call it
+     * once every template is registered, since it holds the store it returns.
      */
     public function getResourceTemplateStore(): ?ResourceTemplateStoreInterface
     {
@@ -596,11 +576,8 @@ final class ServerBuilder
     }
 
     /**
-     * The completion store the built server serves, or null when it serves no completions. Assembled
-     * from the `addPromptCompletion()`, `addResourceTemplateCompletion()`, and `register()` entries
-     * unless `setCompletionStore()` supplied one.
-     *
-     * Call it once every completion is registered, since it holds the store it returns.
+     * The completion store the built server serves, or null when it serves no completions. Call it once
+     * every completion is registered, since it holds the store it returns.
      */
     public function getCompletionStore(): ?CompletionStoreInterface
     {
@@ -614,12 +591,9 @@ final class ServerBuilder
     }
 
     /**
-     * Registers the server identity (`#[AsServer]`) plus the tools, prompts, resources,
-     * resource templates, and completion providers discovered from `#[AsTool]`, `#[AsPrompt]`,
-     * `#[AsResource]`, `#[AsResourceTemplate]`, and `#[AsCompletion]` methods on each source
-     * object. An explicit `setServerInfo()` or `setInstructions()` call takes precedence over
-     * the matching `#[AsServer]` field, and at most one registered source may declare
-     * `#[AsServer]`.
+     * Registers each source object's `#[AsServer]` identity, which an explicit `setServerInfo()` or
+     * `setInstructions()` call overrides per field, plus its `#[AsTool]`, `#[AsPrompt]`, `#[AsResource]`,
+     * `#[AsResourceTemplate]`, and `#[AsCompletion]` methods.
      *
      * @throws DuplicateServerMetadataException
      * @throws MissingDiscoveryAttributeException
@@ -693,7 +667,7 @@ final class ServerBuilder
      *
      * @param non-empty-string                                                 $method
      * @param RequestHandlerInterface<non-empty-string, Result, ServerContext> $handler
-     * @param class-string<JsonRpcRequest<non-empty-string>>                   $requestClass Parses inbound `$method` envelopes into typed requests
+     * @param class-string<JsonRpcRequest<non-empty-string>>                   $requestClass
      *
      * @throws ExtensionMethodCollisionException
      * @throws ReservedMethodException
@@ -752,7 +726,7 @@ final class ServerBuilder
      *
      * @param non-empty-string                                    $method
      * @param NotificationHandlerInterface<non-empty-string>      $handler
-     * @param class-string<JsonRpcNotification<non-empty-string>> $notificationClass Parses inbound `$method` envelopes into typed notifications
+     * @param class-string<JsonRpcNotification<non-empty-string>> $notificationClass
      *
      * @throws ExtensionMethodCollisionException
      * @throws ReservedMethodException
@@ -844,9 +818,6 @@ final class ServerBuilder
         );
     }
 
-    /**
-     * Turns each store's change signal into the notification its own feature owns.
-     */
     private function routeListChanges(): void
     {
         $subscriptionStore = $this->subscriptionStore;
@@ -893,8 +864,7 @@ final class ServerBuilder
     }
 
     /**
-     * Merges the explicit `setServerInfo()` values over the `#[AsServer]` fields, with the
-     * attribute filling only the gaps the setter left null.
+     * Merges the explicit `setServerInfo()` values over the `#[AsServer]` fields, the attribute filling only the gaps.
      */
     private function resolveServerInfo(): ?Implementation
     {
@@ -953,8 +923,6 @@ final class ServerBuilder
     private function assertNotBuilt(): void
     {
         if ($this->built) {
-            // The built server holds the stores and the list-change listeners, so a later registration would
-            // be dropped without a trace.
             throw new BuilderAlreadyBuiltException();
         }
     }
@@ -977,8 +945,8 @@ final class ServerBuilder
     }
 
     /**
-     * What the registered subscription store will deliver, or null when none is registered. Asking for
-     * everything makes the answer the store's own declaration, so no capability can promise more.
+     * What the registered subscription store will deliver when asked for everything, or null when none is
+     * registered.
      */
     private function resolveHonouredNotifications(): ?SubscriptionFilter
     {
@@ -1014,15 +982,12 @@ final class ServerBuilder
             return null;
         }
 
-        // Both stores fan into `notifications/resources/list_changed`, so either one reporting is a promise
-        // the server can keep.
         $reportsChanges = $this->getResourceStore() instanceof ListChangeSourceInterface
             || $this->getResourceTemplateStore() instanceof ListChangeSourceInterface;
 
         $capability = self::listChangedFlag($reportsChanges, $honoured?->resourcesListChanged);
 
         if (null !== $honoured?->resourceSubscriptions) {
-            // `subscribe` means the server honours `resourceSubscriptions` on a listen filter.
             $capability['subscribe'] = true;
         }
 
@@ -1145,8 +1110,7 @@ final class ServerBuilder
     }
 
     /**
-     * Wraps decorated methods' effective handlers, replacement or default, with
-     * each enabled extension's decorators in enable order.
+     * Wraps each decorated method's effective handler with the enabled extensions' decorators, in enable order.
      *
      * @param array<non-empty-string, RequestHandlerInterface<non-empty-string, Result, ServerContext>> $handlers
      *

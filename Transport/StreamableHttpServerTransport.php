@@ -62,16 +62,14 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     private readonly TransportEvents $events;
 
     /**
-     * The last transport-internal request id minted. Ids ascend and are never reused for the process's
-     * lifetime, so a retired sink's id cannot reach a later request while the handler that still holds it
-     * runs on.
+     * The last transport-internal request id minted, ascending and never reused, so a retired sink's id
+     * cannot reach a later request.
      */
     private int $lastRequestId = 0;
 
     /**
-     * In-flight requests, keyed by the transport-internal id emitted to the dispatcher. On the buffered path
-     * the `buffered` deferred carries the response `handle()` awaits. Once `stream` is set the sink streams
-     * SSE frames instead and the deferred goes unused.
+     * In-flight requests keyed by the transport-internal id, the `buffered` deferred carrying the response
+     * `handle()` awaits until `stream` is set and SSE frames take over.
      *
      * @var array<int, array{
      *   clientId: int|non-empty-string,
@@ -100,9 +98,6 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $this->events = new TransportEvents();
     }
 
-    /**
-     * Handles one HTTP request against the MCP endpoint, returning the response to write back.
-     */
     #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -111,7 +106,6 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         }
 
         if (TransportState::Running !== $this->state) {
-            // Nothing is listening, so no dispatch would ever resolve the request.
             return $this->buildErrorResponse(
                 new InternalError(message: 'The MCP endpoint is not accepting requests.'),
                 HttpStatus::ServiceUnavailable->value,
@@ -131,25 +125,19 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         try {
             Assert::that($envelope)->isMap('JSON-RPC envelope must be a JSON object, {type} given.');
         } catch (\InvalidArgumentException) {
-            // Valid JSON that is not a JSON object, such as a scalar or an array.
             return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
         }
 
         if (\array_key_exists('result', $envelope) || \array_key_exists('error', $envelope)) {
-            // The dispatcher discards responses without replying, so admitting one would hang the POST.
             return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
         }
 
         if (! \array_key_exists('id', $envelope)) {
             if (! self::isAcceptableNotification($envelope)) {
-                // The server cannot accept a malformed notification, so it answers an HTTP error, not 202.
                 return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
             }
 
             if (CancelledNotification::getMethod() === ($envelope['method'] ?? null)) {
-                // Closing the response stream is the cancellation signal here, so this message is neither
-                // required nor expected. Its `params.requestId` names the client's own id space, which no
-                // sink is keyed by, so honouring it would cancel whichever request holds that internal id.
                 $this->logger->debug(
                     'Ignoring a client cancellation notification: the response stream is the signal on this transport.',
                 );
@@ -165,7 +153,6 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $requestId = EnvelopeRequestId::recover($envelope);
 
         if (null === $requestId) {
-            // MCP narrows the request id to int|non-empty-string.
             return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
         }
 
@@ -174,12 +161,9 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $mismatch = StandardHeaders::validate(self::readHeaders($request), $envelope);
 
         if (null !== $mismatch) {
-            // The id was recovered above, and JSON-RPC requires echoing a detected id.
             return $this->buildErrorResponse($mismatch, id: $requestId);
         }
 
-        // A listen request is answered only when its stream ends, so the buffered path would hold the POST
-        // open with nowhere to push the acknowledgement.
         $streams = ResponseMode::Sse === $this->responseMode
             || SubscriptionsListenRequest::getMethod() === ($envelope['method'] ?? null);
 
@@ -221,7 +205,6 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
             return;
         }
 
-        // The server issues no client-bound requests over Streamable HTTP.
         $this->logger->warning('Dropping an unexpected server-initiated request.');
     }
 
@@ -232,8 +215,6 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
             return;
         }
 
-        // Draining lets any in-flight dispatch coroutine send its response and resolve the awaiting request
-        // before the transport is marked closed.
         try {
             $this->events->emitDrain();
         } finally {
@@ -304,8 +285,8 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     }
 
     /**
-     * Buffers the request, resolving a JSON response when the final response arrives. Under `Auto`, the
-     * first progress notification upgrades the awaited response to an SSE stream instead.
+     * Buffers the request into a JSON response, which under `Auto` the first progress notification
+     * upgrades to an SSE stream.
      *
      * @param array<string, mixed> $envelope
      * @param int|non-empty-string $clientId
@@ -333,7 +314,6 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      */
     private function dispatchStreaming(array $envelope, int|string $clientId, ServerRequestInterface $request): ResponseInterface
     {
-        // The sink shape needs a deferred, but only an `Auto` upgrade from the buffered path completes one.
         /** @var DeferredFuture<ResponseInterface> $unused */
         $unused = new DeferredFuture();
         $internalId = ++$this->lastRequestId;
@@ -355,8 +335,6 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     {
         $token = $request->getAttribute(VerifiedAccessToken::REQUEST_ATTRIBUTE);
 
-        // Dispatch runs under a transport-internal id, so anything the handler puts back on the message
-        // (a subscription id, say) has to name the id the client actually sent.
         return new ReceiveContext(
             $request,
             $token instanceof VerifiedAccessToken ? $token : null,
@@ -426,14 +404,12 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         } elseif (ResponseMode::Auto === $this->responseMode) {
             $this->upgradeToStream($internalId, $sink['clientId'], $sink['buffered'], $notification->jsonSerialize());
         } else {
-            // The JSON response mode buffers a single object and has no stream to carry a notification.
             $this->logger->debug('Dropping a notification: the JSON response mode cannot stream it.');
         }
     }
 
     /**
-     * Lazily promotes a buffered `Auto` request to an SSE stream, replaying the progress notification that
-     * triggered the upgrade and resolving the awaiting `handle()` with the streaming response.
+     * Lazily promotes a buffered `Auto` request to an SSE stream.
      *
      * @param int|non-empty-string              $clientId
      * @param DeferredFuture<ResponseInterface> $buffered
@@ -448,9 +424,6 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $buffered->complete($this->buildSseResponse($stream));
     }
 
-    /**
-     * Ends a stream after its final response frame.
-     */
     private function endStream(int $internalId, SseResponseStream $stream): void
     {
         $stream->end();
@@ -458,7 +431,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     }
 
     /**
-     * Retires a stream whose body the consumer closed (a client disconnect). A no-op once it has ended.
+     * Retires a stream whose body the consumer closed (a client disconnect), and a no-op once it has ended.
      */
     private function releaseStream(int $internalId): null
     {
@@ -466,8 +439,6 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         unset($this->sinks[$internalId]);
 
         if (null === $sink) {
-            // `endStream()` already retired the sink, so the body closing is the graceful path finishing
-            // rather than the peer walking away.
             return null;
         }
 
@@ -481,8 +452,8 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     }
 
     /**
-     * A result rides HTTP 200. An error's status turns on its origin: a handler-produced error rides 200
-     * with the JSON-RPC error in the body, while a protocol error carries a real status.
+     * A result and a handler-produced error both ride HTTP 200 with the JSON-RPC payload in the body,
+     * while a protocol error carries a real status.
      */
     private static function resolveStatus(JsonRpcErrorResponse|JsonRpcResultResponse $message, bool $fromHandler): int
     {
@@ -516,8 +487,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     }
 
     /**
-     * @param null|int       $status The HTTP status to pin, or `null` to derive it from the error's code
-     * @param null|RequestId $id     The request id to echo, where one was detected
+     * @param null|int $status The HTTP status to pin, or `null` to derive it from the error's code
      */
     private function buildErrorResponse(Error $error, ?int $status = null, ?RequestId $id = null): ResponseInterface
     {
@@ -531,8 +501,6 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     }
 
     /**
-     * Flattens the PSR-7 header bag to the single-value-per-name map the header validator consumes.
-     *
      * @return array<string, string>
      */
     private static function readHeaders(ServerRequestInterface $request): array

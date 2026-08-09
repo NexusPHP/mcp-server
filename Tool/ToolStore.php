@@ -52,7 +52,6 @@ final class ToolStore implements MutableToolStoreInterface
         private readonly CacheScope $cacheScope = CacheScope::Private,
     ) {
         foreach ($entries as $key => $entry) {
-            // A decimal-int-string name arrives as an int key, so the comparison is on the stringified key.
             IdentifierNameValidator::validate($entry->tool->name, 'tool "name"');
             Assert::that($entry->tool->name)->isIdentical(
                 (string) $key,
@@ -123,8 +122,6 @@ final class ToolStore implements MutableToolStoreInterface
         $encoded = $tool->jsonSerialize();
         $inputData = null === $arguments || [] === $arguments ? new \stdClass() : $arguments;
 
-        // An argument name that is all digits decodes to a PHP int key, so a name set running 0..n-1
-        // reaches the validator as a JSON array unless it is handed over as an object.
         if (\is_array($inputData) && array_is_list($inputData)) {
             $inputData = (object) $inputData;
         }
@@ -141,7 +138,6 @@ final class ToolStore implements MutableToolStoreInterface
         $result = $entry->executor->execute($arguments, $context);
 
         if ($result instanceof InputRequiredResult) {
-            // The round trip is unfinished, so there is no structured output to validate yet.
             return $result;
         }
 

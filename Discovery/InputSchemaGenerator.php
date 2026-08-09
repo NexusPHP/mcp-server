@@ -92,8 +92,6 @@ final readonly class InputSchemaGenerator
     }
 
     /**
-     * Resolves a parameter's native type to an expandable class, or null when it is not expandable.
-     *
      * @return null|class-string
      */
     public static function resolveExpandableNativeClass(\ReflectionParameter $parameter): ?string
@@ -139,8 +137,7 @@ final readonly class InputSchemaGenerator
     }
 
     /**
-     * Builds an object schema from a class's constructor parameters. The members are not themselves expanded,
-     * so a constructor parameter typed as another class falls through to the mapper and throws.
+     * Builds an object schema from a class's constructor parameters without expanding members.
      *
      * @param class-string $class
      *

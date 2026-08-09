@@ -19,7 +19,7 @@ namespace Nexus\Mcp\Server\Transport\Http;
 enum ResponseMode
 {
     /**
-     * Always buffer the final response into a single JSON object. Progress notifications are dropped.
+     * Always buffer the final response into a single JSON object, dropping progress notifications.
      */
     case Json;
 

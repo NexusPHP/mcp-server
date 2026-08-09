@@ -24,11 +24,8 @@ use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
 /**
- * Serves this MCP server's Protected Resource Metadata document, the record a client reads to learn which
- * authorization servers issue tokens for it.
- *
- * Route it at both `/.well-known/oauth-protected-resource{/path}` and `/.well-known/oauth-protected-resource`,
- * and name the same URL in `BearerAuthenticationMiddleware`'s challenges. Any other path is answered `404`.
+ * Serves this MCP server's Protected Resource Metadata document at `/.well-known/oauth-protected-resource{/path}`
+ * and its root form, answering `404` on any other path.
  *
  * @see https://datatracker.ietf.org/doc/html/rfc9728#section-3
  */
@@ -53,8 +50,8 @@ final readonly class ProtectedResourceMetadataHandler implements RequestHandlerI
     /**
      * @param string                 $resource             Canonical URI of this MCP server
      * @param list<non-empty-string> $authorizationServers Issuers that mint tokens for it, at least one
-     * @param list<non-empty-string> $scopesSupported      Scopes basic use of this server calls for
-     * @param null|non-empty-string  $resourceName         Human-readable name for a consent screen
+     * @param list<non-empty-string> $scopesSupported
+     * @param null|non-empty-string  $resourceName
      */
     public function __construct(
         string $resource,
@@ -82,8 +79,7 @@ final readonly class ProtectedResourceMetadataHandler implements RequestHandlerI
     #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        // The document describes one MCP server, so it belongs only at the well-known paths RFC 9728 derives
-        // from that server's URL, however many routes the handler is mounted on.
+        // The document describes one MCP server, so it belongs only at the well-known paths RFC 9728 derives from that server's URL.
         if (! \in_array($request->getUri()->getPath(), $this->paths, true)) {
             return $this->responseFactory->createResponse(HttpStatus::NotFound->value);
         }

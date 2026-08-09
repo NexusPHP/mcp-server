@@ -27,13 +27,7 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
 /**
- * Makes the MCP endpoint an OAuth 2.1 resource server: it requires a bearer token, binds that token's audience
- * to this server, refuses one whose reported expiry has passed, and enforces the scopes the endpoint calls for.
- *
- * A request presenting no bearer credential is answered `401` with a `WWW-Authenticate` challenge naming the
- * Protected Resource Metadata document, one presenting a bearer credential that cannot be read is answered
- * `400 invalid_request`, an expired one `401 invalid_token`, and a token that is valid but too narrow is
- * answered `403 insufficient_scope`. The validated token reaches request handlers on
+ * Makes the MCP endpoint an OAuth 2.1 resource server, handing what it validated to handlers on
  * `ServerContext::$receiveContext->authInfo`.
  *
  * @see https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#error-handling
@@ -52,9 +46,8 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
 
     /**
      * @param string                 $resource            Canonical URI of this MCP server, which a token's audience must name
-     * @param string                 $resourceMetadataUrl URL of this server's Protected Resource Metadata document
-     * @param list<non-empty-string> $requiredScopes      Scopes every request to the endpoint must carry
-     * @param int<0, max>            $expiryLeewaySeconds Clock skew tolerated when refusing an expired token
+     * @param list<non-empty-string> $requiredScopes
+     * @param int<0, max>            $expiryLeewaySeconds
      * @param null|\Closure(): int   $clock               Reads the current Unix timestamp
      */
     public function __construct(
@@ -78,9 +71,7 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
     {
         $headers = $request->getHeader('Authorization');
 
-        // RFC 6750 puts a request that presented no bearer credential, whether it carried nothing at all or
-        // tried an authentication method this server does not support, in one bucket, answered with a bare
-        // challenge and no error code. Only a bearer credential that cannot be read gets one.
+        // RFC 6750 answers any request presenting no bearer credential with a bare challenge and no error code.
         if (! self::presentsBearerScheme($headers)) {
             return $this->challenge(HttpStatus::Unauthorized, null);
         }
@@ -97,13 +88,10 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
             return $this->challenge(HttpStatus::Unauthorized, 'invalid_token');
         }
 
-        // The validator owns expiry, so a lapsed token here means it reported one and served it anyway. A
-        // validator configured for clock skew needs the same leeway repeated, since its own does not travel.
         if (null !== $token->expiresAt && ($this->clock)() >= $token->expiresAt + $this->expiryLeewaySeconds) {
             return $this->challenge(HttpStatus::Unauthorized, 'invalid_token');
         }
 
-        // A token minted for a different resource must never be accepted here, nor passed further on.
         if (! $this->resource->matchesAudience($token->audience)) {
             return $this->challenge(HttpStatus::Unauthorized, 'invalid_token');
         }
@@ -148,7 +136,6 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
     private static function presentsBearerScheme(array $headers): bool
     {
         foreach ($headers as $header) {
-            // RFC 7235 makes the scheme case-insensitive and separates it from the credential by a space.
             if (strcasecmp(explode(' ', $header)[0], WwwAuthenticateChallenge::BEARER_SCHEME) === 0) {
                 return true;
             }
@@ -162,13 +149,11 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
      */
     private static function readBearerToken(array $headers): ?string
     {
-        // RFC 7235 permits exactly one. Several would be joined into one string, smuggling a second
-        // credential past a lenient validator.
+        // RFC 7235 permits exactly one, and several joined into one string could smuggle a credential past a lenient validator.
         if (\count($headers) !== 1) {
             return null;
         }
 
-        // The scheme was matched case-insensitively before this, so a fixed-length strip is safe.
         $token = trim(substr(reset($headers), \strlen(self::BEARER_PREFIX)));
 
         return '' === $token ? null : $token;

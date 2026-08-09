@@ -43,16 +43,13 @@ final readonly class SubscriptionsListenRequestHandler implements RequestHandler
         \assert($request instanceof SubscriptionsListenRequest);
         \assert($context instanceof ServerContext);
 
-        // A request-scoped transport dispatches under an id of its own, so the id the client will match
-        // this stream against is the one it sent, not the one the handler was dispatched with.
         $subscriptionId = $context->receiveContext->peerRequestId ?? $context->requestId;
         $entry = $this->store->open($subscriptionId, $request->params->notifications, $context->sender);
 
         try {
             $entry->closed->getFuture()->await($context->cancellation);
         } catch (CancelledException) {
-            // The client abandoned the stream. The dispatcher drops the response, which is what the spec
-            // means by an abrupt close carrying none.
+            // The client abandoned the stream, so the dispatcher drops the response, which is the spec's abrupt close.
         }
 
         $this->store->discard($entry);

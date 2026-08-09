@@ -16,8 +16,8 @@ namespace Nexus\Mcp\Server\Attribute;
 use Nexus\Mcp\Core\Schema\Icon;
 
 /**
- * Supplies the MCP server's identity and instructions, applied through `ServerBuilder::register()`.
- * At most one registered source may carry this attribute.
+ * Supplies the MCP server's identity and instructions, applied through `ServerBuilder::register()`
+ * and carried by at most one registered source.
  */
 #[\Attribute(\Attribute::TARGET_CLASS)]
 final readonly class AsServer

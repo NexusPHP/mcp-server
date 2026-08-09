@@ -47,7 +47,6 @@ final class PromptStore implements MutablePromptStoreInterface
         private readonly CacheScope $cacheScope = CacheScope::Private,
     ) {
         foreach ($entries as $key => $entry) {
-            // A decimal-int-string name arrives as an int key, so the comparison is on the stringified key.
             IdentifierNameValidator::validate($entry->prompt->name, 'prompt "name"');
             Assert::that($entry->prompt->name)->isIdentical(
                 (string) $key,

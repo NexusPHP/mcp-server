@@ -19,8 +19,7 @@ use Nexus\Mcp\Core\Schema\RequestId;
 use Nexus\Mcp\Core\Schema\SubscriptionFilter;
 
 /**
- * One open `subscriptions/listen` stream: the id every message on it carries, the notification types the
- * server agreed to honour, and the pump that reaches the client.
+ * One open `subscriptions/listen` stream.
  */
 final readonly class SubscriptionEntry
 {

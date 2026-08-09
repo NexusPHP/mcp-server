@@ -58,8 +58,7 @@ use Psr\Log\NullLogger;
 use function Amp\async;
 
 /**
- * Server-side per-envelope inbound dispatch. Parses, classifies, resolves a handler,
- * spawns a coroutine to run it, and sends the response (or error) on the transport.
+ * Server-side per-envelope inbound dispatch.
  *
  * @internal
  */
@@ -127,9 +126,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                 ['envelope' => $envelope, 'exception' => $e],
             );
 
-            // §4.1 splits notification from request on the envelope's id, not on the method it names. One
-            // carrying an id is a request whatever it is called, and §5 obliges a reply echoing that id.
-            // One without an id is a notification whatever it is called, and must go unanswered.
+            // §4.1 splits notification from request on the envelope's id, not on the method it names, and §5 obliges a reply echoing that id.
             if ($isNotification) {
                 return;
             }
@@ -174,9 +171,6 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
         );
     }
 
-    /**
-     * Whether the dispatcher is already running as many messages as it accepts at once.
-     */
     private function isSaturated(): bool
     {
         return null !== $this->maxInFlight && $this->maxInFlight <= $this->coroutines->count();
@@ -190,7 +184,6 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
         $method = $request::getMethod();
 
         if ($this->isSaturated()) {
-            // Shed before claiming the id, so a shed request leaves no trace a retry would collide with.
             $this->responseSender->send($transport, new JsonRpcErrorResponse(
                 id: $request->id,
                 error: new UnknownProtocolError(
@@ -211,22 +204,16 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
             return;
         }
 
-        // A listen request opens a subscription rather than being processed, so the dispatch cap does not
-        // govern it. `SubscriptionStoreInterface` bounds how many streams may be open.
         $holdsOpen = SubscriptionsListenRequest::getMethod() === $method;
 
         $this->coroutines->track(async(function () use ($request, $transport, $method, $context, $cancellation): void {
             try {
                 try {
                     if (! $request instanceof ClientRequest) {
-                        // The server services only ClientRequest methods. A server-to-client method is
-                        // one the server does not implement, so it answers MethodNotFound.
                         throw new MethodNotFoundException($method, $request->id);
                     }
 
                     if (! $request->params instanceof RequestParams) {
-                        // A user-registered request class may parse without the heavy RequestParams,
-                        // leaving no lifecycle _meta to validate the request against.
                         throw new InvalidRequestException($request->id, '"params" must be an object carrying the lifecycle "_meta" fields.');
                     }
 
@@ -274,12 +261,10 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
 
                     return;
                 } catch (MethodNotFoundException $e) {
-                    // A routing miss the framework raises: no handler serves the method.
                     $this->responseSender->send($transport, ResponseSender::buildErrorResponse($e, $request->id), $method);
 
                     return;
                 } catch (AbstractJsonRpcProtocolException $e) {
-                    // A protocol error the handler itself raised (e.g. invalid tool arguments).
                     $this->sendUnlessCancelled(
                         $cancellation,
                         $transport,
@@ -299,8 +284,6 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                         return;
                     }
 
-                    // A `CancelledException` from a token the handler armed itself is not this request being
-                    // cancelled, so the peer is still owed an answer.
                     $this->logger->error(
                         'Uncaught request handler exception.',
                         ['method' => $method, 'exception' => $e],
@@ -326,8 +309,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     }
 
     /**
-     * Sends `$response` unless the peer abandoned the request first. The spec forbids answering a request
-     * once its cancellation was requested.
+     * Sends `$response` unless the peer abandoned the request first, which the spec forbids answering.
      *
      * @param non-empty-string $method
      */
@@ -361,7 +343,6 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
         }
 
         if ($this->isSaturated()) {
-            // JSON-RPC 2.0 §4.1 forbids answering a notification, so a shed one is dropped outright.
             if ($this->shedNotifications->admits()) {
                 $this->logger->warning(
                     'Shed {count} notification(s) so far. The server is at its in-flight dispatch cap.',
@@ -376,7 +357,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
             try {
                 $handler->handle($notification);
             } catch (\Throwable $e) {
-                // Notifications carry no response per JSON-RPC 2.0 §4.1. Failure is logged only.
+                // JSON-RPC 2.0 §4.1 gives a notification no response, so failure is only logged.
                 $this->logger->error(
                     'Uncaught notification handler exception.',
                     ['method' => $method, 'exception' => $e],

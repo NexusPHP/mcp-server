@@ -20,8 +20,7 @@ use Nexus\Mcp\Core\Schema\Result;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * Rejects an extension-owned request whose per-request client capabilities
- * did not declare the extension.
+ * Rejects an extension-owned request whose per-request client capabilities did not declare the extension.
  *
  * @internal
  *

@@ -36,11 +36,6 @@ use Psr\Log\NullLogger;
 /**
  * Rejects a `tools/call` whose `Mcp-Param-{Name}` headers disagree with the arguments in its body.
  *
- * The spec requires any server that processes the body to validate the mirrored headers against it, so an
- * intermediary routing on a header value cannot disagree with what the server executes. Bindings are read
- * from the tool `inputSchema` declarations once and cached, and the cache is dropped whenever a
- * `ListChangeSourceInterface` store reports that its listing changed.
- *
  * @see https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http#server-behavior-for-custom-headers
  */
 final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
@@ -68,15 +63,11 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
     #[\Override]
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        // Reading the body consumes it when the host's stream cannot rewind, so re-seat it before the
-        // request travels on. The transport downstream reads the body again to parse the envelope.
         $body = (string) $request->getBody();
         $request = $request->withBody($this->streamFactory->createStream($body));
         $envelope = self::readEnvelope($body);
 
         if (CallToolRequest::getMethod() !== ($envelope['method'] ?? null)) {
-            // Only a tool call mirrors arguments into headers. Every other method, malformed bodies included,
-            // is the transport's to answer, even when it carries a `params.name` of its own.
             return $handler->handle($request);
         }
 
@@ -126,8 +117,6 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
                 $result = ParameterHeaderScanner::scan($tool->inputSchema);
 
                 if (! $result->valid) {
-                    // An invalid scan yields no bindings, so the tool goes unvalidated. A conforming client
-                    // already excluded it from its own listing and will never call it.
                     $this->logger->warning(
                         'Skipping {tool} header validation: its "x-mcp-header" declarations are invalid.',
                         ['tool' => $tool->name, 'reason' => $result->reason],
@@ -144,9 +133,6 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
     }
 
     /**
-     * Decodes the already-read request body. An int-keyed decode yields no envelope keys and so governs
-     * nothing.
-     *
      * @return array<string, mixed>
      */
     private static function readEnvelope(string $body): array

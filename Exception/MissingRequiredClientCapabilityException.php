@@ -47,9 +47,8 @@ final class MissingRequiredClientCapabilityException extends AbstractJsonRpcProt
     }
 
     /**
-     * Renders each required slot, naming the nested members of a map-valued
-     * slot (`extensions.com.example/feature`) so the refusal says which one
-     * is missing.
+     * Renders each required slot, naming the nested members of a map-valued slot
+     * (`extensions.com.example/feature`).
      *
      * @param array<string, mixed> $capabilities
      *

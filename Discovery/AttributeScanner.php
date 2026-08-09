@@ -132,9 +132,8 @@ final readonly class AttributeScanner
     }
 
     /**
-     * A completion parameter is either an injected `ServerContext`, the context-arguments `array`
-     * slot, or a value slot that must take the raw partial string. There is no enum coercion on
-     * this path, so a string-backed enum that a prompt method could declare is rejected here.
+     * A completion parameter is an injected `ServerContext`, the context-arguments `array` slot, or
+     * a value slot taking the raw partial string, with no enum coercion on this path.
      *
      * @throws UnsupportedParameterTypeException
      */
@@ -171,7 +170,6 @@ final readonly class AttributeScanner
             return $type->isBuiltin() && ($type->getName() === 'string' || $type->getName() === 'mixed');
         }
 
-        // Untyped accepts the string verbatim. An intersection type cannot be a string.
         return ! $type instanceof \ReflectionType;
     }
 
@@ -297,7 +295,6 @@ final readonly class AttributeScanner
                 : self::isStringResolvableEnum($type->getName());
         }
 
-        // Untyped accepts the string verbatim. An intersection type cannot be a string.
         return ! $type instanceof \ReflectionType;
     }
 

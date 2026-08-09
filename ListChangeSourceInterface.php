@@ -14,10 +14,7 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server;
 
 /**
- * A store whose listing can change after `build()`, and which reports each change to its listeners.
- *
- * The store names no notification type. Which `notifications/*\/list_changed` a change becomes is fixed
- * by the feature the listener registered on.
+ * A store whose listing can change after `build()` and reports each change to its listeners.
  */
 interface ListChangeSourceInterface
 {

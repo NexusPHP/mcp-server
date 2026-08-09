@@ -18,9 +18,8 @@ use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * Reads a single resource whose URI matched a registered `ResourceTemplate`.
- * Receives the matched variable bindings extracted from the URI by the
- * URI-template matcher.
+ * Reads a single resource whose URI matched a registered `ResourceTemplate`,
+ * receiving the variable bindings the matcher extracted.
  */
 interface TemplatedResourceReaderInterface
 {

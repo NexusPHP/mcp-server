@@ -24,12 +24,8 @@ use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
 /**
- * Guards the MCP endpoint against DNS rebinding by rejecting requests from an unrecognised `Origin` or `Host`.
- *
- * A present-but-unlisted `Origin` is answered with an id-less JSON-RPC error on HTTP 403. A request without an
- * `Origin` header (non-browser clients) passes through, since only browsers send it. `Host` validation is a
- * beyond-spec, opt-in dimension: an empty allow-list disables it, otherwise the `Host` header must be present
- * and listed. Matching is case-insensitive, since RFC 9110 makes the scheme and host of a URI so.
+ * Guards the MCP endpoint against DNS rebinding by rejecting an unlisted `Origin` with an id-less JSON-RPC
+ * error on HTTP 403.
  */
 final readonly class DnsRebindingProtectionMiddleware implements MiddlewareInterface
 {

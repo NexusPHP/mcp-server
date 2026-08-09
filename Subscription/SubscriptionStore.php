@@ -40,18 +40,14 @@ use Revolt\EventLoop;
  */
 final class SubscriptionStore implements SubscriptionStoreInterface
 {
-    /**
-     * How many streams one store holds open before it starts refusing new ones.
-     */
     public const int DEFAULT_MAX_SUBSCRIPTIONS = 1_024;
-
     private const string TOOLS = 'tools';
     private const string PROMPTS = 'prompts';
     private const string RESOURCES = 'resources';
 
     /**
-     * Keyed by object identity, not by any request id. Request ids are unique per connection, and a
-     * sessionless endpoint serves many connections through one store.
+     * Keyed by object identity, since request ids are unique per connection and a sessionless
+     * endpoint serves many through one store.
      *
      * @var array<int, SubscriptionEntry>
      */
@@ -60,8 +56,6 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     private bool $drained = false;
 
     /**
-     * List-change kinds, and resource URIs, awaiting the end of the current event-loop tick.
-     *
      * @var array<non-empty-string, true>
      */
     private array $pendingListChanges = [];
@@ -88,7 +82,6 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     public function open(RequestId $subscriptionId, SubscriptionFilter $requested, SenderInterface $sender): SubscriptionEntry
     {
         if ($this->maxSubscriptions <= \count($this->entries)) {
-            // Refused before the acknowledgement, so the client never sees a stream it does not have.
             throw new SubscriptionLimitReachedException($this->maxSubscriptions, $subscriptionId);
         }
 
@@ -98,8 +91,6 @@ final class SubscriptionStore implements SubscriptionStoreInterface
         $closed = new DeferredFuture();
         $entry = new SubscriptionEntry($subscriptionId, $honoured, $sender, $closed);
 
-        // The spec makes the acknowledgement the first message on the stream, so it goes out before the
-        // entry is visible to any emit.
         $sender->sendNotification(new SubscriptionsAcknowledgedNotification(
             params: new SubscriptionsAcknowledgedNotificationParams(
                 notifications: $honoured,
@@ -108,7 +99,6 @@ final class SubscriptionStore implements SubscriptionStoreInterface
         ));
 
         if ($this->drained) {
-            // The server is shutting down. Settle the stream at once so its handler cannot outlive the drain.
             $closed->complete();
 
             return $entry;
@@ -128,8 +118,6 @@ final class SubscriptionStore implements SubscriptionStoreInterface
 
         $this->discard($entry);
 
-        // The spec has the server name the `subscriptions/listen` request it is tearing down, and tags
-        // every notification delivered on a stream with that stream's id.
         $this->pushTo($entry, new CancelledNotification(
             params: new CancelledNotificationParams(
                 requestId: $entry->subscriptionId,
@@ -180,7 +168,7 @@ final class SubscriptionStore implements SubscriptionStoreInterface
         Assert::that($uri)->isNonEmptyString('An updated resource URI must be a non-empty string.');
 
         $this->pendingResourceUpdates[$uri] = true;
-        $this->scheduleFlush();
+        $this->scheduleEndOfTickFlush();
     }
 
     #[\Override]
@@ -200,13 +188,10 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     private function coalesceListChange(string $kind): void
     {
         $this->pendingListChanges[$kind] = true;
-        $this->scheduleFlush();
+        $this->scheduleEndOfTickFlush();
     }
 
-    /**
-     * Holds announcements until the end of the tick, so a burst of mutations reaches each stream once.
-     */
-    private function scheduleFlush(): void
+    private function scheduleEndOfTickFlush(): void
     {
         EventLoop::defer(function (): void {
             $kinds = $this->pendingListChanges;
@@ -221,7 +206,6 @@ final class SubscriptionStore implements SubscriptionStoreInterface
             }
 
             foreach (array_keys($uris) as $uri) {
-                // An all-digit URI is a legal string but an int array key, so it comes back coerced.
                 $this->broadcastResourceUpdate((string) $uri);
             }
         });
@@ -273,8 +257,8 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     }
 
     /**
-     * Sends one notification to one stream. A send that fails must not cost the streams behind it, and a
-     * stream torn down mid-broadcast must hear nothing further.
+     * Sends one notification to one stream, so a failure or a mid-broadcast teardown cannot cost the
+     * streams behind it.
      *
      * @param JsonRpcNotification<non-empty-string> $notification
      */

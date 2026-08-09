@@ -20,8 +20,7 @@ use Nexus\Mcp\Core\Auth\VerifiedAccessToken;
 use Nexus\Mcp\Core\Validation\SuggestedDependencyGuard;
 
 /**
- * Validates JWT bearer tokens against a key set, reading the claim spellings the common
- * authorization servers use. Needs the suggested `firebase/php-jwt` package.
+ * JWT bearer token validator over a key set, needing the suggested `firebase/php-jwt` package.
  */
 final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInterface
 {
@@ -46,7 +45,6 @@ final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInt
 
         $audience = self::readAudience($claims);
 
-        // A key set may sign for more than one issuer, so audience alone is not a tenant boundary.
         if (($claims['iss'] ?? null) !== $this->expectedIssuer) {
             return null;
         }
@@ -78,7 +76,6 @@ final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInt
         try {
             return (array) JWT::decode($token, $this->keys);
         } catch (\Exception) {
-            // Signature, expiry, and shape failures all mean the same thing to the caller: no grant.
             return null;
         }
     }

@@ -21,7 +21,7 @@ use Nexus\Mcp\Server\Exception\UnsupportedNestedParameterException;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * Binds a named value map to a handler method's parameters, injecting the `ServerContext` and hydrating enums.
+ * Binds a named value map to a handler method's parameters.
  *
  * @internal
  */

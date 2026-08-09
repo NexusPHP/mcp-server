@@ -26,8 +26,7 @@ use Nexus\Mcp\Core\Schema\ServerCapabilities;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * Handles the `server/discover` request, advertising the server's supported
- * protocol versions, capabilities, and full identity.
+ * Handles the `server/discover` request.
  *
  * @implements RequestHandlerInterface<'server/discover', DiscoverResult, ServerContext>
  */

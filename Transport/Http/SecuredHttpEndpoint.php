@@ -28,13 +28,7 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 /**
- * Wraps an inner handler (typically the Streamable HTTP transport) with the recommended security middleware,
- * ordered CORS, then DNS-rebinding protection, then `Mcp-Param-{Name}` validation, then the optional
- * body-size cap.
- *
- * Origin allow-listing is required. `Host` allow-listing, bearer authentication, parameter-header validation,
- * and the body-size cap apply only when configured. A server whose tools declare `x-mcp-header` must pass its
- * tool store so the spec-required header-to-body validation runs.
+ * Wraps an inner handler (typically the Streamable HTTP transport) with the recommended security middleware.
  */
 final readonly class SecuredHttpEndpoint implements RequestHandlerInterface
 {
@@ -43,7 +37,7 @@ final readonly class SecuredHttpEndpoint implements RequestHandlerInterface
     /**
      * @param list<non-empty-string>   $allowedOrigins Origins permitted to reach the endpoint, or `['*']` to allow any
      * @param list<non-empty-string>   $allowedHosts   Hosts permitted to reach the endpoint (empty disables `Host` validation), or `['*']` to allow any
-     * @param null|int<0, max>         $maxBodyBytes   Request body byte cap, or `null` to leave the body uncapped
+     * @param null|int<0, max>         $maxBodyBytes
      * @param null|ToolStoreInterface  $toolStore      The served tool store, enabling `Mcp-Param-{Name}` validation
      * @param null|MiddlewareInterface $authentication Bearer token enforcement, making the endpoint an OAuth resource server
      */
@@ -63,8 +57,6 @@ final readonly class SecuredHttpEndpoint implements RequestHandlerInterface
             new DnsRebindingProtectionMiddleware($allowedOrigins, $allowedHosts, $responseFactory, $streamFactory),
         ];
 
-        // Authentication runs before anything reads the body, so an unauthorized request is turned away
-        // without it being parsed.
         if (null !== $authentication) {
             $middleware[] = $authentication;
         }

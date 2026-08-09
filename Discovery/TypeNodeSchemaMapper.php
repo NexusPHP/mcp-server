@@ -57,9 +57,6 @@ final class TypeNodeSchemaMapper
         };
     }
 
-    /**
-     * Resolves which of the native or docblock type nodes is mapped to JSON Schema.
-     */
     public function resolveTypeNode(?TypeNode $native, ?TypeNode $doc): ?TypeNode
     {
         $nativeCore = null !== $native ? self::stripNull($native) : null;
@@ -104,8 +101,6 @@ final class TypeNodeSchemaMapper
     }
 
     /**
-     * Builds a JSON Schema `array` fragment from an element schema.
-     *
      * @param array<string, mixed> $items
      *
      * @return array<string, mixed>
@@ -116,9 +111,8 @@ final class TypeNodeSchemaMapper
     }
 
     /**
-     * Prepares a mapped fragment for a position that requires a schema. An unconstrained type maps to no
-     * keywords, and an empty PHP array encodes as `[]`, which is not a schema. JSON Schema 2020-12 spells
-     * the always-valid schema as `true`.
+     * Prepares a mapped fragment for a position that requires a schema, substituting JSON Schema 2020-12's
+     * always-valid `true` where an unconstrained type would otherwise encode as `[]`.
      *
      * @param array<string, mixed> $schema
      *
@@ -129,9 +123,6 @@ final class TypeNodeSchemaMapper
         return [] === $schema ? true : $schema;
     }
 
-    /**
-     * Whether the docblock type is a more specific stand-in for the native type.
-     */
     private function docRefinesNative(TypeNode $native, TypeNode $doc): bool
     {
         if (self::isBareArray($native) && self::isArrayLike($doc)) {

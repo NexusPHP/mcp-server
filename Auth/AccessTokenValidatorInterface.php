@@ -16,12 +16,8 @@ namespace Nexus\Mcp\Server\Auth;
 use Nexus\Mcp\Core\Auth\VerifiedAccessToken;
 
 /**
- * Turns a bearer token into what it grants. The SDK ships no signature or introspection machinery, so a host
- * supplies the verification its authorization server calls for.
- *
- * An implementation owns the whole of token validation: signature or introspection, issuer, and expiry.
- * It rejects what it cannot verify by returning `null`, a token carrying no expiry included.
- * `BearerAuthenticationMiddleware` documents what it enforces on top.
+ * Turns a bearer token into what it grants, owning the whole of validation and returning `null` for anything
+ * it cannot verify, a token carrying no expiry included.
  *
  * @see https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#token-handling
  */

@@ -17,7 +17,7 @@ use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Server\Exception\InvalidCursorException;
 
 /**
- * Walks a keyed entry map one page at a time, resolving each cursor to the entry that follows it.
+ * Walks a keyed entry map one page at a time.
  *
  * @internal
  */
@@ -45,8 +45,6 @@ final readonly class CursorPaginator
     {
         $startIndex = self::resolveStartIndex($entries, $cursor);
 
-        // Keys are preserved because a decimal-int-string entry name is already an int key, and reindexing
-        // would mint a cursor naming a position rather than an entry.
         $page = \array_slice($entries, $startIndex, $this->pageSize, preserve_keys: true);
         $hasMore = $startIndex + \count($page) < \count($entries);
         $lastKey = array_key_last($page);

@@ -16,29 +16,21 @@ namespace Nexus\Mcp\Server;
 use Nexus\Assert\Assert;
 
 /**
- * Mints and checks the `requestState` an `InputRequiredResult` carries across a round trip.
- *
- * The payload travels in the clear and is signed, not encrypted, so a state may hold a
- * continuation marker but never a secret.
+ * Mints and checks the `requestState` an `InputRequiredResult` carries across a round trip. It signs
+ * without encrypting, so a state may hold a continuation marker and never a secret.
  *
  * @see https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/mrtr
  */
 final readonly class RequestStateSigner
 {
     /**
-     * Separates the payload from its signature. Hexadecimal signatures never contain it, so the
-     * last occurrence always splits the two however many the payload holds.
+     * Separates the payload from its signature, on the last occurrence since a hexadecimal
+     * signature never contains it.
      */
     private const string SEPARATOR = '.';
 
-    /**
-     * Entropy behind a generated signing key, in bytes.
-     */
     private const int SECRET_BYTES = 32;
 
-    /**
-     * @param string $secret Signing key, held only by the server that mints the state
-     */
     public function __construct(private string $secret, private string $algorithm = 'sha256')
     {
         Assert::that($secret)->isNonEmptyString('The request-state signing secret must be a non-empty string.');
@@ -63,8 +55,8 @@ final readonly class RequestStateSigner
     }
 
     /**
-     * The payload a state carries, or null when its signature does not hold. A handler that
-     * receives null has been handed a state this server did not mint.
+     * The payload a state carries, or null when its signature does not hold, meaning this
+     * server did not mint it.
      */
     public function verify(string $state): ?string
     {
