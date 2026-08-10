@@ -49,16 +49,21 @@ final readonly class RequestStateSigner
         return new self(bin2hex(random_bytes(self::SECRET_BYTES)));
     }
 
-    public function sign(string $payload): string
+    /**
+     * Mints a state, bound to `$binding` when one is given.
+     *
+     * Pass whatever identifies the caller entitled to resume: an unbound state is replayable by any caller.
+     */
+    public function sign(string $payload, string $binding = ''): string
     {
-        return $payload.self::SEPARATOR.hash_hmac($this->algorithm, $payload, $this->secret);
+        return $payload.self::SEPARATOR.hash_hmac($this->algorithm, self::bind($binding, $payload), $this->secret);
     }
 
     /**
-     * The payload a state carries, or null when its signature does not hold, meaning this
-     * server did not mint it.
+     * The payload a state carries, or null when its signature does not hold, meaning this server did
+     * not mint it or minted it for a different `$binding`.
      */
-    public function verify(string $state): ?string
+    public function verify(string $state, string $binding = ''): ?string
     {
         $split = strrpos($state, self::SEPARATOR);
 
@@ -68,6 +73,14 @@ final readonly class RequestStateSigner
 
         $payload = substr($state, 0, $split);
 
-        return hash_equals($this->sign($payload), $state) ? $payload : null;
+        return hash_equals($this->sign($payload, $binding), $state) ? $payload : null;
+    }
+
+    /**
+     * Length-prefixes the binding, so no two binding-and-payload pairs share a signing input.
+     */
+    private static function bind(string $binding, string $payload): string
+    {
+        return \strlen($binding).self::SEPARATOR.$binding.$payload;
     }
 }

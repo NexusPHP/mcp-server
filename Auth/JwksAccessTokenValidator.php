@@ -56,14 +56,13 @@ final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInt
             return null;
         }
 
-        $clientId = $claims['azp'] ?? $claims['client_id'] ?? $claims['cid'] ?? null;
         $subject = $claims['sub'] ?? null;
 
         return new VerifiedAccessToken(
             audience: $audience,
             scopes: self::readScopes($claims),
-            subject: \is_string($subject) ? $subject : null,
-            clientId: \is_string($clientId) ? $clientId : null,
+            subject: \is_string($subject) && '' !== $subject ? $subject : null,
+            clientId: self::readClientId($claims),
             expiresAt: (int) $expiresAt,
         );
     }
@@ -104,6 +103,26 @@ final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInt
         }
 
         return $audience;
+    }
+
+    /**
+     * The client the token names, from `azp`, `client_id` or `cid`, skipping any that names nobody.
+     *
+     * @param array<array-key, mixed> $claims
+     *
+     * @return null|non-empty-string
+     */
+    private static function readClientId(array $claims): ?string
+    {
+        foreach (['azp', 'client_id', 'cid'] as $claim) {
+            $candidate = $claims[$claim] ?? null;
+
+            if (\is_string($candidate) && '' !== $candidate) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     /**
