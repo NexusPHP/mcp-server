@@ -43,6 +43,8 @@ use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcResultResponse;
 use Nexus\Mcp\Core\Schema\MetaObject\GenericResultMetaObject;
+use Nexus\Mcp\Core\Schema\Notification\CancelledNotification;
+use Nexus\Mcp\Core\Schema\NotificationParams\CancelledNotificationParams;
 use Nexus\Mcp\Core\Schema\ProtocolVersion;
 use Nexus\Mcp\Core\Schema\Request\ClientRequest;
 use Nexus\Mcp\Core\Schema\Request\SubscriptionsListenRequest;
@@ -188,6 +190,24 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     private function isListenSaturated(): bool
     {
         return null !== $this->maxInFlight && $this->maxInFlight <= $this->unstartedListens->count();
+    }
+
+    /**
+     * The cap exemption performs the cancel, so each request in flight admits at most one cancellation past the cap.
+     *
+     * @param JsonRpcNotification<non-empty-string> $notification
+     * @param non-empty-string                      $method
+     */
+    private function relievesSaturation(JsonRpcNotification $notification, string $method): bool
+    {
+        if (CancelledNotification::getMethod() !== $method) {
+            return false;
+        }
+
+        $params = $notification->params;
+        \assert($params instanceof CancelledNotificationParams);
+
+        return $this->inboundRequests->cancel($params->requestId);
     }
 
     /**
@@ -365,7 +385,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
             return;
         }
 
-        if ($this->isSaturated()) {
+        if ($this->isSaturated() && ! $this->relievesSaturation($notification, $method)) {
             if ($this->shedNotifications->admits()) {
                 $this->logger->warning(
                     'Shed {count} notification(s) so far. The server is at its in-flight dispatch cap.',

@@ -114,6 +114,8 @@ use Psr\Log\NullLogger;
  */
 final class ServerBuilder
 {
+    public const int DEFAULT_MAX_IN_FLIGHT = 1_024;
+
     private ?Implementation $serverInfo = null;
 
     /**
@@ -127,7 +129,7 @@ final class ServerBuilder
     /**
      * @var null|int<1, max>
      */
-    private ?int $maxInFlight = null;
+    private ?int $maxInFlight = self::DEFAULT_MAX_IN_FLIGHT;
 
     private LoggerInterface $logger;
     private SchemaValidatorInterface $schemaValidator;
@@ -236,8 +238,8 @@ final class ServerBuilder
     }
 
     /**
-     * Caps how many inbound messages the server processes at once, with null (the default) lifting the cap.
-     * Past the cap a request is answered `-32000` and a notification is dropped, `subscriptions/listen` excepted.
+     * Caps how many inbound messages the server processes at once, defaulting to `DEFAULT_MAX_IN_FLIGHT`, with
+     * null lifting the cap.
      */
     public function setMaxInFlightDispatches(?int $max): self
     {
