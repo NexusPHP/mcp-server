@@ -133,13 +133,13 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     private static function readEnvelope(string $body): array
     {
         $decoded = json_decode($body, associative: true);
 
-        return \is_array($decoded) ? array_filter($decoded, is_string(...), \ARRAY_FILTER_USE_KEY) : [];
+        return \is_array($decoded) ? $decoded : [];
     }
 
     /**
