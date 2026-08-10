@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Dispatch;
 
 use Amp\Cancellation;
+use Amp\DeferredFuture;
 use Nexus\Mcp\Core\Dispatch\LogThrottle;
 use Nexus\Mcp\Core\Dispatch\MessageDispatcherInterface;
 use Nexus\Mcp\Core\Dispatch\PendingCoroutines;
@@ -68,6 +69,12 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     private const string OVERLOADED_MESSAGE = 'Server overloaded';
 
     private PendingCoroutines $coroutines;
+
+    /**
+     * Start signal per served listen.
+     */
+    private PendingCoroutines $unstartedListens;
+
     private ResponseSender $responseSender;
     private LogThrottle $orphanResponses;
     private LogThrottle $shedNotifications;
@@ -88,6 +95,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
         private PendingInboundRequests $inboundRequests = new PendingInboundRequests(),
     ) {
         $this->coroutines = new PendingCoroutines($this->logger);
+        $this->unstartedListens = new PendingCoroutines($this->logger);
         $this->responseSender = new ResponseSender($this->logger);
         $this->orphanResponses = new LogThrottle();
         $this->shedNotifications = new LogThrottle();
@@ -177,14 +185,20 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
         return null !== $this->maxInFlight && $this->maxInFlight <= $this->coroutines->count();
     }
 
+    private function isListenSaturated(): bool
+    {
+        return null !== $this->maxInFlight && $this->maxInFlight <= $this->unstartedListens->count();
+    }
+
     /**
      * @param JsonRpcRequest<non-empty-string> $request
      */
     private function dispatchRequest(JsonRpcRequest $request, TransportInterface $transport, ReceiveContext $context): void
     {
         $method = $request::getMethod();
+        $holdsOpen = SubscriptionsListenRequest::getMethod() === $method && $this->requestHandlers->get($method) !== null;
 
-        if ($this->isSaturated()) {
+        if ($holdsOpen ? $this->isListenSaturated() : $this->isSaturated()) {
             $this->responseSender->send($transport, new JsonRpcErrorResponse(
                 id: $request->id,
                 error: new UnknownProtocolError(
@@ -205,9 +219,17 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
             return;
         }
 
-        $holdsOpen = SubscriptionsListenRequest::getMethod() === $method;
+        $started = null;
 
-        $this->coroutines->track(async(function () use ($request, $transport, $method, $context, $cancellation): void {
+        if ($holdsOpen) {
+            /** @var DeferredFuture<null> $started */
+            $started = new DeferredFuture();
+            $this->unstartedListens->track($started->getFuture());
+        }
+
+        $this->coroutines->track(async(function () use ($request, $transport, $method, $context, $cancellation, $started): void {
+            $started?->complete();
+
             try {
                 try {
                     if (! $request instanceof ClientRequest) {
