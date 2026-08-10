@@ -16,6 +16,7 @@ namespace Nexus\Mcp\Server\Discovery;
 use Nexus\Assert\Assert;
 use Nexus\Assert\ExpectationFailedException;
 use Nexus\Mcp\Core\Exception\InvalidParamsException;
+use Nexus\Mcp\Core\SafeDisplay;
 use Nexus\Mcp\Core\Validation\EnumValueValidator;
 use Nexus\Mcp\Server\Exception\UnsupportedNestedParameterException;
 use Nexus\Mcp\Server\ServerContext;
@@ -40,7 +41,7 @@ final class ArgumentBinder
         try {
             return self::resolveBindings($method, $values, $context);
         } catch (ExpectationFailedException $e) {
-            throw new InvalidParamsException($context->requestId, $e->getMessage(), $e);
+            throw new InvalidParamsException($context->requestId, SafeDisplay::sanitiseCause($e->getMessage()), $e);
         }
     }
 

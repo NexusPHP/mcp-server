@@ -15,6 +15,7 @@ namespace Nexus\Mcp\Server\Tool;
 
 use Nexus\Assert\Assert;
 use Nexus\Mcp\Core\Exception\InvalidParamsException;
+use Nexus\Mcp\Core\SafeDisplay;
 use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Result\CallToolResult;
@@ -131,7 +132,9 @@ final class ToolStore implements MutableToolStoreInterface
         if ([] !== $inputErrors) {
             throw new InvalidParamsException(
                 $context->requestId,
-                \sprintf('Invalid arguments for tool "%s": %s', $name, implode('; ', $inputErrors)),
+                SafeDisplay::sanitiseCause(
+                    \sprintf('Invalid arguments for tool "%s": %s', $name, implode('; ', $inputErrors)),
+                ),
             );
         }
 

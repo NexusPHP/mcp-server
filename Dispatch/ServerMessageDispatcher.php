@@ -31,6 +31,7 @@ use Nexus\Mcp\Core\Handler\NotificationHandlerInterface;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
 use Nexus\Mcp\Core\JsonRpc\JsonRpcMessageParser;
 use Nexus\Mcp\Core\JsonRpc\ResultResponseFactory;
+use Nexus\Mcp\Core\SafeDisplay;
 use Nexus\Mcp\Core\Schema\Enum\SdkErrorCode;
 use Nexus\Mcp\Core\Schema\Error\InternalError;
 use Nexus\Mcp\Core\Schema\Error\UnknownProtocolError;
@@ -223,7 +224,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                         $this->responseSender->send($transport, new JsonRpcErrorResponse(
                             id: $request->id,
                             error: new UnsupportedProtocolVersionError(
-                                requested: $requestedVersion,
+                                requested: SafeDisplay::sanitise($requestedVersion),
                                 supported: ProtocolVersion::SUPPORTED_VERSIONS,
                             ),
                         ), $method);

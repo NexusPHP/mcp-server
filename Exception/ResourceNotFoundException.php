@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Exception;
 
 use Nexus\Mcp\Core\Exception\AbstractJsonRpcProtocolException;
+use Nexus\Mcp\Core\SafeDisplay;
 use Nexus\Mcp\Core\Schema\Enum\ProtocolErrorCode;
 use Nexus\Mcp\Core\Schema\RequestId;
 
@@ -29,7 +30,7 @@ final class ResourceNotFoundException extends AbstractJsonRpcProtocolException
     ) {
         parent::__construct(
             $requestId,
-            \sprintf('No resource registered under URI "%s".', $uri),
+            \sprintf('No resource registered under URI "%s".', SafeDisplay::sanitiseCause($uri)),
             $previous,
             errorData: ['uri' => $uri],
         );
