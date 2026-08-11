@@ -51,8 +51,11 @@ final class ResourceStore implements MutableResourceStoreInterface
             ->isNonEmptyString('Resource store entry key must be a non-empty string.')
         ;
 
-        foreach ($entries as $entry) {
+        foreach ($entries as $key => $entry) {
             IdentifierNameValidator::validate($entry->resource->name, 'resource "name"');
+            Assert::that($entry->resource->uri)
+                ->isIdentical($key, 'Resource store entry key "{other}" must match its resource URI "{value}".')
+            ;
         }
         Assert::that($pageSize)
             ->isPositiveInt('Resource store page size must be a positive integer, {value} given.')
