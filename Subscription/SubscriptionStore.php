@@ -54,6 +54,7 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     private array $entries = [];
 
     private bool $drained = false;
+    private int $pendingOpens = 0;
 
     /**
      * @var array<non-empty-string, true>
@@ -81,7 +82,7 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     #[\Override]
     public function open(RequestId $subscriptionId, SubscriptionFilter $requested, SenderInterface $sender): SubscriptionEntry
     {
-        if ($this->maxSubscriptions <= \count($this->entries)) {
+        if ($this->maxSubscriptions <= \count($this->entries) + $this->pendingOpens) {
             throw new SubscriptionLimitReachedException($this->maxSubscriptions, $subscriptionId);
         }
 
@@ -91,12 +92,19 @@ final class SubscriptionStore implements SubscriptionStoreInterface
         $closed = new DeferredFuture();
         $entry = new SubscriptionEntry($subscriptionId, $honoured, $sender, $closed);
 
-        $sender->sendNotification(new SubscriptionsAcknowledgedNotification(
-            params: new SubscriptionsAcknowledgedNotificationParams(
-                notifications: $honoured,
-                meta: new NotificationMetaObject(subscriptionId: $subscriptionId),
-            ),
-        ));
+        // The acknowledgement can suspend, so the slot is held from the check until registration.
+        ++$this->pendingOpens;
+
+        try {
+            $sender->sendNotification(new SubscriptionsAcknowledgedNotification(
+                params: new SubscriptionsAcknowledgedNotificationParams(
+                    notifications: $honoured,
+                    meta: new NotificationMetaObject(subscriptionId: $subscriptionId),
+                ),
+            ));
+        } finally {
+            --$this->pendingOpens;
+        }
 
         if ($this->drained) {
             $closed->complete();
