@@ -28,6 +28,11 @@ use Nexus\Mcp\Server\ServerContext;
  */
 final readonly class CompleteRequestHandler implements RequestHandlerInterface
 {
+    /**
+     * CompleteResult schema on `values`: "Must not exceed 100 items.".
+     */
+    private const int MAX_VALUES = 100;
+
     public function __construct(private CompletionStoreInterface $store)
     {
     }
@@ -36,15 +41,31 @@ final readonly class CompleteRequestHandler implements RequestHandlerInterface
     public function handle(JsonRpcRequest $request, AbstractContext $context): CompleteResult
     {
         \assert($request instanceof CompleteRequest);
+        \assert($context instanceof ServerContext);
 
         $params = $request->params;
 
-        return $this->store->complete(
+        $result = $this->store->complete(
             $params->ref,
             $params->argument['name'],
             $params->argument['value'],
             $params->context['arguments'] ?? null,
             $context,
+        );
+
+        $values = $result->completion['values'];
+
+        if (\count($values) <= self::MAX_VALUES) {
+            return $result;
+        }
+
+        return new CompleteResult(
+            completion: [
+                'values' => \array_slice($values, 0, self::MAX_VALUES),
+                'total' => $result->completion['total'] ?? \count($values),
+                'hasMore' => true,
+            ],
+            meta: $result->meta,
         );
     }
 }
