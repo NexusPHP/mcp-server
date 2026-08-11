@@ -155,12 +155,12 @@ final class ServerBuilder
     private array $resourceTemplates = [];
 
     /**
-     * @var array<non-empty-string, array<non-empty-string, CompletionProviderInterface>>
+     * @var array<int|non-empty-string, array<int|non-empty-string, CompletionProviderInterface>>
      */
     private array $promptCompletions = [];
 
     /**
-     * @var array<non-empty-string, array<non-empty-string, CompletionProviderInterface>>
+     * @var array<int|non-empty-string, array<int|non-empty-string, CompletionProviderInterface>>
      */
     private array $templateCompletions = [];
 

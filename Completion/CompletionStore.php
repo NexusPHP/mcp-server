@@ -22,8 +22,8 @@ use Nexus\Mcp\Server\ServerContext;
 /**
  * In-memory implementation of `CompletionStoreInterface`.
  *
- * @phpstan-type ArgumentMap array<non-empty-string, (\Closure(string, ?array<array-key, string>, ServerContext): CompleteResult)|CompletionProviderInterface>
- * @phpstan-type ProviderMap array<non-empty-string, array<non-empty-string, CompletionProviderInterface>>
+ * @phpstan-type ArgumentMap array<int|non-empty-string, (\Closure(string, ?array<array-key, string>, ServerContext): CompleteResult)|CompletionProviderInterface>
+ * @phpstan-type ProviderMap array<int|non-empty-string, array<int|non-empty-string, CompletionProviderInterface>>
  */
 final readonly class CompletionStore implements CompletionStoreInterface
 {
@@ -38,18 +38,18 @@ final readonly class CompletionStore implements CompletionStoreInterface
     private array $templateCompletions;
 
     /**
-     * @param array<non-empty-string, ArgumentMap> $promptCompletions
-     * @param array<non-empty-string, ArgumentMap> $templateCompletions
+     * @param array<int|non-empty-string, ArgumentMap> $promptCompletions
+     * @param array<int|non-empty-string, ArgumentMap> $templateCompletions
      */
     public function __construct(array $promptCompletions = [], array $templateCompletions = [])
     {
         Assert::that($promptCompletions)
             ->keys()
-            ->isNonEmptyString('Completion store prompt key must be a non-empty string.')
+            ->isIntOrNonEmptyString('Completion store prompt key must be a non-empty string.')
         ;
         Assert::that($templateCompletions)
             ->keys()
-            ->isNonEmptyString('Completion store template key must be a non-empty string.')
+            ->isIntOrNonEmptyString('Completion store template key must be a non-empty string.')
         ;
 
         $this->promptCompletions = self::normalize($promptCompletions);
@@ -78,7 +78,7 @@ final readonly class CompletionStore implements CompletionStoreInterface
     }
 
     /**
-     * @param array<non-empty-string, ArgumentMap> $completions
+     * @param array<int|non-empty-string, ArgumentMap> $completions
      *
      * @return ProviderMap
      */
@@ -89,7 +89,7 @@ final readonly class CompletionStore implements CompletionStoreInterface
         foreach ($completions as $key => $providers) {
             Assert::that($providers)
                 ->keys()
-                ->isNonEmptyString('Completion store argument key must be a non-empty string.')
+                ->isIntOrNonEmptyString('Completion store argument key must be a non-empty string.')
             ;
 
             foreach ($providers as $argument => $provider) {
