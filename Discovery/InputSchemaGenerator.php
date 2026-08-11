@@ -62,7 +62,14 @@ final readonly class InputSchemaGenerator
             $schema['required'] = $required;
         }
 
-        return $schema;
+        $explicit = $methodAttribute?->toArray() ?? [];
+
+        // An inferred `required` names inferred properties, so replacing those discards it too.
+        if (isset($explicit['properties'])) {
+            unset($schema['required']);
+        }
+
+        return array_merge($schema, $explicit);
     }
 
     /**
