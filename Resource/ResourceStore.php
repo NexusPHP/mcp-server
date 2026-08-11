@@ -20,6 +20,7 @@ use Nexus\Mcp\Core\Schema\Resource\Resource;
 use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ListResourcesResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
+use Nexus\Mcp\Core\Validation\IconSrcValidator;
 use Nexus\Mcp\Core\Validation\IdentifierNameValidator;
 use Nexus\Mcp\Server\CursorPaginator;
 use Nexus\Mcp\Server\Exception\ResourceNotRegisteredException;
@@ -53,16 +54,15 @@ final class ResourceStore implements MutableResourceStoreInterface
 
         foreach ($entries as $key => $entry) {
             IdentifierNameValidator::validate($entry->resource->name, 'resource "name"');
+            IconSrcValidator::validate($entry->resource->icons, 'resource');
+
             Assert::that($entry->resource->uri)
                 ->isIdentical($key, 'Resource store entry key "{other}" must match its resource URI "{value}".')
             ;
         }
-        Assert::that($pageSize)
-            ->isPositiveInt('Resource store page size must be a positive integer, {value} given.')
-        ;
-        Assert::that($ttlMs)
-            ->isNaturalInt('Resource store TTL must be a non-negative integer, {value} given.')
-        ;
+
+        Assert::that($pageSize)->isPositiveInt('Resource store page size must be a positive integer, {value} given.');
+        Assert::that($ttlMs)->isNaturalInt('Resource store TTL must be a non-negative integer, {value} given.');
 
         $this->paginator = new CursorPaginator($pageSize);
     }
@@ -77,6 +77,7 @@ final class ResourceStore implements MutableResourceStoreInterface
     public function addResource(Resource $resource, ResourceReaderInterface $reader): void
     {
         IdentifierNameValidator::validate($resource->name, 'resource "name"');
+        IconSrcValidator::validate($resource->icons, 'resource');
 
         $this->entries[$resource->uri] = new ResourceEntry($resource, $reader);
 

@@ -54,6 +54,7 @@ use Nexus\Mcp\Core\Schema\ServerCapabilities;
 use Nexus\Mcp\Core\Schema\SubscriptionFilter;
 use Nexus\Mcp\Core\Schema\Tool\Tool;
 use Nexus\Mcp\Core\UriTemplate\Validator;
+use Nexus\Mcp\Core\Validation\IconSrcValidator;
 use Nexus\Mcp\Core\Validation\IdentifierNameValidator;
 use Nexus\Mcp\Core\Validation\MethodClassValidator;
 use Nexus\Mcp\Server\Attribute\AsServer;
@@ -224,6 +225,7 @@ final class ServerBuilder
         ?array $icons = null,
     ): self {
         $this->assertNotBuilt();
+        IconSrcValidator::validate($icons, 'serverInfo');
 
         $this->serverInfo = new Implementation(
             name: $name,
@@ -341,6 +343,7 @@ final class ServerBuilder
     {
         $this->assertNotBuilt();
         IdentifierNameValidator::validate($tool->name, 'tool "name"');
+        IconSrcValidator::validate($tool->icons, 'tool');
 
         $this->tools[$tool->name] = new ToolEntry(
             $tool,
@@ -357,6 +360,7 @@ final class ServerBuilder
     {
         $this->assertNotBuilt();
         IdentifierNameValidator::validate($prompt->name, 'prompt "name"');
+        IconSrcValidator::validate($prompt->icons, 'prompt');
 
         $this->prompts[$prompt->name] = new PromptEntry(
             $prompt,
@@ -373,6 +377,7 @@ final class ServerBuilder
     {
         $this->assertNotBuilt();
         IdentifierNameValidator::validate($resource->name, 'resource "name"');
+        IconSrcValidator::validate($resource->icons, 'resource');
 
         $this->resources[$resource->uri] = new ResourceEntry(
             $resource,
@@ -391,6 +396,7 @@ final class ServerBuilder
     ): self {
         $this->assertNotBuilt();
         IdentifierNameValidator::validate($template->name, 'resource template "name"');
+        IconSrcValidator::validate($template->icons, 'resource template');
 
         Validator::validate($template->uriTemplate, 'ResourceTemplate');
 
@@ -875,6 +881,8 @@ final class ServerBuilder
         if (null === $metadata) {
             return $this->serverInfo;
         }
+
+        IconSrcValidator::validate($metadata->icons, 'serverInfo');
 
         if (null === $this->serverInfo) {
             return new Implementation(

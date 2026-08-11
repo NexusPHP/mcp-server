@@ -22,6 +22,7 @@ use Nexus\Mcp\Core\Schema\Result\ListResourceTemplatesResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Core\UriTemplate\Matcher;
 use Nexus\Mcp\Core\UriTemplate\Validator;
+use Nexus\Mcp\Core\Validation\IconSrcValidator;
 use Nexus\Mcp\Core\Validation\IdentifierNameValidator;
 use Nexus\Mcp\Server\CursorPaginator;
 use Nexus\Mcp\Server\Exception\ResourceNotFoundException;
@@ -62,13 +63,11 @@ final class ResourceTemplateStore implements MutableResourceTemplateStoreInterfa
 
         foreach ($entries as $entry) {
             IdentifierNameValidator::validate($entry->template->name, 'resource template "name"');
+            IconSrcValidator::validate($entry->template->icons, 'resource template');
         }
-        Assert::that($pageSize)
-            ->isPositiveInt('Resource template store page size must be a positive integer, {value} given.')
-        ;
-        Assert::that($ttlMs)
-            ->isNaturalInt('Resource template store TTL must be a non-negative integer, {value} given.')
-        ;
+
+        Assert::that($pageSize)->isPositiveInt('Resource template store page size must be a positive integer, {value} given.');
+        Assert::that($ttlMs)->isNaturalInt('Resource template store TTL must be a non-negative integer, {value} given.');
 
         $this->paginator = new CursorPaginator($pageSize);
 
@@ -76,6 +75,7 @@ final class ResourceTemplateStore implements MutableResourceTemplateStoreInterfa
             Assert::that($entry->template->uriTemplate)
                 ->isIdentical($key, 'Resource template store entry key "{other}" must match its template URI "{value}".')
             ;
+
             $this->indexTemplate($key, $entry);
         }
     }
@@ -90,6 +90,7 @@ final class ResourceTemplateStore implements MutableResourceTemplateStoreInterfa
     public function addResourceTemplate(ResourceTemplate $template, TemplatedResourceReaderInterface $reader): void
     {
         IdentifierNameValidator::validate($template->name, 'resource template "name"');
+        IconSrcValidator::validate($template->icons, 'resource template');
 
         $uriTemplate = $template->uriTemplate;
         $entry = new ResourceTemplateEntry($template, $reader);

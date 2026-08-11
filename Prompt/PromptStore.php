@@ -20,6 +20,7 @@ use Nexus\Mcp\Core\Schema\Prompt\Prompt;
 use Nexus\Mcp\Core\Schema\Result\GetPromptResult;
 use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ListPromptsResult;
+use Nexus\Mcp\Core\Validation\IconSrcValidator;
 use Nexus\Mcp\Core\Validation\IdentifierNameValidator;
 use Nexus\Mcp\Server\CursorPaginator;
 use Nexus\Mcp\Server\Exception\PromptNotFoundException;
@@ -48,6 +49,8 @@ final class PromptStore implements MutablePromptStoreInterface
     ) {
         foreach ($entries as $key => $entry) {
             IdentifierNameValidator::validate($entry->prompt->name, 'prompt "name"');
+            IconSrcValidator::validate($entry->prompt->icons, 'prompt');
+
             Assert::that($entry->prompt->name)->isIdentical(
                 (string) $key,
                 'Prompt store entry key "{other}" must match its prompt name "{value}".',
@@ -74,6 +77,7 @@ final class PromptStore implements MutablePromptStoreInterface
     public function addPrompt(Prompt $prompt, PromptRendererInterface $renderer): void
     {
         IdentifierNameValidator::validate($prompt->name, 'prompt "name"');
+        IconSrcValidator::validate($prompt->icons, 'prompt');
 
         $this->entries[$prompt->name] = new PromptEntry($prompt, $renderer);
 
