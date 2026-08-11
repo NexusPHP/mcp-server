@@ -947,6 +947,20 @@ final class ServerBuilder
     }
 
     /**
+     * The `listChanged` types a registered change-reporting store stands behind, matching what
+     * `deriveCapabilities()` advertises.
+     */
+    private function resolveDeliverableNotifications(): SubscriptionFilter
+    {
+        return new SubscriptionFilter(
+            toolsListChanged: $this->getToolStore() instanceof ListChangeSourceInterface ? true : null,
+            promptsListChanged: $this->getPromptStore() instanceof ListChangeSourceInterface ? true : null,
+            resourcesListChanged: $this->getResourceStore() instanceof ListChangeSourceInterface
+                || $this->getResourceTemplateStore() instanceof ListChangeSourceInterface ? true : null,
+        );
+    }
+
+    /**
      * What the registered subscription store will deliver when asked for everything, or null when none is
      * registered.
      */
@@ -1087,7 +1101,10 @@ final class ServerBuilder
         }
 
         if (null !== $this->subscriptionStore) {
-            $defaults[SubscriptionsListenRequest::getMethod()] = new SubscriptionsListenRequestHandler($this->subscriptionStore);
+            $defaults[SubscriptionsListenRequest::getMethod()] = new SubscriptionsListenRequestHandler(
+                $this->subscriptionStore,
+                $this->resolveDeliverableNotifications(),
+            );
         }
 
         return $this->applyRequestDecorators([...$defaults, ...$this->buildExtensionRequestHandlers(), ...$this->customRequestHandlers]);

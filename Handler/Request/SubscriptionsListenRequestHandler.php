@@ -20,6 +20,7 @@ use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\MetaObject\SubscriptionsListenResultMetaObject;
 use Nexus\Mcp\Core\Schema\Request\SubscriptionsListenRequest;
 use Nexus\Mcp\Core\Schema\Result\SubscriptionsListenResult;
+use Nexus\Mcp\Core\Schema\SubscriptionFilter;
 use Nexus\Mcp\Server\ServerContext;
 use Nexus\Mcp\Server\Subscription\SubscriptionStoreInterface;
 
@@ -33,7 +34,10 @@ use Nexus\Mcp\Server\Subscription\SubscriptionStoreInterface;
  */
 final readonly class SubscriptionsListenRequestHandler implements RequestHandlerInterface
 {
-    public function __construct(private SubscriptionStoreInterface $store)
+    /**
+     * @param null|SubscriptionFilter $deliverable The `listChanged` types a change-reporting store backs, or `null` for no narrowing
+     */
+    public function __construct(private SubscriptionStoreInterface $store, private ?SubscriptionFilter $deliverable = null)
     {
     }
 
@@ -44,7 +48,7 @@ final readonly class SubscriptionsListenRequestHandler implements RequestHandler
         \assert($context instanceof ServerContext);
 
         $subscriptionId = $context->receiveContext->peerRequestId ?? $context->requestId;
-        $entry = $this->store->open($subscriptionId, $request->params->notifications, $context->sender);
+        $entry = $this->store->open($subscriptionId, $this->narrow($request->params->notifications), $context->sender);
 
         try {
             $entry->closed->getFuture()->await($context->cancellation);
@@ -55,5 +59,23 @@ final readonly class SubscriptionsListenRequestHandler implements RequestHandler
         $this->store->discard($entry);
 
         return new SubscriptionsListenResult(new SubscriptionsListenResultMetaObject(subscriptionId: $subscriptionId));
+    }
+
+    /**
+     * Drops the `listChanged` types no registered store can produce, so the acknowledgement promises only
+     * what `server/discover` advertises.
+     */
+    private function narrow(SubscriptionFilter $requested): SubscriptionFilter
+    {
+        if (null === $this->deliverable) {
+            return $requested;
+        }
+
+        return new SubscriptionFilter(
+            toolsListChanged: true === $this->deliverable->toolsListChanged ? $requested->toolsListChanged : null,
+            promptsListChanged: true === $this->deliverable->promptsListChanged ? $requested->promptsListChanged : null,
+            resourcesListChanged: true === $this->deliverable->resourcesListChanged ? $requested->resourcesListChanged : null,
+            resourceSubscriptions: $requested->resourceSubscriptions,
+        );
     }
 }
