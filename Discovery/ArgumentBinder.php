@@ -83,9 +83,21 @@ final class ArgumentBinder
 
     private static function bindArgument(\ReflectionParameter $parameter, mixed $value): mixed
     {
+        if (self::acceptsNull($parameter, $value)) {
+            return null;
+        }
+
         $class = InputSchemaGenerator::resolveExpandableNativeClass($parameter);
 
         return null !== $class ? self::construct($class, $value) : self::hydrate($parameter, $value);
+    }
+
+    /**
+     * Whether `$value` is the `null` a nullable parameter's advertised schema permits.
+     */
+    private static function acceptsNull(\ReflectionParameter $parameter, mixed $value): bool
+    {
+        return null === $value && $parameter->getType()?->allowsNull() === true;
     }
 
     /**
@@ -147,6 +159,10 @@ final class ArgumentBinder
 
     private static function hydrate(\ReflectionParameter $parameter, mixed $value): mixed
     {
+        if (self::acceptsNull($parameter, $value)) {
+            return null;
+        }
+
         $type = $parameter->getType();
 
         if (! $type instanceof \ReflectionNamedType || $type->isBuiltin()) {
