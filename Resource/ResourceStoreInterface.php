@@ -19,6 +19,7 @@ use Nexus\Mcp\Core\Schema\Result\ListResourcesResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Server\Exception\InvalidCursorException;
 use Nexus\Mcp\Server\Exception\ResourceNotFoundException;
+use Nexus\Mcp\Server\Exception\ResourceNotRegisteredException;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
@@ -32,9 +33,13 @@ interface ResourceStoreInterface
     public function list(?Cursor $cursor): ListResourcesResult;
 
     /**
+     * Throw `ResourceNotRegisteredException` for a URI this store does not hold, so a composite may fall
+     * through to templates. A `ResourceNotFoundException` is authoritative and ends the read.
+     *
      * @param non-empty-string $uri
      *
      * @throws ResourceNotFoundException
+     * @throws ResourceNotRegisteredException
      */
     public function read(string $uri, ServerContext $context): InputRequiredResult|ReadResourceResult;
 }

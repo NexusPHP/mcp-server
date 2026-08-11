@@ -22,7 +22,7 @@ use Nexus\Mcp\Core\Schema\Result\ListResourcesResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
 use Nexus\Mcp\Core\Validation\IdentifierNameValidator;
 use Nexus\Mcp\Server\CursorPaginator;
-use Nexus\Mcp\Server\Exception\ResourceNotFoundException;
+use Nexus\Mcp\Server\Exception\ResourceNotRegisteredException;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
@@ -110,7 +110,7 @@ final class ResourceStore implements MutableResourceStoreInterface
     #[\Override]
     public function read(string $uri, ServerContext $context): InputRequiredResult|ReadResourceResult
     {
-        $entry = $this->entries[$uri] ?? throw new ResourceNotFoundException($uri, $context->requestId);
+        $entry = $this->entries[$uri] ?? throw new ResourceNotRegisteredException($uri, $context->requestId);
 
         return $entry->reader->read($uri, $context);
     }

@@ -17,7 +17,7 @@ use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Schema\Result\ListResourcesResult;
 use Nexus\Mcp\Core\Schema\Result\ReadResourceResult;
-use Nexus\Mcp\Server\Exception\ResourceNotFoundException;
+use Nexus\Mcp\Server\Exception\ResourceNotRegisteredException;
 use Nexus\Mcp\Server\ListChangeSourceInterface;
 use Nexus\Mcp\Server\ServerContext;
 
@@ -52,7 +52,7 @@ final readonly class CompositeResourceStore implements ListChangeSourceInterface
     {
         try {
             return $this->resourceStore->read($uri, $context);
-        } catch (ResourceNotFoundException) {
+        } catch (ResourceNotRegisteredException) {
             return $this->resourceTemplateStore->read($uri, $context);
         }
     }

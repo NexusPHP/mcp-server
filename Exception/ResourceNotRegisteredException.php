@@ -19,9 +19,9 @@ use Nexus\Mcp\Core\Schema\Enum\ProtocolErrorCode;
 use Nexus\Mcp\Core\Schema\RequestId;
 
 /**
- * Thrown when a `resources/read` references a URI that the store cannot resolve.
+ * Thrown when a `resources/read` names a URI no resource is registered under.
  */
-final class ResourceNotFoundException extends AbstractJsonRpcProtocolException
+final class ResourceNotRegisteredException extends AbstractJsonRpcProtocolException
 {
     public function __construct(
         public readonly string $uri,
@@ -30,7 +30,7 @@ final class ResourceNotFoundException extends AbstractJsonRpcProtocolException
     ) {
         parent::__construct(
             $requestId,
-            \sprintf('Resource "%s" not found.', SafeDisplay::sanitiseCause($uri)),
+            \sprintf('No resource registered under URI "%s".', SafeDisplay::sanitiseCause($uri)),
             $previous,
             errorData: ['uri' => $uri],
         );
