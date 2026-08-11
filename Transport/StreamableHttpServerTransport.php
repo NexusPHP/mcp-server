@@ -35,10 +35,10 @@ use Nexus\Mcp\Core\Schema\Notification\CancelledNotification;
 use Nexus\Mcp\Core\Schema\Request\SubscriptionsListenRequest;
 use Nexus\Mcp\Core\Schema\RequestId;
 use Nexus\Mcp\Core\Transport\CancellableTransportInterface;
+use Nexus\Mcp\Core\Transport\ListenerHandle;
+use Nexus\Mcp\Core\Transport\ListenerHandleInterface;
 use Nexus\Mcp\Core\Transport\ReceiveContext;
 use Nexus\Mcp\Core\Transport\SendContext;
-use Nexus\Mcp\Core\Transport\Subscription;
-use Nexus\Mcp\Core\Transport\SubscriptionInterface;
 use Nexus\Mcp\Core\Transport\TransportEvents;
 use Nexus\Mcp\Core\Transport\TransportState;
 use Nexus\Mcp\Server\Transport\Http\ResponseMode;
@@ -229,36 +229,36 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     }
 
     #[\Override]
-    public function onMessage(\Closure $listener): SubscriptionInterface
+    public function onMessage(\Closure $listener): ListenerHandleInterface
     {
         return $this->events->onMessage($listener);
     }
 
     #[\Override]
-    public function onError(\Closure $listener): SubscriptionInterface
+    public function onError(\Closure $listener): ListenerHandleInterface
     {
         return $this->events->onError($listener);
     }
 
     #[\Override]
-    public function onDrain(\Closure $listener): SubscriptionInterface
+    public function onDrain(\Closure $listener): ListenerHandleInterface
     {
         return $this->events->onDrain($listener);
     }
 
     #[\Override]
-    public function onCancel(\Closure $listener): SubscriptionInterface
+    public function onCancel(\Closure $listener): ListenerHandleInterface
     {
         $id = spl_object_id($listener);
         $this->cancelListeners[$id] = $listener;
 
-        return new Subscription(function () use ($id): void {
+        return new ListenerHandle(function () use ($id): void {
             unset($this->cancelListeners[$id]);
         });
     }
 
     #[\Override]
-    public function onClose(\Closure $listener): SubscriptionInterface
+    public function onClose(\Closure $listener): ListenerHandleInterface
     {
         return $this->events->onClose($listener);
     }
