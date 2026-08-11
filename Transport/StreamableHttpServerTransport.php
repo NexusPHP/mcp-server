@@ -321,7 +321,9 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         /** @var DeferredFuture<ResponseInterface> $unused */
         $unused = new DeferredFuture();
         $internalId = ++$this->lastRequestId;
-        $stream = new SseResponseStream($this->keepAliveInterval, fn(): null => $this->releaseStream($internalId));
+        $stream = new SseResponseStream($this->keepAliveInterval, function () use ($internalId): void {
+            $this->releaseStream($internalId);
+        });
         $response = $this->buildSseResponse($stream);
         $this->sinks[$internalId] = ['clientId' => $clientId, 'buffered' => $unused, 'stream' => $stream];
 
@@ -526,7 +528,9 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     private function upgradeToStream(int $internalId, int|string $clientId, DeferredFuture $buffered, array $envelope): void
     {
         $frame = self::frame(self::encode($envelope));
-        $stream = new SseResponseStream($this->keepAliveInterval, fn(): null => $this->releaseStream($internalId));
+        $stream = new SseResponseStream($this->keepAliveInterval, function () use ($internalId): void {
+            $this->releaseStream($internalId);
+        });
         $response = $this->buildSseResponse($stream);
 
         if (! \array_key_exists($internalId, $this->sinks)) {
@@ -542,13 +546,13 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     /**
      * Retires a stream whose body the consumer closed (a client disconnect), and a no-op once it has ended.
      */
-    private function releaseStream(int $internalId): null
+    private function releaseStream(int $internalId): void
     {
         $sink = $this->sinks[$internalId] ?? null;
         unset($this->sinks[$internalId]);
 
         if (null === $sink) {
-            return null;
+            return;
         }
 
         $abandoned = new RequestId(id: $internalId);
@@ -556,8 +560,6 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         foreach ($this->cancelListeners as $listener) {
             $listener($abandoned);
         }
-
-        return null;
     }
 
     /**
