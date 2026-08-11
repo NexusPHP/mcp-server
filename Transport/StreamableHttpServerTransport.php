@@ -219,7 +219,12 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
             $this->events->emitDrain();
         } finally {
             $this->state = TransportState::Closed;
-            $this->events->emitClose();
+
+            try {
+                $this->retireSinks();
+            } finally {
+                $this->events->emitClose();
+            }
         }
     }
 
@@ -299,8 +304,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $internalId = ++$this->lastRequestId;
         $this->sinks[$internalId] = ['clientId' => $clientId, 'buffered' => $deferred, 'stream' => null];
 
-        $envelope['id'] = $internalId;
-        $this->events->emitMessage($envelope, self::buildReceiveContext($request, $clientId));
+        $this->emitRequest($envelope, $internalId, self::buildReceiveContext($request, $clientId));
 
         return $deferred->getFuture()->await();
     }
@@ -318,12 +322,67 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $unused = new DeferredFuture();
         $internalId = ++$this->lastRequestId;
         $stream = new SseResponseStream($this->keepAliveInterval, fn(): null => $this->releaseStream($internalId));
+        $response = $this->buildSseResponse($stream);
         $this->sinks[$internalId] = ['clientId' => $clientId, 'buffered' => $unused, 'stream' => $stream];
 
-        $envelope['id'] = $internalId;
-        $this->events->emitMessage($envelope, self::buildReceiveContext($request, $clientId));
+        $this->emitRequest($envelope, $internalId, self::buildReceiveContext($request, $clientId));
 
-        return $this->buildSseResponse($stream);
+        return $response;
+    }
+
+    /**
+     * Emits an inbound request under its transport-internal id, retiring its sink when a listener throws.
+     *
+     * @param array<string, mixed> $envelope
+     */
+    private function emitRequest(array $envelope, int $internalId, ReceiveContext $context): void
+    {
+        $envelope['id'] = $internalId;
+
+        try {
+            $this->events->emitMessage($envelope, $context);
+        } catch (\Throwable $e) {
+            unset($this->sinks[$internalId]);
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Retires every request still in flight at close: an open SSE stream reaches end-of-body, and a
+     * buffered one gets a service-unavailable error. A sink whose error cannot be built fails with the
+     * cause instead, the last of which surfaces once the rest are retired.
+     */
+    private function retireSinks(): void
+    {
+        $sinks = $this->sinks;
+        $this->sinks = [];
+        $failure = null;
+
+        foreach ($sinks as $sink) {
+            $stream = $sink['stream'];
+
+            if (null !== $stream) {
+                $stream->end();
+
+                continue;
+            }
+
+            try {
+                $sink['buffered']->complete($this->buildErrorResponse(
+                    new InternalError(message: 'The MCP endpoint is shutting down.'),
+                    status: HttpStatus::ServiceUnavailable->value,
+                    id: new RequestId(id: $sink['clientId']),
+                ));
+            } catch (\Throwable $e) {
+                $sink['buffered']->error($e);
+                $failure = $e;
+            }
+        }
+
+        if (null !== $failure) {
+            throw $failure;
+        }
     }
 
     /**
@@ -363,16 +422,64 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $sink = $this->sinks[$internalId];
         $envelope = $message->jsonSerialize();
         $envelope['id'] = $sink['clientId'];
+        $status = self::resolveStatus($message, null !== $context && $context->fromHandler);
+        $failure = null;
+
+        try {
+            $payload = self::encode($envelope);
+        } catch (\JsonException $e) {
+            $payload = self::encode(self::buildUnencodableError($sink['clientId']));
+            $status = HttpStatus::InternalServerError->value;
+            $failure = $e;
+        }
+
+        $this->deliver($sink, $internalId, $payload, $status);
+
+        if (null !== $failure) {
+            $this->logger->error('Replacing a response JSON cannot encode with an internal error: {reason}.', ['reason' => $failure->getMessage()]);
+        }
+    }
+
+    /**
+     * Writes the payload to its request's sink, retiring it first so nothing else can settle the request.
+     * A response that cannot be built fails the request rather than leaving it parked.
+     *
+     * @param array{clientId: int|non-empty-string, buffered: DeferredFuture<ResponseInterface>, stream: null|SseResponseStream} $sink
+     */
+    private function deliver(array $sink, int $internalId, string $payload, int $status): void
+    {
         $stream = $sink['stream'];
+        unset($this->sinks[$internalId]);
 
         if (null !== $stream) {
-            $stream->push(self::frame($envelope));
-            $this->endStream($internalId, $stream);
+            $stream->push(self::frame($payload));
+            $stream->end();
         } else {
-            $fromHandler = null !== $context && $context->fromHandler;
-            $sink['buffered']->complete($this->buildJsonResponse($envelope, self::resolveStatus($message, $fromHandler)));
-            unset($this->sinks[$internalId]);
+            try {
+                $response = $this->buildJsonResponse($payload, $status);
+            } catch (\Throwable $e) {
+                $sink['buffered']->error($e);
+
+                throw $e;
+            }
+
+            $sink['buffered']->complete($response);
         }
+    }
+
+    /**
+     * The error standing in for a response JSON cannot encode, echoing the client's own id.
+     *
+     * @param int|non-empty-string $clientId
+     *
+     * @return array<string, mixed>
+     */
+    private static function buildUnencodableError(int|string $clientId): array
+    {
+        return (new JsonRpcErrorResponse(
+            id: new RequestId(id: $clientId),
+            error: new InternalError(message: 'The response could not be encoded.'),
+        ))->jsonSerialize();
     }
 
     /**
@@ -400,7 +507,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $stream = $sink['stream'];
 
         if (null !== $stream) {
-            $stream->push(self::frame($notification->jsonSerialize()));
+            $stream->push(self::frame(self::encode($notification->jsonSerialize())));
         } elseif (ResponseMode::Auto === $this->responseMode) {
             $this->upgradeToStream($internalId, $sink['clientId'], $sink['buffered'], $notification->jsonSerialize());
         } else {
@@ -409,7 +516,8 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     }
 
     /**
-     * Lazily promotes a buffered `Auto` request to an SSE stream.
+     * Lazily promotes a buffered `Auto` request to an SSE stream, standing down when the request was
+     * settled while its response was being built.
      *
      * @param int|non-empty-string              $clientId
      * @param DeferredFuture<ResponseInterface> $buffered
@@ -417,17 +525,18 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      */
     private function upgradeToStream(int $internalId, int|string $clientId, DeferredFuture $buffered, array $envelope): void
     {
+        $frame = self::frame(self::encode($envelope));
         $stream = new SseResponseStream($this->keepAliveInterval, fn(): null => $this->releaseStream($internalId));
+        $response = $this->buildSseResponse($stream);
+
+        if (! \array_key_exists($internalId, $this->sinks)) {
+            return;
+        }
+
         $this->sinks[$internalId] = ['clientId' => $clientId, 'buffered' => $buffered, 'stream' => $stream];
 
-        $stream->push(self::frame($envelope));
-        $buffered->complete($this->buildSseResponse($stream));
-    }
-
-    private function endStream(int $internalId, SseResponseStream $stream): void
-    {
-        $stream->end();
-        unset($this->sinks[$internalId]);
+        $stream->push($frame);
+        $buffered->complete($response);
     }
 
     /**
@@ -464,14 +573,11 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         return HttpStatusResolver::resolve($message->error->code, $fromHandler);
     }
 
-    /**
-     * @param array<string, mixed> $envelope
-     */
-    private function buildJsonResponse(array $envelope, int $status): ResponseInterface
+    private function buildJsonResponse(string $payload, int $status): ResponseInterface
     {
         return $this->responseFactory->createResponse($status)
             ->withHeader('Content-Type', 'application/json')
-            ->withBody($this->streamFactory->createStream(self::encode($envelope)))
+            ->withBody($this->streamFactory->createStream($payload))
         ;
     }
 
@@ -511,12 +617,9 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         );
     }
 
-    /**
-     * @param array<string, mixed> $envelope
-     */
-    private static function frame(array $envelope): string
+    private static function frame(string $payload): string
     {
-        return \sprintf("event: message\ndata: %s\n\n", self::encode($envelope));
+        return \sprintf("event: message\ndata: %s\n\n", $payload);
     }
 
     /**
