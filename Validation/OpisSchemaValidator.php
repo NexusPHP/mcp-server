@@ -22,6 +22,21 @@ use Opis\JsonSchema\Validator;
  */
 final readonly class OpisSchemaValidator implements SchemaValidatorInterface
 {
+    private const array SCHEMA_KEYWORDS = [
+        'additionalProperties',
+        'contains',
+        'else',
+        'if',
+        'items',
+        'not',
+        'propertyNames',
+        'then',
+        'unevaluatedItems',
+        'unevaluatedProperties',
+    ];
+    private const array SCHEMA_MAP_KEYWORDS = ['$defs', 'dependentSchemas', 'patternProperties', 'properties'];
+    private const array SCHEMA_LIST_KEYWORDS = ['allOf', 'anyOf', 'oneOf', 'prefixItems'];
+
     private Validator $validator;
 
     public function __construct()
@@ -32,7 +47,10 @@ final readonly class OpisSchemaValidator implements SchemaValidatorInterface
     #[\Override]
     public function validate(mixed $data, array $schema): array
     {
-        $error = $this->validator->validate(Helper::toJSON($data), (object) Helper::toJSON($schema))->error();
+        $error = $this->validator->validate(
+            Helper::toJSON($data),
+            (object) Helper::toJSON(self::normaliseSubSchemas($schema)),
+        )->error();
 
         if (null === $error) {
             return [];
@@ -42,5 +60,71 @@ final readonly class OpisSchemaValidator implements SchemaValidatorInterface
         $messages = (new ErrorFormatter())->formatFlat($error);
 
         return $messages;
+    }
+
+    /**
+     * Restores the always-valid `{}` that `json_decode(..., true)` renders as PHP `[]` in every sub-schema position.
+     *
+     * @param array<array-key, mixed> $schema
+     *
+     * @return array<array-key, mixed>
+     */
+    private static function normaliseSubSchemas(array $schema): array
+    {
+        foreach (self::SCHEMA_KEYWORDS as $keyword) {
+            if (isset($schema[$keyword]) && \is_array($schema[$keyword])) {
+                $schema[$keyword] = self::asSchemaObject($schema[$keyword]);
+            }
+        }
+
+        foreach (self::SCHEMA_MAP_KEYWORDS as $keyword) {
+            if (! isset($schema[$keyword]) || ! \is_array($schema[$keyword])) {
+                continue;
+            }
+
+            $map = $schema[$keyword];
+
+            if ([] === $map) {
+                $schema[$keyword] = new \stdClass();
+
+                continue;
+            }
+
+            foreach ($map as $name => $subSchema) {
+                if (\is_array($subSchema)) {
+                    $map[$name] = self::asSchemaObject($subSchema);
+                }
+            }
+
+            $schema[$keyword] = $map;
+        }
+
+        foreach (self::SCHEMA_LIST_KEYWORDS as $keyword) {
+            if (! isset($schema[$keyword]) || ! \is_array($schema[$keyword])) {
+                continue;
+            }
+
+            $list = $schema[$keyword];
+
+            foreach ($list as $index => $subSchema) {
+                if (\is_array($subSchema)) {
+                    $list[$index] = self::asSchemaObject($subSchema);
+                }
+            }
+
+            $schema[$keyword] = $list;
+        }
+
+        return $schema;
+    }
+
+    /**
+     * @param array<array-key, mixed> $subSchema
+     *
+     * @return array<array-key, mixed>|\stdClass
+     */
+    private static function asSchemaObject(array $subSchema): array|\stdClass
+    {
+        return [] === $subSchema ? new \stdClass() : self::normaliseSubSchemas($subSchema);
     }
 }

@@ -13,6 +13,8 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Attribute;
 
+use Nexus\Assert\Assert;
+
 /**
  * JSON Schema constraints for a discovered tool's input, applied at the parameter or method level.
  */
@@ -20,12 +22,12 @@ namespace Nexus\Mcp\Server\Attribute;
 final readonly class InputSchema
 {
     /**
-     * @param null|array<string, mixed>      $definition           Explicit input schema, advertised verbatim with every top-level JSON Schema 2020-12 keyword preserved
-     * @param null|list<mixed>               $enum
-     * @param null|array<string, mixed>      $items
-     * @param null|array<string, mixed>      $properties
-     * @param null|list<string>              $required
-     * @param null|array<string, mixed>|bool $additionalProperties
+     * @param null|non-empty-array<string, mixed> $definition           Explicit input schema, advertised verbatim with every top-level JSON Schema 2020-12 keyword preserved
+     * @param null|list<mixed>                    $enum
+     * @param null|array<string, mixed>           $items
+     * @param null|array<string, mixed>           $properties
+     * @param null|list<string>                   $required
+     * @param null|array<string, mixed>|bool      $additionalProperties
      */
     public function __construct(
         public ?array $definition = null,
@@ -49,6 +51,9 @@ final readonly class InputSchema
         public ?array $required = null,
         public null|array|bool $additionalProperties = null,
     ) {
+        if (null !== $definition) {
+            Assert::that($definition)->not()->isIdentical([], 'input schema "definition" must not be an empty array.');
+        }
     }
 
     /**
