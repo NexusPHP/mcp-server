@@ -66,6 +66,7 @@ use Nexus\Mcp\Server\Completion\PromptCompletionEntry;
 use Nexus\Mcp\Server\Discovery\AttributeScanner;
 use Nexus\Mcp\Server\Dispatch\ServerMessageDispatcher;
 use Nexus\Mcp\Server\Exception\BuilderAlreadyBuiltException;
+use Nexus\Mcp\Server\Exception\DuplicateDiscoveredEntryException;
 use Nexus\Mcp\Server\Exception\DuplicateServerMetadataException;
 use Nexus\Mcp\Server\Exception\MissingDiscoveryAttributeException;
 use Nexus\Mcp\Server\Exception\ReservedMethodException;
@@ -164,6 +165,25 @@ final class ServerBuilder
      * @var array<int|non-empty-string, array<int|non-empty-string, CompletionProviderInterface>>
      */
     private array $templateCompletions = [];
+
+    /**
+     * @var array{
+     *   tools: array<non-empty-string, class-string>,
+     *   prompts: array<non-empty-string, class-string>,
+     *   resources: array<non-empty-string, class-string>,
+     *   resource-templates: array<non-empty-string, class-string>,
+     *   completions-prompt: array<non-empty-string, class-string>,
+     *   completions-template: array<non-empty-string, class-string>,
+     * }
+     */
+    private array $discoveredFeatures = [
+        'tools' => [],
+        'prompts' => [],
+        'resources' => [],
+        'resource-templates' => [],
+        'completions-prompt' => [],
+        'completions-template' => [],
+    ];
 
     private int $pageSize = CursorPaginator::DEFAULT_PAGE_SIZE;
     private int $ttlMs = 0;
@@ -342,6 +362,7 @@ final class ServerBuilder
     public function addTool(Tool $tool, \Closure|ToolExecutorInterface $executor): self
     {
         $this->assertNotBuilt();
+
         IdentifierNameValidator::validate($tool->name, 'tool "name"');
         IconSrcValidator::validate($tool->icons, 'tool');
 
@@ -359,6 +380,7 @@ final class ServerBuilder
     public function addPrompt(Prompt $prompt, \Closure|PromptRendererInterface $renderer): self
     {
         $this->assertNotBuilt();
+
         IdentifierNameValidator::validate($prompt->name, 'prompt "name"');
         IconSrcValidator::validate($prompt->icons, 'prompt');
 
@@ -376,6 +398,7 @@ final class ServerBuilder
     public function addResource(Resource $resource, \Closure|ResourceReaderInterface $reader): self
     {
         $this->assertNotBuilt();
+
         IdentifierNameValidator::validate($resource->name, 'resource "name"');
         IconSrcValidator::validate($resource->icons, 'resource');
 
@@ -390,14 +413,12 @@ final class ServerBuilder
     /**
      * @param (\Closure(non-empty-string, array<string, string>, ServerContext): (InputRequiredResult|ReadResourceResult))|TemplatedResourceReaderInterface $reader
      */
-    public function addResourceTemplate(
-        ResourceTemplate $template,
-        \Closure|TemplatedResourceReaderInterface $reader,
-    ): self {
+    public function addResourceTemplate(ResourceTemplate $template, \Closure|TemplatedResourceReaderInterface $reader): self
+    {
         $this->assertNotBuilt();
+
         IdentifierNameValidator::validate($template->name, 'resource template "name"');
         IconSrcValidator::validate($template->icons, 'resource template');
-
         Validator::validate($template->uriTemplate, 'ResourceTemplate');
 
         $this->resourceTemplates[$template->uriTemplate] = new ResourceTemplateEntry(
@@ -603,6 +624,7 @@ final class ServerBuilder
      * `setInstructions()` call overrides per field, plus its `#[AsTool]`, `#[AsPrompt]`, `#[AsResource]`,
      * `#[AsResourceTemplate]`, and `#[AsCompletion]` methods.
      *
+     * @throws DuplicateDiscoveredEntryException
      * @throws DuplicateServerMetadataException
      * @throws MissingDiscoveryAttributeException
      */
@@ -628,14 +650,71 @@ final class ServerBuilder
             foreach ($scanner->scan($source) as $entry) {
                 $contributed = true;
 
-                match (true) {
-                    $entry instanceof ToolEntry => $this->addTool($entry->tool, $entry->executor),
-                    $entry instanceof PromptEntry => $this->addPrompt($entry->prompt, $entry->renderer),
-                    $entry instanceof ResourceEntry => $this->addResource($entry->resource, $entry->reader),
-                    $entry instanceof ResourceTemplateEntry => $this->addResourceTemplate($entry->template, $entry->reader),
-                    $entry instanceof PromptCompletionEntry => $this->addPromptCompletion($entry->prompt, $entry->argument, $entry->provider),
-                    default => $this->addResourceTemplateCompletion($entry->uriTemplate, $entry->argument, $entry->provider),
-                };
+                if ($entry instanceof ToolEntry) {
+                    if (\array_key_exists($entry->tool->name, $this->discoveredFeatures['tools'])) {
+                        throw new DuplicateDiscoveredEntryException('tool', $entry->tool->name, $source::class, $this->discoveredFeatures['tools'][$entry->tool->name]);
+                    }
+
+                    $this->discoveredFeatures['tools'][$entry->tool->name] = $source::class;
+                    $this->addTool($entry->tool, $entry->executor);
+
+                    continue;
+                }
+
+                if ($entry instanceof PromptEntry) {
+                    if (\array_key_exists($entry->prompt->name, $this->discoveredFeatures['prompts'])) {
+                        throw new DuplicateDiscoveredEntryException('prompt', $entry->prompt->name, $source::class, $this->discoveredFeatures['prompts'][$entry->prompt->name]);
+                    }
+
+                    $this->discoveredFeatures['prompts'][$entry->prompt->name] = $source::class;
+                    $this->addPrompt($entry->prompt, $entry->renderer);
+
+                    continue;
+                }
+
+                if ($entry instanceof ResourceEntry) {
+                    if (\array_key_exists($entry->resource->uri, $this->discoveredFeatures['resources'])) {
+                        throw new DuplicateDiscoveredEntryException('resource', $entry->resource->uri, $source::class, $this->discoveredFeatures['resources'][$entry->resource->uri]);
+                    }
+
+                    $this->discoveredFeatures['resources'][$entry->resource->uri] = $source::class;
+                    $this->addResource($entry->resource, $entry->reader);
+
+                    continue;
+                }
+
+                if ($entry instanceof ResourceTemplateEntry) {
+                    if (\array_key_exists($entry->template->uriTemplate, $this->discoveredFeatures['resource-templates'])) {
+                        throw new DuplicateDiscoveredEntryException('resource template', $entry->template->uriTemplate, $source::class, $this->discoveredFeatures['resource-templates'][$entry->template->uriTemplate]);
+                    }
+
+                    $this->discoveredFeatures['resource-templates'][$entry->template->uriTemplate] = $source::class;
+                    $this->addResourceTemplate($entry->template, $entry->reader);
+
+                    continue;
+                }
+
+                if ($entry instanceof PromptCompletionEntry) {
+                    $promptKey = \sprintf('%s:%s', $entry->prompt, $entry->argument);
+
+                    if (\array_key_exists($promptKey, $this->discoveredFeatures['completions-prompt'])) {
+                        throw new DuplicateDiscoveredEntryException('prompt completion', $promptKey, $source::class, $this->discoveredFeatures['completions-prompt'][$promptKey]);
+                    }
+
+                    $this->discoveredFeatures['completions-prompt'][$promptKey] = $source::class;
+                    $this->addPromptCompletion($entry->prompt, $entry->argument, $entry->provider);
+
+                    continue;
+                }
+
+                $completionKey = \sprintf('%s:%s', $entry->uriTemplate, $entry->argument);
+
+                if (\array_key_exists($completionKey, $this->discoveredFeatures['completions-template'])) {
+                    throw new DuplicateDiscoveredEntryException('resource template completion', $completionKey, $source::class, $this->discoveredFeatures['completions-template'][$completionKey]);
+                }
+
+                $this->discoveredFeatures['completions-template'][$completionKey] = $source::class;
+                $this->addResourceTemplateCompletion($entry->uriTemplate, $entry->argument, $entry->provider);
             }
 
             if (! $contributed) {
