@@ -36,9 +36,10 @@ final class ResourceTemplateStore implements MutableResourceTemplateStoreInterfa
     private readonly CursorPaginator $paginator;
 
     /**
-     * Keyed by entry key so a removal drops the pattern with its entry.
+     * Keyed by entry key so a removal drops the pattern with its entry, ordered by descending literal
+     * length so the most specific template answers first.
      *
-     * @var array<non-empty-string, array{pattern: non-empty-string, entry: ResourceTemplateEntry}>
+     * @var array<non-empty-string, array{pattern: non-empty-string, literals: int<0, max>, entry: ResourceTemplateEntry}>
      */
     private array $compiled = [];
 
@@ -152,7 +153,12 @@ final class ResourceTemplateStore implements MutableResourceTemplateStoreInterfa
     private function indexTemplate(string $uriTemplate, ResourceTemplateEntry $entry): void
     {
         Validator::validate($uriTemplate, 'ResourceTemplate');
-        $this->compiled[$uriTemplate] = ['pattern' => Matcher::compile($uriTemplate), 'entry' => $entry];
+        $this->compiled[$uriTemplate] = [
+            'pattern' => Matcher::compile($uriTemplate),
+            'literals' => \strlen((string) preg_replace('/\{[A-Za-z_][A-Za-z0-9_]*\}/', '', $uriTemplate)),
+            'entry' => $entry,
+        ];
+        uasort($this->compiled, static fn(array $a, array $b): int => $b['literals'] <=> $a['literals']);
     }
 
     private function announceListChange(): void

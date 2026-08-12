@@ -32,8 +32,8 @@ interface ResourceTemplateStoreInterface
     public function list(?Cursor $cursor): ListResourceTemplatesResult;
 
     /**
-     * Reads `$uri` against the registered templates, returning the result of the
-     * first template that matches.
+     * Reads `$uri` against the registered templates, answered by the matching template with the most
+     * literal characters, registration order breaking ties.
      *
      * @param non-empty-string $uri
      *

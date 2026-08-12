@@ -30,6 +30,7 @@ use Nexus\Mcp\Server\Completion\PromptCompletionEntry;
 use Nexus\Mcp\Server\Completion\ReflectedCompletionProvider;
 use Nexus\Mcp\Server\Completion\ResourceTemplateCompletionEntry;
 use Nexus\Mcp\Server\Exception\InvalidCompletionAttributeException;
+use Nexus\Mcp\Server\Exception\ReservedTemplateVariableException;
 use Nexus\Mcp\Server\Exception\UnsupportedParameterTypeException;
 use Nexus\Mcp\Server\Exception\UnsupportedVariadicParameterException;
 use Nexus\Mcp\Server\Prompt\PromptEntry;
@@ -249,6 +250,10 @@ final readonly class AttributeScanner
     {
         self::rejectIfVariadic($method);
         self::rejectUnsupportedParameterType($method);
+
+        if (str_contains($attribute->uriTemplate, '{uri}')) {
+            throw new ReservedTemplateVariableException($method->getDeclaringClass()->getName(), $method->getName());
+        }
 
         return new ResourceTemplate(
             name: $attribute->name ?? $method->getName(),
