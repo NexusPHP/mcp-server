@@ -16,21 +16,24 @@ namespace Nexus\Mcp\Server\Exception;
 use Nexus\Mcp\Core\Exception\McpExceptionInterface;
 
 /**
- * Thrown when a tool's `structuredContent` does not conform to its declared `outputSchema`.
+ * Thrown when a tool's result violates its declared `outputSchema`, by non-conformance or by carrying
+ * no `structuredContent` at all.
  */
 final class ToolOutputValidationException extends \RuntimeException implements McpExceptionInterface
 {
     /**
-     * @param list<string> $errors
+     * @param list<string> $errors Conformance failures, empty when the result carried no `structuredContent`
      */
     public function __construct(string $toolName, array $errors, ?\Throwable $previous = null)
     {
         parent::__construct(
-            \sprintf(
-                'Tool "%s" returned structuredContent that does not conform to its outputSchema: %s',
-                $toolName,
-                implode('; ', $errors),
-            ),
+            [] === $errors
+                ? \sprintf('Tool "%s" declares an outputSchema but its result carries no structuredContent.', $toolName)
+                : \sprintf(
+                    'Tool "%s" returned structuredContent that does not conform to its outputSchema: %s',
+                    $toolName,
+                    implode('; ', $errors),
+                ),
             previous: $previous,
         );
     }

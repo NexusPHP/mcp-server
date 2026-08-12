@@ -147,7 +147,11 @@ final class ToolStore implements MutableToolStoreInterface
             return $result;
         }
 
-        if (null !== $tool->outputSchema && true !== $result->isError && null !== $result->structuredContent) {
+        if (null !== $tool->outputSchema && true !== $result->isError) {
+            if (null === $result->structuredContent) {
+                throw new ToolOutputValidationException($name, []);
+            }
+
             $outputData = $result->structuredContent;
 
             if ([] === $outputData && ! self::schemaAcceptsArray($tool->outputSchema)) {

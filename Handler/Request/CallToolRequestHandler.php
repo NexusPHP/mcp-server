@@ -69,7 +69,7 @@ final readonly class CallToolRequestHandler implements RequestHandlerInterface
             throw $e;
         } catch (ToolOutputValidationException $e) {
             $this->logger->error(
-                'Tool returned structuredContent that does not conform to its outputSchema.',
+                'Tool result violated the declared outputSchema.',
                 ['tool' => $request->params->name, 'exception' => $e],
             );
 
