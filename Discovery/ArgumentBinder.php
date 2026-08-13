@@ -64,7 +64,7 @@ final class ArgumentBinder
                 $arguments[] = $context;
             } elseif ($parameter->isVariadic()) {
                 $list = $values[$name] ?? [];
-                Assert::that($list)->isList(\sprintf('The "%s" argument must be a list, {type} given.', $name));
+                Assert::that($list)->isList(\sprintf('"%s" must be a list, {type} given.', $name));
 
                 foreach ($list as $element) {
                     $arguments[] = self::bindArgument($parameter, $element);
@@ -74,7 +74,7 @@ final class ArgumentBinder
             } elseif ($parameter->isDefaultValueAvailable()) {
                 $arguments[] = $parameter->getDefaultValue();
             } else {
-                throw new ExpectationFailedException('The "{name}" argument is required.', ['name' => $name]);
+                throw new ExpectationFailedException('missing the required "{name}" key.', ['name' => $name]);
             }
         }
 
@@ -89,7 +89,9 @@ final class ArgumentBinder
 
         $class = InputSchemaGenerator::resolveExpandableNativeClass($parameter);
 
-        return null !== $class ? self::construct($class, $value) : self::hydrate($parameter, $value);
+        return null !== $class
+            ? self::instantiate($class, $parameter->getName(), $value)
+            : self::hydrate($parameter, $value);
     }
 
     /**
@@ -106,9 +108,9 @@ final class ArgumentBinder
      * @throws ExpectationFailedException
      * @throws UnsupportedNestedParameterException
      */
-    private static function construct(string $class, mixed $value): object
+    private static function instantiate(string $class, string $argument, mixed $value): object
     {
-        Assert::that($value)->isMap(\sprintf('%s must be constructed from an object, {type} given.', $class));
+        Assert::that($value)->isMap(\sprintf('"%s" must be an object, {type} given.', $argument));
 
         $reflection = new \ReflectionClass($class);
         $constructor = $reflection->getConstructor();
@@ -124,11 +126,14 @@ final class ArgumentBinder
 
             if (\array_key_exists($name, $value)) {
                 self::guardAgainstNestedObject($class, $parameter);
-                $arguments[] = self::hydrate($parameter, $value[$name]);
+                $arguments[] = self::hydrate($parameter, $value[$name], $argument);
             } elseif ($parameter->isDefaultValueAvailable()) {
                 $arguments[] = $parameter->getDefaultValue();
             } else {
-                throw new ExpectationFailedException('The "{name}" argument is required.', ['name' => $name]);
+                throw new ExpectationFailedException(
+                    '"{argument}" is missing the required "{name}" key.',
+                    ['argument' => $argument, 'name' => $name],
+                );
             }
         }
 
@@ -157,7 +162,7 @@ final class ArgumentBinder
         throw new UnsupportedNestedParameterException($class, $parameter->getName(), $name);
     }
 
-    private static function hydrate(\ReflectionParameter $parameter, mixed $value): mixed
+    private static function hydrate(\ReflectionParameter $parameter, mixed $value, ?string $scope = null): mixed
     {
         if (self::acceptsNull($parameter, $value)) {
             return null;
@@ -165,17 +170,30 @@ final class ArgumentBinder
 
         $type = $parameter->getType();
 
-        if (! $type instanceof \ReflectionNamedType || $type->isBuiltin()) {
+        if (! $type instanceof \ReflectionNamedType) {
             return $value;
         }
 
+        $label = null === $scope
+            ? $parameter->getName()
+            : \sprintf('%s.%s', $scope, $parameter->getName());
         $name = $type->getName();
 
-        if (! enum_exists($name)) {
+        if (\in_array(strtolower($name), ['object', 'stdclass'], true)) {
+            if (\is_object($value)) {
+                return $value;
+            }
+
+            Assert::that($value)->isMap(\sprintf('"%s" must be an object, {type} given.', $label));
+
+            return (object) $value;
+        }
+
+        if ($type->isBuiltin() || ! enum_exists($name)) {
             return $value;
         }
 
-        $context = \sprintf('Parameter "$%s"', $parameter->getName());
+        $context = \sprintf('"%s"', $label);
 
         if (is_subclass_of($name, \BackedEnum::class)) {
             return EnumValueValidator::parse($name, $value, $context);

@@ -14,6 +14,8 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Resource;
 
 use Nexus\Assert\Assert;
+use Nexus\Mcp\Core\Exception\InvalidParamsException;
+use Nexus\Mcp\Core\SafeDisplay;
 use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Resource\Resource;
@@ -116,7 +118,14 @@ final class ResourceStore implements MutableResourceStoreInterface
     {
         $entry = $this->entries[$uri] ?? throw new ResourceNotRegisteredException($uri, $context->requestId);
 
-        return $entry->reader->read($uri, $context);
+        try {
+            return $entry->reader->read($uri, $context);
+        } catch (InvalidParamsException $e) {
+            throw new InvalidParamsException(
+                $context->requestId,
+                SafeDisplay::sanitiseCause(\sprintf('Invalid arguments for resource "%s": %s', $uri, $e->getMessage())),
+            );
+        }
     }
 
     private function announceListChange(): void

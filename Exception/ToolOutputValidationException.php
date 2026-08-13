@@ -32,7 +32,7 @@ final class ToolOutputValidationException extends \RuntimeException implements M
                 : \sprintf(
                     'Tool "%s" returned structuredContent that does not conform to its outputSchema: %s',
                     $toolName,
-                    implode('; ', $errors),
+                    implode(' ', $errors),
                 ),
             previous: $previous,
         );

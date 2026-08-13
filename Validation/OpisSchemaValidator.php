@@ -13,7 +13,6 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Validation;
 
-use Opis\JsonSchema\Errors\ErrorFormatter;
 use Opis\JsonSchema\Helper;
 use Opis\JsonSchema\Validator;
 
@@ -36,12 +35,16 @@ final readonly class OpisSchemaValidator implements SchemaValidatorInterface
     ];
     private const array SCHEMA_MAP_KEYWORDS = ['$defs', 'dependentSchemas', 'patternProperties', 'properties'];
     private const array SCHEMA_LIST_KEYWORDS = ['allOf', 'anyOf', 'oneOf', 'prefixItems'];
+    private const int MAX_ERRORS = 8;
 
     private Validator $validator;
+    private ValidationErrorFormatter $formatter;
 
     public function __construct()
     {
-        $this->validator = new Validator();
+        // `SafeDisplay` caps the composed diagnostic at 256 characters, so a deeper walk is never peer-visible.
+        $this->validator = new Validator(max_errors: self::MAX_ERRORS);
+        $this->formatter = new ValidationErrorFormatter();
     }
 
     #[\Override]
@@ -52,14 +55,7 @@ final readonly class OpisSchemaValidator implements SchemaValidatorInterface
             (object) Helper::toJSON(self::normaliseSubSchemas($schema)),
         )->error();
 
-        if (null === $error) {
-            return [];
-        }
-
-        /** @var list<string> $messages */
-        $messages = (new ErrorFormatter())->formatFlat($error);
-
-        return $messages;
+        return null === $error ? [] : $this->formatter->format($error);
     }
 
     /**

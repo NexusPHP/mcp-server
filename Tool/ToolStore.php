@@ -136,12 +136,19 @@ final class ToolStore implements MutableToolStoreInterface
             throw new InvalidParamsException(
                 $context->requestId,
                 SafeDisplay::sanitiseCause(
-                    \sprintf('Invalid arguments for tool "%s": %s', $name, implode('; ', $inputErrors)),
+                    \sprintf('Invalid arguments for tool "%s": %s', $name, implode(' ', $inputErrors)),
                 ),
             );
         }
 
-        $result = $entry->executor->execute($arguments, $context);
+        try {
+            $result = $entry->executor->execute($arguments, $context);
+        } catch (InvalidParamsException $e) {
+            throw new InvalidParamsException(
+                $context->requestId,
+                SafeDisplay::sanitiseCause(\sprintf('Invalid arguments for tool "%s": %s', $name, $e->getMessage())),
+            );
+        }
 
         if ($result instanceof InputRequiredResult) {
             return $result;

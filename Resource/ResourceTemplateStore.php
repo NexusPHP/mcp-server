@@ -14,6 +14,8 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Resource;
 
 use Nexus\Assert\Assert;
+use Nexus\Mcp\Core\Exception\InvalidParamsException;
+use Nexus\Mcp\Core\SafeDisplay;
 use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Resource\ResourceTemplate;
@@ -140,7 +142,14 @@ final class ResourceTemplateStore implements MutableResourceTemplateStoreInterfa
             $bindings = Matcher::matchCompiled($pattern, $uri);
 
             if (null !== $bindings) {
-                return $entry->reader->read($uri, $bindings, $context);
+                try {
+                    return $entry->reader->read($uri, $bindings, $context);
+                } catch (InvalidParamsException $e) {
+                    throw new InvalidParamsException(
+                        $context->requestId,
+                        SafeDisplay::sanitiseCause(\sprintf('Invalid arguments for resource "%s": %s', $uri, $e->getMessage())),
+                    );
+                }
             }
         }
 

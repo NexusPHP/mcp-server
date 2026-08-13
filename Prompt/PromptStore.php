@@ -14,6 +14,8 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Prompt;
 
 use Nexus\Assert\Assert;
+use Nexus\Mcp\Core\Exception\InvalidParamsException;
+use Nexus\Mcp\Core\SafeDisplay;
 use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Prompt\Prompt;
@@ -118,7 +120,14 @@ final class PromptStore implements MutablePromptStoreInterface
             throw new PromptNotFoundException($name, $context->requestId);
         }
 
-        return $this->entries[$name]->renderer->render($arguments, $context);
+        try {
+            return $this->entries[$name]->renderer->render($arguments, $context);
+        } catch (InvalidParamsException $e) {
+            throw new InvalidParamsException(
+                $context->requestId,
+                SafeDisplay::sanitiseCause(\sprintf('Invalid arguments for prompt "%s": %s', $name, $e->getMessage())),
+            );
+        }
     }
 
     private function announceListChange(): void
