@@ -125,13 +125,19 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
 
         try {
             $envelope = json_decode((string) $request->getBody(), associative: true, flags: \JSON_THROW_ON_ERROR);
-        } catch (\JsonException) {
+        } catch (\JsonException $e) {
+            $this->logger->warning('Rejected a malformed JSON body.', ['exception' => $e]);
+            $this->events->emitError($e);
+
             return $this->buildErrorResponse(new ParseError(message: ParseError::DEFAULT_MESSAGE));
         }
 
         try {
             Assert::that($envelope)->isMap('JSON-RPC envelope must be a JSON object, {type} given.');
-        } catch (\InvalidArgumentException) {
+        } catch (\InvalidArgumentException $e) {
+            $this->logger->warning('Rejected a non-object envelope.', ['exception' => $e]);
+            $this->events->emitError($e);
+
             return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
         }
 
