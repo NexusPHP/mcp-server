@@ -15,7 +15,6 @@ namespace Nexus\Mcp\Server\Tool;
 
 use Nexus\Assert\Assert;
 use Nexus\Assert\ExpectationFailedException;
-use Nexus\Mcp\Core\Schema\ContentBlock;
 use Nexus\Mcp\Core\Schema\ContentBlock\AudioContent;
 use Nexus\Mcp\Core\Schema\ContentBlock\EmbeddedResource;
 use Nexus\Mcp\Core\Schema\ContentBlock\ImageContent;
@@ -53,19 +52,16 @@ final readonly class ReflectedToolExecutor implements ToolExecutorInterface
             return $result;
         }
 
-        if (\is_string($result)) {
-            return new CallToolResult(content: [new TextContent(text: $result)]);
-        }
-
-        if ($result instanceof ContentBlock) {
-            return new CallToolResult(content: self::contentBlocks([$result]));
-        }
-
-        if (\is_array($result)) {
-            return self::structuredOrContent($result, $this->method);
-        }
-
-        throw self::buildUnsupportedError($this->method, $result);
+        return match (true) {
+            \is_string($result) => new CallToolResult(content: [new TextContent(text: $result)]),
+            $result instanceof AudioContent,
+            $result instanceof EmbeddedResource,
+            $result instanceof ImageContent,
+            $result instanceof ResourceLink,
+            $result instanceof TextContent => new CallToolResult(content: [$result]),
+            \is_array($result) => self::structuredOrContent($result, $this->method),
+            default => throw self::buildUnsupportedError($this->method, $result),
+        };
     }
 
     /**
@@ -74,7 +70,18 @@ final readonly class ReflectedToolExecutor implements ToolExecutorInterface
     private static function structuredOrContent(array $result, \ReflectionMethod $method): CallToolResult
     {
         if (array_is_list($result) && [] !== $result) {
-            $blocks = self::contentBlocks($result);
+            $blocks = [];
+
+            foreach ($result as $item) {
+                if ($item instanceof AudioContent
+                    || $item instanceof EmbeddedResource
+                    || $item instanceof ImageContent
+                    || $item instanceof ResourceLink
+                    || $item instanceof TextContent
+                ) {
+                    $blocks[] = $item;
+                }
+            }
 
             if (\count($blocks) !== \count($result)) {
                 throw self::buildUnsupportedError($method, $result);
@@ -90,29 +97,6 @@ final readonly class ReflectedToolExecutor implements ToolExecutorInterface
         }
 
         return new CallToolResult(content: [], structuredContent: $result);
-    }
-
-    /**
-     * @param array<array-key, mixed> $items
-     *
-     * @return list<AudioContent|EmbeddedResource|ImageContent|ResourceLink|TextContent>
-     */
-    private static function contentBlocks(array $items): array
-    {
-        $blocks = [];
-
-        foreach ($items as $item) {
-            if ($item instanceof AudioContent
-                || $item instanceof EmbeddedResource
-                || $item instanceof ImageContent
-                || $item instanceof ResourceLink
-                || $item instanceof TextContent
-            ) {
-                $blocks[] = $item;
-            }
-        }
-
-        return $blocks;
     }
 
     private static function buildUnsupportedError(\ReflectionMethod $method, mixed $result): UnsupportedReturnValueException
