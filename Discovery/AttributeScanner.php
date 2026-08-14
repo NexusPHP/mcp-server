@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Discovery;
 
+use Nexus\Mcp\Core\Exception\LogicException;
 use Nexus\Mcp\Core\Schema\Annotations;
 use Nexus\Mcp\Core\Schema\MetaObject\PayloadMetaObject;
 use Nexus\Mcp\Core\Schema\Prompt\Prompt;
@@ -29,10 +30,6 @@ use Nexus\Mcp\Server\Attribute\AsTool;
 use Nexus\Mcp\Server\Completion\PromptCompletionEntry;
 use Nexus\Mcp\Server\Completion\ReflectedCompletionProvider;
 use Nexus\Mcp\Server\Completion\ResourceTemplateCompletionEntry;
-use Nexus\Mcp\Server\Exception\InvalidCompletionAttributeException;
-use Nexus\Mcp\Server\Exception\ReservedTemplateVariableException;
-use Nexus\Mcp\Server\Exception\UnsupportedParameterTypeException;
-use Nexus\Mcp\Server\Exception\UnsupportedVariadicParameterException;
 use Nexus\Mcp\Server\Prompt\PromptEntry;
 use Nexus\Mcp\Server\Prompt\ReflectedPromptRenderer;
 use Nexus\Mcp\Server\Resource\ReflectedResourceReader;
@@ -95,7 +92,7 @@ final readonly class AttributeScanner
     }
 
     /**
-     * @throws InvalidCompletionAttributeException
+     * @throws LogicException
      */
     private static function buildCompletion(
         object $source,
@@ -112,11 +109,11 @@ final readonly class AttributeScanner
         $uriTemplate = $attribute->uriTemplate;
 
         if (null !== $prompt && null !== $uriTemplate) {
-            throw new InvalidCompletionAttributeException($class, $name, 'it must name either a "prompt" or a "uriTemplate", not both');
+            self::refuseCompletionAttribute($class, $name, 'it must name either a "prompt" or a "uriTemplate", not both');
         }
 
         if ('' === $argument) {
-            throw new InvalidCompletionAttributeException($class, $name, 'its "argument" must be a non-empty string');
+            self::refuseCompletionAttribute($class, $name, 'its "argument" must be a non-empty string');
         }
 
         $provider = new ReflectedCompletionProvider($source, $method);
@@ -129,14 +126,14 @@ final readonly class AttributeScanner
             return new ResourceTemplateCompletionEntry($uriTemplate, $argument, $provider);
         }
 
-        throw new InvalidCompletionAttributeException($class, $name, 'it must name the completed "prompt" or "uriTemplate"');
+        self::refuseCompletionAttribute($class, $name, 'it must name the completed "prompt" or "uriTemplate"');
     }
 
     /**
      * A completion parameter is an injected `ServerContext`, the context-arguments `array` slot, or
      * a value slot taking the raw partial string, with no enum coercion on this path.
      *
-     * @throws UnsupportedParameterTypeException
+     * @throws LogicException
      */
     private static function rejectUnsupportedCompletionParameterType(\ReflectionMethod $method): void
     {
@@ -150,7 +147,7 @@ final readonly class AttributeScanner
                 continue;
             }
 
-            throw new UnsupportedParameterTypeException(
+            self::refuseParameterType(
                 $method->getDeclaringClass()->getName(),
                 $method->getName(),
                 $parameter->getName(),
@@ -252,7 +249,11 @@ final readonly class AttributeScanner
         self::rejectUnsupportedParameterType($method);
 
         if (str_contains($attribute->uriTemplate, '{uri}')) {
-            throw new ReservedTemplateVariableException($method->getDeclaringClass()->getName(), $method->getName());
+            throw new LogicException(\sprintf(
+                '%s::%s() declares template variable "{uri}", which is reserved for the injected request URI. Rename the variable.',
+                $method->getDeclaringClass()->getName(),
+                $method->getName(),
+            ));
         }
 
         return new ResourceTemplate(
@@ -268,7 +269,7 @@ final readonly class AttributeScanner
     }
 
     /**
-     * @throws UnsupportedParameterTypeException
+     * @throws LogicException
      */
     private static function rejectUnsupportedParameterType(\ReflectionMethod $method): void
     {
@@ -277,7 +278,7 @@ final readonly class AttributeScanner
                 continue;
             }
 
-            throw new UnsupportedParameterTypeException(
+            self::refuseParameterType(
                 $method->getDeclaringClass()->getName(),
                 $method->getName(),
                 $parameter->getName(),
@@ -315,18 +316,35 @@ final readonly class AttributeScanner
     }
 
     /**
-     * @throws UnsupportedVariadicParameterException
+     * @throws LogicException
      */
     private static function rejectIfVariadic(\ReflectionMethod $method): void
     {
         foreach ($method->getParameters() as $parameter) {
             if ($parameter->isVariadic()) {
-                throw new UnsupportedVariadicParameterException(
+                throw new LogicException(\sprintf(
+                    '%s::%s() declares a variadic parameter "$%s". Variadic parameters are supported only on #[AsTool] methods.',
                     $method->getDeclaringClass()->getName(),
                     $method->getName(),
                     $parameter->getName(),
-                );
+                ));
             }
         }
+    }
+
+    private static function refuseCompletionAttribute(string $class, string $method, string $reason): never
+    {
+        throw new LogicException(\sprintf('%s::%s() declares an invalid #[AsCompletion] attribute: %s.', $class, $method, $reason));
+    }
+
+    private static function refuseParameterType(string $class, string $method, string $parameter, string $type): never
+    {
+        throw new LogicException(\sprintf(
+            '%s::%s() declares parameter "$%s" of unsupported type "%s". It is bound from a string value.',
+            $class,
+            $method,
+            $parameter,
+            $type,
+        ));
     }
 }

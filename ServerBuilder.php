@@ -15,8 +15,7 @@ namespace Nexus\Mcp\Server;
 
 use Nexus\Assert\Assert;
 use Nexus\Mcp\Core\Dispatch\PendingInboundRequests;
-use Nexus\Mcp\Core\Exception\DuplicateExtensionException;
-use Nexus\Mcp\Core\Exception\ExtensionMethodCollisionException;
+use Nexus\Mcp\Core\Exception\LogicException;
 use Nexus\Mcp\Core\Extension\ExtensionCollection;
 use Nexus\Mcp\Core\Handler\HandlerRegistry;
 use Nexus\Mcp\Core\Handler\Notification\CancelledNotificationHandler;
@@ -65,12 +64,6 @@ use Nexus\Mcp\Server\Completion\CompletionStoreInterface;
 use Nexus\Mcp\Server\Completion\PromptCompletionEntry;
 use Nexus\Mcp\Server\Discovery\AttributeScanner;
 use Nexus\Mcp\Server\Dispatch\ServerMessageDispatcher;
-use Nexus\Mcp\Server\Exception\BuilderAlreadyBuiltException;
-use Nexus\Mcp\Server\Exception\DuplicateDiscoveredEntryException;
-use Nexus\Mcp\Server\Exception\DuplicateServerMetadataException;
-use Nexus\Mcp\Server\Exception\MissingDiscoveryAttributeException;
-use Nexus\Mcp\Server\Exception\ReservedMethodException;
-use Nexus\Mcp\Server\Exception\UnreservedMethodException;
 use Nexus\Mcp\Server\Handler\Request\CallToolRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\CompleteRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\DiscoverRequestHandler;
@@ -624,9 +617,7 @@ final class ServerBuilder
      * `setInstructions()` call overrides per field, plus its `#[AsTool]`, `#[AsPrompt]`, `#[AsResource]`,
      * `#[AsResourceTemplate]`, and `#[AsCompletion]` methods.
      *
-     * @throws DuplicateDiscoveredEntryException
-     * @throws DuplicateServerMetadataException
-     * @throws MissingDiscoveryAttributeException
+     * @throws LogicException
      */
     public function register(object ...$sources): self
     {
@@ -640,7 +631,10 @@ final class ServerBuilder
 
             if (null !== $metadata) {
                 if (null !== $this->serverMetadata) {
-                    throw new DuplicateServerMetadataException($source::class);
+                    throw new LogicException(\sprintf(
+                        'A class-level #[AsServer] is already declared by an earlier registered source. "%s" must not declare another.',
+                        $source::class,
+                    ));
                 }
 
                 $this->serverMetadata = $metadata;
@@ -652,7 +646,7 @@ final class ServerBuilder
 
                 if ($entry instanceof ToolEntry) {
                     if (\array_key_exists($entry->tool->name, $this->discoveredFeatures['tools'])) {
-                        throw new DuplicateDiscoveredEntryException('tool', $entry->tool->name, $source::class, $this->discoveredFeatures['tools'][$entry->tool->name]);
+                        self::refuseDuplicateEntry('tool', $entry->tool->name, $source::class, $this->discoveredFeatures['tools'][$entry->tool->name]);
                     }
 
                     $this->discoveredFeatures['tools'][$entry->tool->name] = $source::class;
@@ -663,7 +657,7 @@ final class ServerBuilder
 
                 if ($entry instanceof PromptEntry) {
                     if (\array_key_exists($entry->prompt->name, $this->discoveredFeatures['prompts'])) {
-                        throw new DuplicateDiscoveredEntryException('prompt', $entry->prompt->name, $source::class, $this->discoveredFeatures['prompts'][$entry->prompt->name]);
+                        self::refuseDuplicateEntry('prompt', $entry->prompt->name, $source::class, $this->discoveredFeatures['prompts'][$entry->prompt->name]);
                     }
 
                     $this->discoveredFeatures['prompts'][$entry->prompt->name] = $source::class;
@@ -674,7 +668,7 @@ final class ServerBuilder
 
                 if ($entry instanceof ResourceEntry) {
                     if (\array_key_exists($entry->resource->uri, $this->discoveredFeatures['resources'])) {
-                        throw new DuplicateDiscoveredEntryException('resource', $entry->resource->uri, $source::class, $this->discoveredFeatures['resources'][$entry->resource->uri]);
+                        self::refuseDuplicateEntry('resource', $entry->resource->uri, $source::class, $this->discoveredFeatures['resources'][$entry->resource->uri]);
                     }
 
                     $this->discoveredFeatures['resources'][$entry->resource->uri] = $source::class;
@@ -685,7 +679,7 @@ final class ServerBuilder
 
                 if ($entry instanceof ResourceTemplateEntry) {
                     if (\array_key_exists($entry->template->uriTemplate, $this->discoveredFeatures['resource-templates'])) {
-                        throw new DuplicateDiscoveredEntryException('resource template', $entry->template->uriTemplate, $source::class, $this->discoveredFeatures['resource-templates'][$entry->template->uriTemplate]);
+                        self::refuseDuplicateEntry('resource template', $entry->template->uriTemplate, $source::class, $this->discoveredFeatures['resource-templates'][$entry->template->uriTemplate]);
                     }
 
                     $this->discoveredFeatures['resource-templates'][$entry->template->uriTemplate] = $source::class;
@@ -698,7 +692,7 @@ final class ServerBuilder
                     $promptKey = \sprintf('%s:%s', $entry->prompt, $entry->argument);
 
                     if (\array_key_exists($promptKey, $this->discoveredFeatures['completions-prompt'])) {
-                        throw new DuplicateDiscoveredEntryException('prompt completion', $promptKey, $source::class, $this->discoveredFeatures['completions-prompt'][$promptKey]);
+                        self::refuseDuplicateEntry('prompt completion', $promptKey, $source::class, $this->discoveredFeatures['completions-prompt'][$promptKey]);
                     }
 
                     $this->discoveredFeatures['completions-prompt'][$promptKey] = $source::class;
@@ -710,7 +704,7 @@ final class ServerBuilder
                 $completionKey = \sprintf('%s:%s', $entry->uriTemplate, $entry->argument);
 
                 if (\array_key_exists($completionKey, $this->discoveredFeatures['completions-template'])) {
-                    throw new DuplicateDiscoveredEntryException('resource template completion', $completionKey, $source::class, $this->discoveredFeatures['completions-template'][$completionKey]);
+                    self::refuseDuplicateEntry('resource template completion', $completionKey, $source::class, $this->discoveredFeatures['completions-template'][$completionKey]);
                 }
 
                 $this->discoveredFeatures['completions-template'][$completionKey] = $source::class;
@@ -718,7 +712,10 @@ final class ServerBuilder
             }
 
             if (! $contributed) {
-                throw new MissingDiscoveryAttributeException($source::class);
+                throw new LogicException(\sprintf(
+                    'The registered source "%s" declares no #[AsServer] and no #[AsTool], #[AsPrompt], #[AsResource], or #[AsResourceTemplate] method.',
+                    $source::class,
+                ));
             }
         }
 
@@ -729,8 +726,7 @@ final class ServerBuilder
      * Enables `$extension`, advertising its capability identifier and serving its methods
      * behind the per-request declared-capability gate.
      *
-     * @throws DuplicateExtensionException
-     * @throws ExtensionMethodCollisionException
+     * @throws LogicException
      */
     public function enableExtension(ServerExtensionInterface $extension): self
     {
@@ -756,8 +752,7 @@ final class ServerBuilder
      * @param RequestHandlerInterface<non-empty-string, Result, ServerContext> $handler
      * @param class-string<JsonRpcRequest<non-empty-string>>                   $requestClass
      *
-     * @throws ExtensionMethodCollisionException
-     * @throws ReservedMethodException
+     * @throws LogicException
      *
      * @see self::replaceRequestHandler()
      */
@@ -766,7 +761,7 @@ final class ServerBuilder
         $this->assertNotBuilt();
 
         if (\array_key_exists($method, JsonRpcMethodRegistry::requests())) {
-            throw new ReservedMethodException($method);
+            self::refuseReservedMethod($method, isNotification: false);
         }
 
         $this->extensions->assertNotOwned($method);
@@ -791,7 +786,7 @@ final class ServerBuilder
      * @param non-empty-string                                                 $method
      * @param RequestHandlerInterface<non-empty-string, Result, ServerContext> $handler
      *
-     * @throws UnreservedMethodException
+     * @throws LogicException
      *
      * @see self::addRequestHandler()
      */
@@ -800,7 +795,7 @@ final class ServerBuilder
         $this->assertNotBuilt();
 
         if (! \array_key_exists($method, JsonRpcMethodRegistry::requests())) {
-            throw new UnreservedMethodException($method);
+            self::refuseUnreservedMethod($method, isNotification: false);
         }
 
         $this->customRequestHandlers[$method] = $handler;
@@ -815,8 +810,7 @@ final class ServerBuilder
      * @param NotificationHandlerInterface<non-empty-string>      $handler
      * @param class-string<JsonRpcNotification<non-empty-string>> $notificationClass
      *
-     * @throws ExtensionMethodCollisionException
-     * @throws ReservedMethodException
+     * @throws LogicException
      *
      * @see self::replaceNotificationHandler()
      */
@@ -825,7 +819,7 @@ final class ServerBuilder
         $this->assertNotBuilt();
 
         if (\array_key_exists($method, JsonRpcMethodRegistry::notifications())) {
-            throw new ReservedMethodException($method, isNotification: true);
+            self::refuseReservedMethod($method, isNotification: true);
         }
 
         $this->extensions->assertNotOwned($method, isNotification: true);
@@ -844,7 +838,7 @@ final class ServerBuilder
      * @param non-empty-string                               $method
      * @param NotificationHandlerInterface<non-empty-string> $handler
      *
-     * @throws UnreservedMethodException
+     * @throws LogicException
      *
      * @see self::addNotificationHandler()
      */
@@ -853,7 +847,7 @@ final class ServerBuilder
         $this->assertNotBuilt();
 
         if (! \array_key_exists($method, JsonRpcMethodRegistry::notifications())) {
-            throw new UnreservedMethodException($method, isNotification: true);
+            self::refuseUnreservedMethod($method, isNotification: true);
         }
 
         $this->customNotificationHandlers[$method] = $handler;
@@ -1007,12 +1001,12 @@ final class ServerBuilder
     }
 
     /**
-     * @throws BuilderAlreadyBuiltException
+     * @throws LogicException
      */
     private function assertNotBuilt(): void
     {
         if ($this->built) {
-            throw new BuilderAlreadyBuiltException();
+            throw new LogicException('This builder has already been built. Construct a new ServerBuilder for another server.');
         }
     }
 
@@ -1247,5 +1241,30 @@ final class ServerBuilder
         }
 
         return $handlers;
+    }
+
+    private static function refuseDuplicateEntry(string $kind, string $key, string $source, string $owner): never
+    {
+        throw new LogicException(\sprintf('"%s" declares %s "%s", which "%s" already declares.', $source, $kind, $key, $owner));
+    }
+
+    private static function refuseReservedMethod(string $method, bool $isNotification): never
+    {
+        throw new LogicException(\sprintf(
+            '%s method "%s" is reserved by the MCP specification. Use %s() to attach a handler to it.',
+            $isNotification ? 'Notification' : 'Request',
+            $method,
+            $isNotification ? 'replaceNotificationHandler' : 'replaceRequestHandler',
+        ));
+    }
+
+    private static function refuseUnreservedMethod(string $method, bool $isNotification): never
+    {
+        throw new LogicException(\sprintf(
+            '%s method "%s" is not reserved by the MCP specification. Use %s() to register a vendor extension.',
+            $isNotification ? 'Notification' : 'Request',
+            $method,
+            $isNotification ? 'addNotificationHandler' : 'addRequestHandler',
+        ));
     }
 }

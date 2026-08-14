@@ -16,9 +16,9 @@ namespace Nexus\Mcp\Server\Discovery;
 use Nexus\Assert\Assert;
 use Nexus\Assert\ExpectationFailedException;
 use Nexus\Mcp\Core\Exception\InvalidParamsException;
+use Nexus\Mcp\Core\Exception\LogicException;
 use Nexus\Mcp\Core\SafeDisplay;
 use Nexus\Mcp\Core\Validation\EnumValueValidator;
-use Nexus\Mcp\Server\Exception\UnsupportedNestedParameterException;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
@@ -34,7 +34,7 @@ final class ArgumentBinder
      * @return list<mixed>
      *
      * @throws InvalidParamsException
-     * @throws UnsupportedNestedParameterException
+     * @throws LogicException
      */
     public function bind(\ReflectionMethod $method, array $values, ServerContext $context): array
     {
@@ -51,7 +51,7 @@ final class ArgumentBinder
      * @return list<mixed>
      *
      * @throws ExpectationFailedException
-     * @throws UnsupportedNestedParameterException
+     * @throws LogicException
      */
     private static function resolveBindings(\ReflectionMethod $method, array $values, ServerContext $context): array
     {
@@ -106,7 +106,7 @@ final class ArgumentBinder
      * @param class-string $class
      *
      * @throws ExpectationFailedException
-     * @throws UnsupportedNestedParameterException
+     * @throws LogicException
      */
     private static function instantiate(string $class, string $argument, mixed $value): object
     {
@@ -143,7 +143,7 @@ final class ArgumentBinder
     /**
      * @param class-string $class
      *
-     * @throws UnsupportedNestedParameterException
+     * @throws LogicException
      */
     private static function guardAgainstNestedObject(string $class, \ReflectionParameter $parameter): void
     {
@@ -159,7 +159,12 @@ final class ArgumentBinder
             return;
         }
 
-        throw new UnsupportedNestedParameterException($class, $parameter->getName(), $name);
+        throw new LogicException(\sprintf(
+            '%s declares constructor parameter "$%s" of type "%s", which the binder cannot construct from a value map. Nested object expansion is not supported.',
+            $class,
+            $parameter->getName(),
+            $name,
+        ));
     }
 
     private static function hydrate(\ReflectionParameter $parameter, mixed $value, ?string $scope = null): mixed

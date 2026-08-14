@@ -13,8 +13,8 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Discovery;
 
+use Nexus\Mcp\Core\Exception\LogicException;
 use Nexus\Mcp\Server\Attribute\InputSchema;
-use Nexus\Mcp\Server\Exception\SchemaGenerationException;
 use Nexus\Mcp\Server\Exception\UnsupportedSchemaTypeException;
 use Nexus\Mcp\Server\ServerContext;
 use PHPStan\PhpDocParser\Ast\PhpDoc\ParamTagValueNode;
@@ -36,7 +36,7 @@ final readonly class InputSchemaGenerator
     /**
      * @return array<string, mixed>
      *
-     * @throws SchemaGenerationException
+     * @throws LogicException
      */
     public function generate(\ReflectionMethod $method): array
     {
@@ -234,7 +234,13 @@ final readonly class InputSchemaGenerator
             $function = $parameter->getDeclaringFunction();
             $class = $function instanceof \ReflectionMethod ? $function->getDeclaringClass()->getName() : '{closure}';
 
-            throw new SchemaGenerationException($class, $function->getName(), $parameter->getName(), $exception->getMessage(), $exception);
+            throw new LogicException(\sprintf(
+                'Cannot generate the input schema for parameter "$%s" of %s::%s(). %s Add #[InputSchema(...)] to describe it explicitly.',
+                $parameter->getName(),
+                $class,
+                $function->getName(),
+                $exception->getMessage(),
+            ), previous: $exception);
         }
 
         return self::allowsNull($parameter) ? $this->mapper->makeNullable($schema) : $schema;
