@@ -1099,38 +1099,29 @@ final class ServerBuilder
 
     private function hasPromptsCapability(): bool
     {
-        $store = $this->getPromptStore();
-
-        if (null !== $store) {
-            return true;
-        }
-
-        return isset($this->customRequestHandlers[GetPromptRequest::getMethod()])
-            && isset($this->customRequestHandlers[ListPromptsRequest::getMethod()]);
+        return $this->getPromptStore() !== null
+            || isset(
+                $this->customRequestHandlers[GetPromptRequest::getMethod()],
+                $this->customRequestHandlers[ListPromptsRequest::getMethod()],
+            );
     }
 
     private function hasResourcesCapability(): bool
     {
-        $store = $this->getResourceStore();
-
-        if (null !== $store) {
-            return true;
-        }
-
-        return isset($this->customRequestHandlers[ListResourcesRequest::getMethod()])
-            && isset($this->customRequestHandlers[ReadResourceRequest::getMethod()]);
+        return $this->getResourceStore() !== null
+            || isset(
+                $this->customRequestHandlers[ListResourcesRequest::getMethod()],
+                $this->customRequestHandlers[ReadResourceRequest::getMethod()],
+            );
     }
 
     private function hasToolsCapability(): bool
     {
-        $store = $this->getToolStore();
-
-        if (null !== $store) {
-            return true;
-        }
-
-        return isset($this->customRequestHandlers[CallToolRequest::getMethod()])
-            && isset($this->customRequestHandlers[ListToolsRequest::getMethod()]);
+        return $this->getToolStore() !== null
+            || isset(
+                $this->customRequestHandlers[CallToolRequest::getMethod()],
+                $this->customRequestHandlers[ListToolsRequest::getMethod()],
+            );
     }
 
     /**
