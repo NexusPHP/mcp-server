@@ -87,9 +87,18 @@ final class TypeNodeSchemaMapper
         }
 
         $type = $schema['type'];
-        $types = \is_array($type)
-            ? array_values(array_filter($type, is_string(...)))
-            : (\is_string($type) ? [$type] : []);
+        $types = [];
+
+        if (\is_array($type)) {
+            foreach ($type as $member) {
+                if (\is_string($member)) {
+                    $types[] = $member;
+                }
+            }
+        } elseif (\is_string($type)) {
+            $types[] = $type;
+        }
+
         $types[] = 'null';
         $schema['type'] = self::normaliseTypeList($types);
 
@@ -162,7 +171,13 @@ final class TypeNodeSchemaMapper
         }
 
         if ($node instanceof UnionTypeNode) {
-            $rest = array_values(array_filter($node->types, static fn(TypeNode $member): bool => ! self::isNull($member)));
+            $rest = [];
+
+            foreach ($node->types as $member) {
+                if (! self::isNull($member)) {
+                    $rest[] = $member;
+                }
+            }
 
             return match (\count($rest)) {
                 0 => $node,
@@ -227,19 +242,17 @@ final class TypeNodeSchemaMapper
     private static function mapEnum(string $enum): array
     {
         $reflection = new \ReflectionEnum($enum);
-        $values = array_map(
-            static function (\ReflectionEnumUnitCase $case): int|string {
-                $instance = $case->getValue();
+        $values = [];
 
-                return $instance instanceof \BackedEnum ? $instance->value : $case->getName();
-            },
-            $reflection->getCases(),
-        );
+        foreach ($reflection->getCases() as $case) {
+            $instance = $case->getValue();
+            $values[] = $instance instanceof \BackedEnum ? $instance->value : $case->getName();
+        }
 
         $backingType = $reflection->getBackingType();
         $type = null !== $backingType && $backingType->getName() === 'int' ? 'integer' : 'string';
 
-        return ['type' => $type, 'enum' => array_values($values)];
+        return ['type' => $type, 'enum' => $values];
     }
 
     /**
@@ -371,20 +384,22 @@ final class TypeNodeSchemaMapper
     private static function mapIntRange(GenericTypeNode $node): array
     {
         $arguments = $node->genericTypes;
+        $minimumNode = $arguments[0] ?? null;
+        $maximumNode = $arguments[1] ?? null;
 
-        if (! isset($arguments[0], $arguments[1]) || isset($arguments[2])) {
+        if (null === $minimumNode || null === $maximumNode || isset($arguments[2])) {
             throw new UnsupportedSchemaTypeException((string) $node);
         }
 
         $schema = ['type' => 'integer'];
 
-        $minimum = self::readIntBound($arguments[0], 'min', (string) $node);
+        $minimum = self::readIntBound($minimumNode, 'min', (string) $node);
 
         if (null !== $minimum) {
             $schema['minimum'] = $minimum;
         }
 
-        $maximum = self::readIntBound($arguments[1], 'max', (string) $node);
+        $maximum = self::readIntBound($maximumNode, 'max', (string) $node);
 
         if (null !== $maximum) {
             $schema['maximum'] = $maximum;
@@ -494,14 +509,20 @@ final class TypeNodeSchemaMapper
      */
     private static function normaliseTypeList(array $types): array|string
     {
-        $types = array_values(array_unique($types));
+        $unique = [];
 
-        if (\count($types) === 1) {
-            return $types[0];
+        foreach ($types as $type) {
+            if (! \in_array($type, $unique, true)) {
+                $unique[] = $type;
+            }
         }
 
-        $hasNull = \in_array('null', $types, true);
-        $rest = array_filter($types, static fn(string $type): bool => 'null' !== $type);
+        if (\count($unique) === 1) {
+            return $unique[0];
+        }
+
+        $hasNull = \in_array('null', $unique, true);
+        $rest = array_filter($unique, static fn(string $type): bool => 'null' !== $type);
         sort($rest);
 
         if ($hasNull) {
