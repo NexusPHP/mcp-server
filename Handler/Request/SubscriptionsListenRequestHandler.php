@@ -37,8 +37,10 @@ final readonly class SubscriptionsListenRequestHandler implements RequestHandler
     /**
      * @param null|SubscriptionFilter $deliverable The `listChanged` types a change-reporting store backs, or `null` for no narrowing
      */
-    public function __construct(private SubscriptionStoreInterface $store, private ?SubscriptionFilter $deliverable = null)
-    {
+    public function __construct(
+        private SubscriptionStoreInterface $store,
+        private ?SubscriptionFilter $deliverable = null,
+    ) {
     }
 
     #[\Override]

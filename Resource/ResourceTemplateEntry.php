@@ -20,7 +20,9 @@ use Nexus\Mcp\Core\Schema\Resource\ResourceTemplate;
  */
 final readonly class ResourceTemplateEntry
 {
-    public function __construct(public ResourceTemplate $template, public TemplatedResourceReaderInterface $reader)
-    {
+    public function __construct(
+        public ResourceTemplate $template,
+        public TemplatedResourceReaderInterface $reader,
+    ) {
     }
 }

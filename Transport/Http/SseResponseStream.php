@@ -41,8 +41,10 @@ final class SseResponseStream implements StreamInterface
      * @param float            $keepAliveInterval Seconds an idle read waits before yielding a keep-alive frame
      * @param \Closure(): void $onClose           Runs when the consumer closes the body (e.g. client disconnect)
      */
-    public function __construct(private readonly float $keepAliveInterval, private readonly \Closure $onClose)
-    {
+    public function __construct(
+        private readonly float $keepAliveInterval,
+        private readonly \Closure $onClose,
+    ) {
     }
 
     #[\Override]

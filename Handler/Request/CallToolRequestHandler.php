@@ -34,8 +34,10 @@ use Psr\Log\NullLogger;
  */
 final readonly class CallToolRequestHandler implements RequestHandlerInterface
 {
-    public function __construct(private ToolStoreInterface $store, private LoggerInterface $logger = new NullLogger())
-    {
+    public function __construct(
+        private ToolStoreInterface $store,
+        private LoggerInterface $logger = new NullLogger(),
+    ) {
     }
 
     #[\Override]

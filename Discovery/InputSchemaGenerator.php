@@ -29,8 +29,10 @@ final readonly class InputSchemaGenerator
 {
     private const string DIALECT = 'https://json-schema.org/draft/2020-12/schema';
 
-    public function __construct(private DocBlockTypeResolver $resolver = new DocBlockTypeResolver(), private TypeNodeSchemaMapper $mapper = new TypeNodeSchemaMapper())
-    {
+    public function __construct(
+        private DocBlockTypeResolver $resolver = new DocBlockTypeResolver(),
+        private TypeNodeSchemaMapper $mapper = new TypeNodeSchemaMapper(),
+    ) {
     }
 
     /**

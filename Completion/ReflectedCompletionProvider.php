@@ -23,8 +23,10 @@ use Nexus\Mcp\Server\ServerContext;
  */
 final readonly class ReflectedCompletionProvider implements CompletionProviderInterface
 {
-    public function __construct(private object $handler, private \ReflectionMethod $method)
-    {
+    public function __construct(
+        private object $handler,
+        private \ReflectionMethod $method,
+    ) {
     }
 
     #[\Override]

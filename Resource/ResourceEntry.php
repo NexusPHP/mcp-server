@@ -20,7 +20,9 @@ use Nexus\Mcp\Core\Schema\Resource\Resource;
  */
 final readonly class ResourceEntry
 {
-    public function __construct(public Resource $resource, public ResourceReaderInterface $reader)
-    {
+    public function __construct(
+        public Resource $resource,
+        public ResourceReaderInterface $reader,
+    ) {
     }
 }

@@ -27,8 +27,10 @@ use Nexus\Mcp\Server\ServerContext;
  */
 final readonly class CompositeResourceStore implements ListChangeSourceInterface, ResourceStoreInterface
 {
-    public function __construct(private ResourceStoreInterface $resourceStore, private ResourceTemplateStoreInterface $resourceTemplateStore)
-    {
+    public function __construct(
+        private ResourceStoreInterface $resourceStore,
+        private ResourceTemplateStoreInterface $resourceTemplateStore,
+    ) {
     }
 
     #[\Override]

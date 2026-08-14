@@ -47,8 +47,10 @@ use Nexus\Mcp\Server\Tool\ToolEntry;
  */
 final readonly class AttributeScanner
 {
-    public function __construct(private InputSchemaGenerator $schemaGenerator = new InputSchemaGenerator(), private DocBlockTypeResolver $resolver = new DocBlockTypeResolver())
-    {
+    public function __construct(
+        private InputSchemaGenerator $schemaGenerator = new InputSchemaGenerator(),
+        private DocBlockTypeResolver $resolver = new DocBlockTypeResolver(),
+    ) {
     }
 
     /**

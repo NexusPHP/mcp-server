@@ -28,8 +28,10 @@ final readonly class MiddlewarePipeline implements RequestHandlerInterface
      */
     private array $middleware;
 
-    public function __construct(private RequestHandlerInterface $handler, MiddlewareInterface ...$middleware)
-    {
+    public function __construct(
+        private RequestHandlerInterface $handler,
+        MiddlewareInterface ...$middleware,
+    ) {
         $this->middleware = array_values($middleware);
     }
 

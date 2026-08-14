@@ -31,8 +31,10 @@ final readonly class RequestStateSigner
 
     private const int SECRET_BYTES = 32;
 
-    public function __construct(private string $secret, private string $algorithm = 'sha256')
-    {
+    public function __construct(
+        private string $secret,
+        private string $algorithm = 'sha256',
+    ) {
         Assert::that($secret)->isNonEmptyString('The request-state signing secret must be a non-empty string.');
         Assert::that($algorithm)->isOneOf(
             hash_hmac_algos(),

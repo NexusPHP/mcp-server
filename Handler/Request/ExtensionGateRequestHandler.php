@@ -32,8 +32,10 @@ final readonly class ExtensionGateRequestHandler implements RequestHandlerInterf
      * @param non-empty-string                                                 $identifier
      * @param RequestHandlerInterface<non-empty-string, Result, ServerContext> $handler
      */
-    public function __construct(private string $identifier, private RequestHandlerInterface $handler)
-    {
+    public function __construct(
+        private string $identifier,
+        private RequestHandlerInterface $handler,
+    ) {
     }
 
     #[\Override]

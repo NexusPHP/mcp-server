@@ -20,7 +20,9 @@ use Nexus\Mcp\Core\Schema\Prompt\Prompt;
  */
 final readonly class PromptEntry
 {
-    public function __construct(public Prompt $prompt, public PromptRendererInterface $renderer)
-    {
+    public function __construct(
+        public Prompt $prompt,
+        public PromptRendererInterface $renderer,
+    ) {
     }
 }

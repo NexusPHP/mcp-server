@@ -20,7 +20,9 @@ use Nexus\Mcp\Core\Schema\Tool\Tool;
  */
 final readonly class ToolEntry
 {
-    public function __construct(public Tool $tool, public ToolExecutorInterface $executor)
-    {
+    public function __construct(
+        public Tool $tool,
+        public ToolExecutorInterface $executor,
+    ) {
     }
 }

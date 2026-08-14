@@ -28,8 +28,10 @@ final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInt
      * @param array<string, Key>|\ArrayAccess<string, Key> $keys           Keys by `kid`, typically a `Firebase\JWT\CachedKeySet`
      * @param non-empty-string                             $expectedIssuer The `iss` every accepted token must carry
      */
-    public function __construct(private array|\ArrayAccess $keys, private string $expectedIssuer)
-    {
+    public function __construct(
+        private array|\ArrayAccess $keys,
+        private string $expectedIssuer,
+    ) {
         SuggestedDependencyGuard::verify(self::class, JWT::class, 'firebase/php-jwt', '^7.0');
         Assert::that($expectedIssuer)->isNonEmptyString('JWKS validator expected issuer must be a non-empty string, {type} given.');
     }

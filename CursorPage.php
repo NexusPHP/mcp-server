@@ -27,7 +27,9 @@ final readonly class CursorPage
     /**
      * @param list<TEntry> $entries
      */
-    public function __construct(public array $entries, public ?Cursor $nextCursor)
-    {
+    public function __construct(
+        public array $entries,
+        public ?Cursor $nextCursor,
+    ) {
     }
 }
