@@ -74,21 +74,16 @@ final readonly class CallToolRequestHandler implements RequestHandlerInterface
                 'Tool result violated the declared outputSchema.',
                 ['tool' => $request->params->name, 'exception' => $e],
             );
-
-            return new CallToolResult(
-                content: [new TextContent(text: 'Tool execution failed.')],
-                isError: true,
-            );
         } catch (\Throwable $e) {
             $this->logger->error(
                 'Uncaught tool executor exception. Returning generic error to peer.',
                 ['tool' => $request->params->name, 'exception' => $e],
             );
-
-            return new CallToolResult(
-                content: [new TextContent(text: 'Tool execution failed.')],
-                isError: true,
-            );
         }
+
+        return new CallToolResult(
+            content: [new TextContent(text: 'Tool execution failed.')],
+            isError: true,
+        );
     }
 }
