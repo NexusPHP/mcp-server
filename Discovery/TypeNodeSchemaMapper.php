@@ -362,9 +362,7 @@ final class TypeNodeSchemaMapper
             return self::buildArraySchema($value);
         }
 
-        return [] === $value
-            ? ['type' => 'object', 'additionalProperties' => true]
-            : ['type' => 'object', 'additionalProperties' => $value];
+        return ['type' => 'object', 'additionalProperties' => self::asSubSchema($value)];
     }
 
     /**
