@@ -57,6 +57,10 @@ final readonly class AttributeScanner
     public function scan(object $source): iterable
     {
         foreach ((new \ReflectionObject($source))->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
+            if (str_starts_with($method->getName(), '__')) {
+                self::rejectDiscoveryAttributes($method);
+            }
+
             foreach ($method->getAttributes(AsTool::class) as $attribute) {
                 yield new ToolEntry(
                     $this->buildTool($method, $attribute->newInstance()),
@@ -87,6 +91,23 @@ final readonly class AttributeScanner
 
             foreach ($method->getAttributes(AsCompletion::class) as $attribute) {
                 yield self::buildCompletion($source, $method, $attribute->newInstance());
+            }
+        }
+    }
+
+    /**
+     * @throws LogicException
+     */
+    private static function rejectDiscoveryAttributes(\ReflectionMethod $method): void
+    {
+        foreach ([AsTool::class, AsPrompt::class, AsResource::class, AsResourceTemplate::class, AsCompletion::class] as $attribute) {
+            if ([] !== $method->getAttributes($attribute)) {
+                throw new LogicException(\sprintf(
+                    '%s::%s() is a magic method and cannot be a #[%s] handler. Move the attribute to a regular public method.',
+                    $method->getDeclaringClass()->getName(),
+                    $method->getName(),
+                    (new \ReflectionClass($attribute))->getShortName(),
+                ));
             }
         }
     }
