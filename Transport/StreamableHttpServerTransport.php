@@ -198,6 +198,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         };
 
         $this->state = TransportState::Running;
+        $this->logger->info('{label} transport started.', ['label' => self::LABEL]);
     }
 
     #[\Override]
@@ -242,6 +243,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
                 $this->retireSinks();
             } finally {
                 $this->events->emitClose();
+                $this->logger->info('{label} transport closed.', ['label' => self::LABEL]);
             }
         }
     }
