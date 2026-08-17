@@ -62,12 +62,7 @@ final readonly class ReflectedPromptRenderer implements PromptRendererInterface
             return new GetPromptResult(messages: $this->buildMessageList($result));
         }
 
-        throw new UnsupportedReturnValueException(
-            $this->method->getDeclaringClass()->getName(),
-            $this->method->getName(),
-            \sprintf('a %s, a string, or prompt messages', GetPromptResult::class),
-            $result,
-        );
+        throw self::buildUnsupportedError($this->method, $result);
     }
 
     /**
@@ -80,14 +75,19 @@ final readonly class ReflectedPromptRenderer implements PromptRendererInterface
         $messages = array_filter($result, static fn(mixed $item): bool => $item instanceof PromptMessage);
 
         if (! array_is_list($result) || [] === $result || \count($messages) !== \count($result)) {
-            throw new UnsupportedReturnValueException(
-                $this->method->getDeclaringClass()->getName(),
-                $this->method->getName(),
-                \sprintf('a %s, a string, or prompt messages', GetPromptResult::class),
-                $result,
-            );
+            throw self::buildUnsupportedError($this->method, $result);
         }
 
         return array_values($messages);
+    }
+
+    private static function buildUnsupportedError(\ReflectionMethod $method, mixed $result): UnsupportedReturnValueException
+    {
+        return new UnsupportedReturnValueException(
+            $method->getDeclaringClass()->getName(),
+            $method->getName(),
+            \sprintf('a %s, a string, or prompt messages', GetPromptResult::class),
+            $result,
+        );
     }
 }
