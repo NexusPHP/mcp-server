@@ -22,15 +22,15 @@ use Nexus\Mcp\Server\ServerContext;
 final readonly class ClosureCompletionProvider implements CompletionProviderInterface
 {
     /**
-     * @param \Closure(string, ?array<array-key, string>, ServerContext): CompleteResult $provider
+     * @param \Closure(string, ?array<array-key, string>, ServerContext): CompleteResult $closure
      */
-    public function __construct(private \Closure $provider)
+    public function __construct(private \Closure $closure)
     {
     }
 
     #[\Override]
     public function complete(string $argumentValue, ?array $contextArguments, ServerContext $context): CompleteResult
     {
-        return ($this->provider)($argumentValue, $contextArguments, $context);
+        return ($this->closure)($argumentValue, $contextArguments, $context);
     }
 }
