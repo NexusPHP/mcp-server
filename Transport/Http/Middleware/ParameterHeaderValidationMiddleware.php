@@ -72,13 +72,18 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
         }
 
         $params = $envelope['params'] ?? null;
-        $name = \is_array($params) ? $params['name'] ?? null : null;
+
+        if (! \is_array($params)) {
+            return $handler->handle($request);
+        }
+
+        $name = $params['name'] ?? null;
 
         if (! \is_string($name)) {
             return $handler->handle($request);
         }
 
-        $arguments = \is_array($params) ? $params['arguments'] ?? [] : [];
+        $arguments = $params['arguments'] ?? [];
         $mismatch = ParameterHeaders::validate(
             $this->resolveBindings($name),
             \is_array($arguments) ? $arguments : [],
