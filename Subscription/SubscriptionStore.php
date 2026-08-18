@@ -153,6 +153,12 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     }
 
     #[\Override]
+    public function reopen(): void
+    {
+        $this->drained = false;
+    }
+
+    #[\Override]
     public function emitToolListChanged(): void
     {
         $this->coalesceListChange(self::TOOLS);

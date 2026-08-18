@@ -54,6 +54,11 @@ interface SubscriptionStoreInterface
      */
     public function closeAll(): void;
 
+    /**
+     * Clears the drained state left by `closeAll()`, so a store reused on a new transport serves live streams again.
+     */
+    public function reopen(): void;
+
     public function emitToolListChanged(): void;
 
     public function emitPromptListChanged(): void;

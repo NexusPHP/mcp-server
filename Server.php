@@ -74,6 +74,8 @@ final readonly class Server
 
     private function attachDispatchListeners(TransportInterface $transport): void
     {
+        $this->subscriptions?->reopen();
+
         $transport->onMessage(function (array $envelope, ReceiveContext $context) use ($transport): void {
             $this->dispatcher->dispatch($envelope, $transport, $context);
         });
