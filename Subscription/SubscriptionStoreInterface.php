@@ -26,11 +26,12 @@ interface SubscriptionStoreInterface
     /**
      * Opens a stream, acknowledging it before it becomes visible to any emit.
      *
-     * @param RequestId $subscriptionId Id every message on the stream carries, as the client sent it
+     * @param RequestId             $subscriptionId Id every message on the stream carries, as the client sent it
+     * @param null|non-empty-string $peer           Stable peer identity for the per-peer budget, null when the transport cannot supply one
      *
      * @throws SubscriptionLimitReachedException
      */
-    public function open(RequestId $subscriptionId, SubscriptionFilter $requested, SenderInterface $sender): SubscriptionEntry;
+    public function open(RequestId $subscriptionId, SubscriptionFilter $requested, SenderInterface $sender, ?string $peer = null): SubscriptionEntry;
 
     /**
      * Narrows `$requested` to the notification types this store delivers, omitting rather than

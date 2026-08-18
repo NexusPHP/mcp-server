@@ -22,14 +22,22 @@ use Nexus\Mcp\Core\Schema\RequestId;
  */
 final class SubscriptionLimitReachedException extends AbstractJsonRpcProtocolException
 {
+    /**
+     * @param bool $perPeer Whether the per-peer budget refused the stream, rather than the server-wide one
+     */
     public function __construct(
         public readonly int $limit,
         ?RequestId $requestId = null,
         ?\Throwable $previous = null,
+        bool $perPeer = false,
     ) {
         parent::__construct(
             $requestId,
-            \sprintf('Subscription limit reached: this server holds at most %d open streams.', $limit),
+            \sprintf(
+                'Subscription limit reached: this server holds at most %d open streams%s.',
+                $limit,
+                $perPeer ? ' per client' : '',
+            ),
             $previous,
             errorData: ['limit' => $limit],
         );

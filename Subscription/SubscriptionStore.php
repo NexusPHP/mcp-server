@@ -41,6 +41,7 @@ use Revolt\EventLoop;
 final class SubscriptionStore implements SubscriptionStoreInterface
 {
     public const int DEFAULT_MAX_SUBSCRIPTIONS = 1_024;
+    public const int DEFAULT_MAX_SUBSCRIPTIONS_PER_PEER = 256;
     private const string TOOLS = 'tools';
     private const string PROMPTS = 'prompts';
     private const string RESOURCES = 'resources';
@@ -57,6 +58,18 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     private int $pendingOpens = 0;
 
     /**
+     * Streams held per peer, pending acknowledgements included.
+     *
+     * @var array<non-empty-string, int>
+     */
+    private array $peerHeld = [];
+
+    /**
+     * @var array<int, non-empty-string>
+     */
+    private array $entryPeers = [];
+
+    /**
      * @var array<non-empty-string, true>
      */
     private array $pendingListChanges = [];
@@ -66,6 +79,10 @@ final class SubscriptionStore implements SubscriptionStoreInterface
      */
     private array $pendingResourceUpdates = [];
 
+    /**
+     * @param int<1, max> $maxSubscriptions
+     * @param int<1, max> $maxSubscriptionsPerPeer
+     */
     public function __construct(
         private readonly bool $toolsListChanged = false,
         private readonly bool $promptsListChanged = false,
@@ -73,17 +90,31 @@ final class SubscriptionStore implements SubscriptionStoreInterface
         private readonly bool $resourceSubscriptions = false,
         private readonly LoggerInterface $logger = new NullLogger(),
         private readonly int $maxSubscriptions = self::DEFAULT_MAX_SUBSCRIPTIONS,
+        private readonly int $maxSubscriptionsPerPeer = self::DEFAULT_MAX_SUBSCRIPTIONS_PER_PEER,
     ) {
         Assert::that($maxSubscriptions)
             ->isPositiveInt('The maximum open subscriptions must be a positive integer, {value} given.')
         ;
+        Assert::that($maxSubscriptionsPerPeer)
+            ->isPositiveInt('The maximum open subscriptions per peer must be a positive integer, {value} given.')
+        ;
     }
 
     #[\Override]
-    public function open(RequestId $subscriptionId, SubscriptionFilter $requested, SenderInterface $sender): SubscriptionEntry
+    public function open(RequestId $subscriptionId, SubscriptionFilter $requested, SenderInterface $sender, ?string $peer = null): SubscriptionEntry
     {
         if ($this->maxSubscriptions <= \count($this->entries) + $this->pendingOpens) {
             throw new SubscriptionLimitReachedException($this->maxSubscriptions, $subscriptionId);
+        }
+
+        if (null !== $peer) {
+            $held = $this->peerHeld[$peer] ?? 0;
+
+            if ($this->maxSubscriptionsPerPeer <= $held) {
+                throw new SubscriptionLimitReachedException($this->maxSubscriptionsPerPeer, $subscriptionId, perPeer: true);
+            }
+
+            $this->peerHeld[$peer] = $held + 1;
         }
 
         $honoured = $this->honour($requested);
@@ -102,17 +133,31 @@ final class SubscriptionStore implements SubscriptionStoreInterface
                     meta: new NotificationMetaObject(subscriptionId: $subscriptionId),
                 ),
             ));
+        } catch (\Throwable $e) {
+            if (null !== $peer) {
+                $this->releasePeer($peer);
+            }
+
+            throw $e;
         } finally {
             --$this->pendingOpens;
         }
 
         if ($this->drained) {
+            if (null !== $peer) {
+                $this->releasePeer($peer);
+            }
+
             $closed->complete();
 
             return $entry;
         }
 
         $this->entries[spl_object_id($entry)] = $entry;
+
+        if (null !== $peer) {
+            $this->entryPeers[spl_object_id($entry)] = $peer;
+        }
 
         return $entry;
     }
@@ -139,7 +184,14 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     #[\Override]
     public function discard(SubscriptionEntry $entry): void
     {
-        unset($this->entries[spl_object_id($entry)]);
+        $id = spl_object_id($entry);
+
+        if (isset($this->entryPeers[$id])) {
+            $this->releasePeer($this->entryPeers[$id]);
+            unset($this->entryPeers[$id]);
+        }
+
+        unset($this->entries[$id]);
     }
 
     #[\Override]
@@ -194,6 +246,20 @@ final class SubscriptionStore implements SubscriptionStoreInterface
             resourcesListChanged: $this->resourcesListChanged && true === $requested->resourcesListChanged ? true : null,
             resourceSubscriptions: $this->resourceSubscriptions ? $requested->resourceSubscriptions : null,
         );
+    }
+
+    /**
+     * @param non-empty-string $peer
+     */
+    private function releasePeer(string $peer): void
+    {
+        $held = $this->peerHeld[$peer] - 1;
+
+        if ($held < 1) {
+            unset($this->peerHeld[$peer]);
+        } else {
+            $this->peerHeld[$peer] = $held;
+        }
     }
 
     /**

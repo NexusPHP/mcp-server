@@ -50,7 +50,9 @@ final readonly class SubscriptionsListenRequestHandler implements RequestHandler
         \assert($context instanceof ServerContext);
 
         $subscriptionId = $context->receiveContext->peerRequestId ?? $context->requestId;
-        $entry = $this->store->open($subscriptionId, $this->narrow($request->params->notifications), $context->sender);
+        $authInfo = $context->receiveContext->authInfo;
+        $peer = $authInfo->clientId ?? $authInfo?->subject;
+        $entry = $this->store->open($subscriptionId, $this->narrow($request->params->notifications), $context->sender, $peer);
 
         try {
             $entry->closed->getFuture()->await($context->cancellation);
