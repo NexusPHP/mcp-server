@@ -11,10 +11,11 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace Nexus\Mcp\Server;
+namespace Nexus\Mcp\Server\Extension;
 
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
 use Nexus\Mcp\Core\Schema\Result;
+use Nexus\Mcp\Server\ServerContext;
 
 /**
  * Optional add-on to `ServerExtensionInterface` for extensions decorating the

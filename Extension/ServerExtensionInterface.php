@@ -11,9 +11,10 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace Nexus\Mcp\Server;
+namespace Nexus\Mcp\Server\Extension;
 
 use Nexus\Mcp\Core\Extension\ExtensionInterface;
+use Nexus\Mcp\Server\ServerContext;
 
 /**
  * Declares an extension the server serves, enabled via `ServerBuilder::enableExtension()`.

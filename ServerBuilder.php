@@ -64,6 +64,8 @@ use Nexus\Mcp\Server\Completion\CompletionStoreInterface;
 use Nexus\Mcp\Server\Completion\PromptCompletionEntry;
 use Nexus\Mcp\Server\Discovery\AttributeScanner;
 use Nexus\Mcp\Server\Dispatch\ServerMessageDispatcher;
+use Nexus\Mcp\Server\Extension\RequestHandlerDecoratorInterface;
+use Nexus\Mcp\Server\Extension\ServerExtensionInterface;
 use Nexus\Mcp\Server\Handler\Request\CallToolRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\CompleteRequestHandler;
 use Nexus\Mcp\Server\Handler\Request\DiscoverRequestHandler;
