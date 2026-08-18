@@ -104,7 +104,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
             throw new \InvalidArgumentException(\sprintf('The SSE keep-alive interval must be positive, %s given.', $this->keepAliveInterval));
         }
 
-        $this->events = new TransportEvents();
+        $this->events = TransportEvents::create($this->logger, self::LABEL);
     }
 
     #[\Override]
