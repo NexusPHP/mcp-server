@@ -68,6 +68,16 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      */
     private bool $closing = false;
 
+    /**
+     * @var null|\Fiber<mixed, mixed, mixed, mixed> The close owner, `null` while no close is in progress or when {main} owns it
+     */
+    private ?\Fiber $closingFiber = null;
+
+    /**
+     * @var null|DeferredFuture<null>
+     */
+    private ?DeferredFuture $closeCompletion = null;
+
     private readonly TransportEvents $events;
 
     /**
@@ -229,10 +239,21 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     public function close(): void
     {
         if ($this->closing) {
+            if (\Fiber::getCurrent() === $this->closingFiber) {
+                return;
+            }
+
+            $this->closeCompletion?->getFuture()->await();
+
             return;
         }
 
         $this->closing = true;
+        $this->closingFiber = \Fiber::getCurrent();
+
+        /** @var DeferredFuture<null> $completion */
+        $completion = new DeferredFuture();
+        $this->closeCompletion = $completion;
 
         try {
             $this->events->emitDrain();
@@ -240,10 +261,14 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
             $this->state = TransportState::Closed;
 
             try {
-                $this->retireSinks();
+                try {
+                    $this->retireSinks();
+                } finally {
+                    $this->events->emitClose();
+                    $this->logger->info('{label} transport closed.', ['label' => self::LABEL]);
+                }
             } finally {
-                $this->events->emitClose();
-                $this->logger->info('{label} transport closed.', ['label' => self::LABEL]);
+                $completion->complete();
             }
         }
     }
