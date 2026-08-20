@@ -153,7 +153,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
             return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
         }
 
-        if (\array_key_exists('result', $envelope) || \array_key_exists('error', $envelope)) {
+        if (! \array_key_exists('method', $envelope) && (\array_key_exists('result', $envelope) || \array_key_exists('error', $envelope))) {
             return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
         }
 

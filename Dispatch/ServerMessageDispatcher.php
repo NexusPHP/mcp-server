@@ -121,7 +121,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     #[\Override]
     public function dispatch(array $envelope, TransportInterface $transport, ReceiveContext $context): void
     {
-        if (\array_key_exists('result', $envelope) || \array_key_exists('error', $envelope)) {
+        if (! \array_key_exists('method', $envelope) && (\array_key_exists('result', $envelope) || \array_key_exists('error', $envelope))) {
             $this->discardResponseEnvelope();
 
             return;
