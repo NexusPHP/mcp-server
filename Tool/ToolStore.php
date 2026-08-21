@@ -30,12 +30,15 @@ use Nexus\Mcp\Server\Exception\ToolOutputValidationException;
 use Nexus\Mcp\Server\ServerContext;
 use Nexus\Mcp\Server\Validation\OpisSchemaValidator;
 use Nexus\Mcp\Server\Validation\SchemaValidatorInterface;
+use Nexus\Mcp\Server\Validation\SchemaViolation;
 
 /**
  * In-memory implementation of `MutableToolStoreInterface`.
  */
 final class ToolStore implements MutableToolStoreInterface
 {
+    private const int MAX_REPORTED_VIOLATIONS = 8;
+
     private readonly CursorPaginator $paginator;
 
     /**
@@ -136,8 +139,12 @@ final class ToolStore implements MutableToolStoreInterface
             throw new InvalidParamsException(
                 $context->requestId,
                 SafeDisplay::sanitiseCause(
-                    \sprintf('Invalid arguments for tool "%s": %s', $name, implode(' ', $inputErrors)),
+                    \sprintf('Invalid arguments for tool "%s": %s', $name, implode(' ', array_map(
+                        static fn(SchemaViolation $violation): string => $violation->message,
+                        $inputErrors,
+                    ))),
                 ),
+                errorData: ['validation_errors' => self::describeViolations($inputErrors)],
             );
         }
 
@@ -173,6 +180,25 @@ final class ToolStore implements MutableToolStoreInterface
         }
 
         return $result;
+    }
+
+    /**
+     * @param non-empty-list<SchemaViolation> $violations
+     *
+     * @return non-empty-list<array{pointer: string, message: string}>
+     */
+    private static function describeViolations(array $violations): array
+    {
+        $described = [];
+
+        foreach (\array_slice($violations, 0, self::MAX_REPORTED_VIOLATIONS) as $violation) {
+            $described[] = [
+                'pointer' => SafeDisplay::sanitiseCause($violation->pointer),
+                'message' => SafeDisplay::sanitiseCause($violation->message),
+            ];
+        }
+
+        return $described;
     }
 
     /**

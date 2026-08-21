@@ -21,7 +21,7 @@ interface SchemaValidatorInterface
     /**
      * @param array<array-key, mixed> $schema
      *
-     * @return list<string> validation error messages, empty when the data is valid
+     * @return list<SchemaViolation>
      */
     public function validate(mixed $data, array $schema): array;
 }

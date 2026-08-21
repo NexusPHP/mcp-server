@@ -23,19 +23,32 @@ use Opis\JsonSchema\Errors\ValidationError;
 final class ValidationErrorFormatter
 {
     /**
-     * @return list<string>
+     * @return list<SchemaViolation>
      */
     public function format(ValidationError $error): array
     {
-        $messages = [];
+        $violations = [];
 
         foreach (self::collectLeafErrors($error) as $leaf) {
+            $pointer = self::renderPointer($leaf);
+
             foreach (self::formatLeafError($leaf) as $message) {
-                $messages[] = $message;
+                $violations[] = new SchemaViolation($pointer, $message);
             }
         }
 
-        return $messages;
+        return $violations;
+    }
+
+    private static function renderPointer(ValidationError $error): string
+    {
+        $pointer = '';
+
+        foreach ($error->data()->fullPath() as $segment) {
+            $pointer .= '/'.strtr((string) $segment, ['~' => '~0', '/' => '~1']);
+        }
+
+        return $pointer;
     }
 
     /**
@@ -59,7 +72,7 @@ final class ValidationErrorFormatter
     /**
      * Renders a leaf error, bare at the data root since the caller's wrapper supplies the scope.
      *
-     * @return list<string>
+     * @return list<non-empty-string>
      */
     private static function formatLeafError(ValidationError $error): array
     {
