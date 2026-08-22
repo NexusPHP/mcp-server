@@ -18,26 +18,30 @@ use Nexus\Mcp\Core\Schema\Enum\ProtocolErrorCode;
 use Nexus\Mcp\Core\Schema\RequestId;
 
 /**
- * Thrown when a `subscriptions/listen` arrives while the store already holds its maximum open streams.
+ * Thrown when a `subscriptions/listen` asks for more than one of the store's budgets allows.
  */
 final class SubscriptionLimitReachedException extends AbstractJsonRpcProtocolException
 {
     /**
-     * @param bool $perPeer Whether the per-peer budget refused the stream, rather than the server-wide one
+     * @param bool $perPeer   Whether the per-peer budget refused the stream, rather than the server-wide one
+     * @param bool $perStream Whether the stream named more resource URIs than one may watch
      */
     public function __construct(
         public readonly int $limit,
         ?RequestId $requestId = null,
         ?\Throwable $previous = null,
         bool $perPeer = false,
+        bool $perStream = false,
     ) {
         parent::__construct(
             $requestId,
-            \sprintf(
-                'Subscription limit reached: this server holds at most %d open streams%s.',
-                $limit,
-                $perPeer ? ' per client' : '',
-            ),
+            $perStream
+                ? \sprintf('Subscription limit reached: this server watches at most %d resource URIs per stream.', $limit)
+                : \sprintf(
+                    'Subscription limit reached: this server holds at most %d open streams%s.',
+                    $limit,
+                    $perPeer ? ' per client' : '',
+                ),
             $previous,
             errorData: ['limit' => $limit],
         );

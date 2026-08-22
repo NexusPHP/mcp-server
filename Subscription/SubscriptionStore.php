@@ -42,6 +42,7 @@ final class SubscriptionStore implements SubscriptionStoreInterface
 {
     public const int DEFAULT_MAX_SUBSCRIPTIONS = 1_024;
     public const int DEFAULT_MAX_SUBSCRIPTIONS_PER_PEER = 256;
+    public const int DEFAULT_MAX_RESOURCE_SUBSCRIPTIONS_PER_STREAM = 256;
     private const string TOOLS = 'tools';
     private const string PROMPTS = 'prompts';
     private const string RESOURCES = 'resources';
@@ -70,6 +71,11 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     private array $entryPeers = [];
 
     /**
+     * @var array<string, array<int, SubscriptionEntry>>
+     */
+    private array $uriWatchers = [];
+
+    /**
      * @var array<non-empty-string, true>
      */
     private array $pendingListChanges = [];
@@ -82,6 +88,7 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     /**
      * @param int<1, max> $maxSubscriptions
      * @param int<1, max> $maxSubscriptionsPerPeer
+     * @param int<1, max> $maxResourceSubscriptionsPerStream
      */
     public function __construct(
         private readonly bool $toolsListChanged = false,
@@ -91,6 +98,7 @@ final class SubscriptionStore implements SubscriptionStoreInterface
         private readonly LoggerInterface $logger = new NullLogger(),
         private readonly int $maxSubscriptions = self::DEFAULT_MAX_SUBSCRIPTIONS,
         private readonly int $maxSubscriptionsPerPeer = self::DEFAULT_MAX_SUBSCRIPTIONS_PER_PEER,
+        private readonly int $maxResourceSubscriptionsPerStream = self::DEFAULT_MAX_RESOURCE_SUBSCRIPTIONS_PER_STREAM,
     ) {
         Assert::that($maxSubscriptions)
             ->isPositiveInt('The maximum open subscriptions must be a positive integer, {value} given.')
@@ -98,11 +106,20 @@ final class SubscriptionStore implements SubscriptionStoreInterface
         Assert::that($maxSubscriptionsPerPeer)
             ->isPositiveInt('The maximum open subscriptions per peer must be a positive integer, {value} given.')
         ;
+        Assert::that($maxResourceSubscriptionsPerStream)
+            ->isPositiveInt('The maximum resource subscriptions per stream must be a positive integer, {value} given.')
+        ;
     }
 
     #[\Override]
     public function open(RequestId $subscriptionId, SubscriptionFilter $requested, SenderInterface $sender, ?string $peer = null): SubscriptionEntry
     {
+        $honoured = $this->honour($requested);
+
+        if ($this->maxResourceSubscriptionsPerStream < \count($honoured->resourceSubscriptions ?? [])) {
+            throw new SubscriptionLimitReachedException($this->maxResourceSubscriptionsPerStream, $subscriptionId, perStream: true);
+        }
+
         if ($this->maxSubscriptions <= \count($this->entries) + $this->pendingOpens) {
             throw new SubscriptionLimitReachedException($this->maxSubscriptions, $subscriptionId);
         }
@@ -116,8 +133,6 @@ final class SubscriptionStore implements SubscriptionStoreInterface
 
             $this->peerHeld[$peer] = $held + 1;
         }
-
-        $honoured = $this->honour($requested);
 
         /** @var DeferredFuture<null> $closed */
         $closed = new DeferredFuture();
@@ -153,10 +168,15 @@ final class SubscriptionStore implements SubscriptionStoreInterface
             return $entry;
         }
 
-        $this->entries[spl_object_id($entry)] = $entry;
+        $id = spl_object_id($entry);
+        $this->entries[$id] = $entry;
 
         if (null !== $peer) {
-            $this->entryPeers[spl_object_id($entry)] = $peer;
+            $this->entryPeers[$id] = $peer;
+        }
+
+        foreach ($honoured->resourceSubscriptions ?? [] as $uri) {
+            $this->uriWatchers[$uri][$id] = $entry;
         }
 
         return $entry;
@@ -189,6 +209,14 @@ final class SubscriptionStore implements SubscriptionStoreInterface
         if (isset($this->entryPeers[$id])) {
             $this->releasePeer($this->entryPeers[$id]);
             unset($this->entryPeers[$id]);
+        }
+
+        foreach ($entry->honoured->resourceSubscriptions ?? [] as $uri) {
+            unset($this->uriWatchers[$uri][$id]);
+
+            if ([] === ($this->uriWatchers[$uri] ?? [])) {
+                unset($this->uriWatchers[$uri]);
+            }
         }
 
         unset($this->entries[$id]);
@@ -322,11 +350,7 @@ final class SubscriptionStore implements SubscriptionStoreInterface
      */
     private function broadcastResourceUpdate(string $uri): void
     {
-        foreach ($this->entries as $entry) {
-            if (! \in_array($uri, $entry->honoured->resourceSubscriptions ?? [], true)) {
-                continue;
-            }
-
+        foreach ($this->uriWatchers[$uri] ?? [] as $entry) {
             $this->pushTo($entry, new ResourceUpdatedNotification(
                 params: new ResourceUpdatedNotificationParams(
                     uri: $uri,
