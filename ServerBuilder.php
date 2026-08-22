@@ -55,7 +55,6 @@ use Nexus\Mcp\Core\Schema\Tool\Tool;
 use Nexus\Mcp\Core\UriTemplate\Validator;
 use Nexus\Mcp\Core\Validation\IconSrcValidator;
 use Nexus\Mcp\Core\Validation\IdentifierNameValidator;
-use Nexus\Mcp\Core\Validation\MethodClassValidator;
 use Nexus\Mcp\Server\Attribute\AsServer;
 use Nexus\Mcp\Server\Completion\ClosureCompletionProvider;
 use Nexus\Mcp\Server\Completion\CompletionProviderInterface;
@@ -750,17 +749,17 @@ final class ServerBuilder
     /**
      * Registers a handler for a vendor-extension request method.
      *
-     * @param non-empty-string                                                 $method
+     * @param class-string<JsonRpcRequest<non-empty-string>>                   $request
      * @param RequestHandlerInterface<non-empty-string, Result, ServerContext> $handler
-     * @param class-string<JsonRpcRequest<non-empty-string>>                   $requestClass
      *
      * @throws LogicException
      *
      * @see self::replaceRequestHandler()
      */
-    public function addRequestHandler(string $method, RequestHandlerInterface $handler, string $requestClass): self
+    public function addRequestHandler(string $request, RequestHandlerInterface $handler): self
     {
         $this->assertNotBuilt();
+        $method = $request::getMethod();
 
         if (\array_key_exists($method, JsonRpcMethodRegistry::requests())) {
             $this->refuseReservedMethod($method, isNotification: false);
@@ -768,16 +767,14 @@ final class ServerBuilder
 
         $this->extensions->assertNotOwned($method);
 
-        MethodClassValidator::validate($requestClass, $method);
-
-        Assert::that($requestClass)->isSubclassOf(ClientRequest::class, \sprintf(
+        Assert::that($request)->isSubclassOf(ClientRequest::class, \sprintf(
             'Request class "%s" must implement "%s" for the server to dispatch it.',
-            $requestClass,
+            $request,
             ClientRequest::class,
         ));
 
         $this->customRequestHandlers[$method] = $handler;
-        $this->customRequestClasses[$method] = $requestClass;
+        $this->customRequestClasses[$method] = $request;
 
         return $this;
     }
@@ -808,17 +805,17 @@ final class ServerBuilder
     /**
      * Registers a handler for a vendor-extension notification method.
      *
-     * @param non-empty-string                                    $method
+     * @param class-string<JsonRpcNotification<non-empty-string>> $notification
      * @param NotificationHandlerInterface<non-empty-string>      $handler
-     * @param class-string<JsonRpcNotification<non-empty-string>> $notificationClass
      *
      * @throws LogicException
      *
      * @see self::replaceNotificationHandler()
      */
-    public function addNotificationHandler(string $method, NotificationHandlerInterface $handler, string $notificationClass): self
+    public function addNotificationHandler(string $notification, NotificationHandlerInterface $handler): self
     {
         $this->assertNotBuilt();
+        $method = $notification::getMethod();
 
         if (\array_key_exists($method, JsonRpcMethodRegistry::notifications())) {
             $this->refuseReservedMethod($method, isNotification: true);
@@ -826,10 +823,8 @@ final class ServerBuilder
 
         $this->extensions->assertNotOwned($method, isNotification: true);
 
-        MethodClassValidator::validate($notificationClass, $method, isNotification: true);
-
         $this->customNotificationHandlers[$method] = $handler;
-        $this->customNotificationClasses[$method] = $notificationClass;
+        $this->customNotificationClasses[$method] = $notification;
 
         return $this;
     }
