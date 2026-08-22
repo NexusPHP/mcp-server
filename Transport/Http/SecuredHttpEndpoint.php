@@ -32,12 +32,14 @@ use Psr\Log\NullLogger;
  */
 final readonly class SecuredHttpEndpoint implements RequestHandlerInterface
 {
+    public const int DEFAULT_MAX_BODY_BYTES = 1_048_576;
+
     private MiddlewarePipeline $pipeline;
 
     /**
      * @param list<non-empty-string>   $allowedOrigins Origins permitted to reach the endpoint, or `['*']` to allow any
      * @param list<non-empty-string>   $allowedHosts   Hosts permitted to reach the endpoint (empty disables `Host` validation), or `['*']` to allow any
-     * @param null|int<0, max>         $maxBodyBytes
+     * @param null|int<0, max>         $maxBodyBytes   Request body bytes past which the request is refused, or `null` for no cap
      * @param null|ToolStoreInterface  $toolStore      The served tool store, enabling `Mcp-Param-{Name}` validation
      * @param null|MiddlewareInterface $authentication Bearer token enforcement, making the endpoint an OAuth resource server
      */
@@ -47,7 +49,7 @@ final readonly class SecuredHttpEndpoint implements RequestHandlerInterface
         ResponseFactoryInterface $responseFactory,
         StreamFactoryInterface $streamFactory,
         array $allowedHosts = [],
-        ?int $maxBodyBytes = null,
+        ?int $maxBodyBytes = self::DEFAULT_MAX_BODY_BYTES,
         ?ToolStoreInterface $toolStore = null,
         LoggerInterface $logger = new NullLogger(),
         ?MiddlewareInterface $authentication = null,
