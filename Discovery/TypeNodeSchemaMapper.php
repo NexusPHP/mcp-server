@@ -45,22 +45,22 @@ final class TypeNodeSchemaMapper
     public function map(TypeNode $node): array
     {
         return match (true) {
-            $node instanceof IdentifierTypeNode => self::mapIdentifier($node),
+            $node instanceof IdentifierTypeNode => $this->mapIdentifier($node),
             $node instanceof NullableTypeNode => $this->makeNullable($this->map($node->type)),
             $node instanceof UnionTypeNode => $this->mapUnion($node),
             $node instanceof GenericTypeNode => $this->mapGeneric($node),
             $node instanceof ArrayTypeNode => self::buildArraySchema($this->map($node->type)),
             $node instanceof ArrayShapeNode => $this->mapArrayShape($node),
             $node instanceof ObjectShapeNode => $this->mapNamedShape($node),
-            $node instanceof ConstTypeNode => self::mapConstUnion([$node], (string) $node),
+            $node instanceof ConstTypeNode => $this->mapConstUnion([$node], (string) $node),
             default => throw new UnsupportedSchemaTypeException((string) $node),
         };
     }
 
     public function resolveTypeNode(?TypeNode $native, ?TypeNode $doc): ?TypeNode
     {
-        $nativeCore = null !== $native ? self::stripNull($native) : null;
-        $docCore = null !== $doc ? self::stripNull($doc) : null;
+        $nativeCore = null !== $native ? $this->stripNull($native) : null;
+        $docCore = null !== $doc ? $this->stripNull($doc) : null;
 
         if (null === $nativeCore) {
             return $docCore;
@@ -100,7 +100,7 @@ final class TypeNodeSchemaMapper
         }
 
         $types[] = 'null';
-        $schema['type'] = self::normaliseTypeList($types);
+        $schema['type'] = $this->normaliseTypeList($types);
 
         if (isset($schema['enum']) && \is_array($schema['enum']) && ! \in_array(null, $schema['enum'], true)) {
             $schema['enum'][] = null;
@@ -134,7 +134,7 @@ final class TypeNodeSchemaMapper
 
     private function docRefinesNative(TypeNode $native, TypeNode $doc): bool
     {
-        if (self::isBareArray($native) && self::isArrayLike($doc)) {
+        if ($this->isBareArray($native) && $this->isArrayLike($doc)) {
             return $this->isMappable($doc);
         }
 
@@ -164,7 +164,7 @@ final class TypeNodeSchemaMapper
         return $nativeType === $docType;
     }
 
-    private static function stripNull(TypeNode $node): TypeNode
+    private function stripNull(TypeNode $node): TypeNode
     {
         if ($node instanceof NullableTypeNode) {
             return $node->type;
@@ -174,7 +174,7 @@ final class TypeNodeSchemaMapper
             $rest = [];
 
             foreach ($node->types as $member) {
-                if (! self::isNull($member)) {
+                if (! $this->isNull($member)) {
                     $rest[] = $member;
                 }
             }
@@ -189,12 +189,12 @@ final class TypeNodeSchemaMapper
         return $node;
     }
 
-    private static function isBareArray(TypeNode $node): bool
+    private function isBareArray(TypeNode $node): bool
     {
         return $node instanceof IdentifierTypeNode && \in_array($node->name, ['array', 'iterable'], true);
     }
 
-    private static function isArrayLike(TypeNode $node): bool
+    private function isArrayLike(TypeNode $node): bool
     {
         return $node instanceof ArrayTypeNode || $node instanceof ArrayShapeNode || $node instanceof GenericTypeNode;
     }
@@ -202,7 +202,7 @@ final class TypeNodeSchemaMapper
     /**
      * @return array<string, mixed>
      */
-    private static function mapIdentifier(IdentifierTypeNode $node): array
+    private function mapIdentifier(IdentifierTypeNode $node): array
     {
         return match (strtolower($node->name)) {
             'int', 'integer' => ['type' => 'integer'],
@@ -218,17 +218,17 @@ final class TypeNodeSchemaMapper
             'object', 'stdclass' => ['type' => 'object'],
             'mixed' => [],
             'null' => ['type' => 'null'],
-            default => self::mapClassName($node->name),
+            default => $this->mapClassName($node->name),
         };
     }
 
     /**
      * @return array<string, mixed>
      */
-    private static function mapClassName(string $name): array
+    private function mapClassName(string $name): array
     {
         if (enum_exists($name)) {
-            return self::mapEnum($name);
+            return $this->mapEnum($name);
         }
 
         throw new UnsupportedSchemaTypeException($name);
@@ -239,7 +239,7 @@ final class TypeNodeSchemaMapper
      *
      * @return array{type: string, enum: list<int|string>}
      */
-    private static function mapEnum(string $enum): array
+    private function mapEnum(string $enum): array
     {
         $reflection = new \ReflectionEnum($enum);
         $values = [];
@@ -264,7 +264,7 @@ final class TypeNodeSchemaMapper
         $hasNull = false;
 
         foreach ($node->types as $member) {
-            if (self::isNull($member)) {
+            if ($this->isNull($member)) {
                 $hasNull = true;
 
                 continue;
@@ -280,7 +280,7 @@ final class TypeNodeSchemaMapper
         if (\count($nonNull) === 1) {
             $schema = $this->map($nonNull[0]);
         } elseif ($nonNull[0] instanceof ConstTypeNode) {
-            $schema = self::mapConstUnion($nonNull, (string) $node);
+            $schema = $this->mapConstUnion($nonNull, (string) $node);
         } else {
             $types = [];
 
@@ -295,7 +295,7 @@ final class TypeNodeSchemaMapper
                 $types[] = $type;
             }
 
-            $schema = ['type' => self::normaliseTypeList($types)];
+            $schema = ['type' => $this->normaliseTypeList($types)];
         }
 
         return $hasNull ? $this->makeNullable($schema) : $schema;
@@ -309,13 +309,13 @@ final class TypeNodeSchemaMapper
      *
      * @return array{type: string, enum: non-empty-list<int|string>}
      */
-    private static function mapConstUnion(array $members, string $label): array
+    private function mapConstUnion(array $members, string $label): array
     {
-        [$type, $value] = self::buildConstMember($members[0], $label);
+        [$type, $value] = $this->buildConstMember($members[0], $label);
         $enum = [$value];
 
         foreach (\array_slice($members, 1) as $member) {
-            [$memberType, $memberValue] = self::buildConstMember($member, $label);
+            [$memberType, $memberValue] = $this->buildConstMember($member, $label);
 
             if ($memberType !== $type) {
                 throw new UnsupportedSchemaTypeException($label);
@@ -330,7 +330,7 @@ final class TypeNodeSchemaMapper
     /**
      * @return array{string, int|string}
      */
-    private static function buildConstMember(TypeNode $node, string $label): array
+    private function buildConstMember(TypeNode $node, string $label): array
     {
         if (! $node instanceof ConstTypeNode) {
             throw new UnsupportedSchemaTypeException($label);
@@ -351,7 +351,7 @@ final class TypeNodeSchemaMapper
     private function mapGeneric(GenericTypeNode $node): array
     {
         if ('int' === $node->type->name) {
-            return self::mapIntRange($node);
+            return $this->mapIntRange($node);
         }
 
         if (! \in_array($node->type->name, self::ARRAY_BASES, true)) {
@@ -381,7 +381,7 @@ final class TypeNodeSchemaMapper
     /**
      * @return array<string, mixed>
      */
-    private static function mapIntRange(GenericTypeNode $node): array
+    private function mapIntRange(GenericTypeNode $node): array
     {
         $arguments = $node->genericTypes;
         $minimumNode = $arguments[0] ?? null;
@@ -393,13 +393,13 @@ final class TypeNodeSchemaMapper
 
         $schema = ['type' => 'integer'];
 
-        $minimum = self::readIntBound($minimumNode, 'min', (string) $node);
+        $minimum = $this->readIntBound($minimumNode, 'min', (string) $node);
 
         if (null !== $minimum) {
             $schema['minimum'] = $minimum;
         }
 
-        $maximum = self::readIntBound($maximumNode, 'max', (string) $node);
+        $maximum = $this->readIntBound($maximumNode, 'max', (string) $node);
 
         if (null !== $maximum) {
             $schema['maximum'] = $maximum;
@@ -408,7 +408,7 @@ final class TypeNodeSchemaMapper
         return $schema;
     }
 
-    private static function readIntBound(TypeNode $node, string $sentinel, string $label): ?int
+    private function readIntBound(TypeNode $node, string $sentinel, string $label): ?int
     {
         if ($node instanceof ConstTypeNode && $node->constExpr instanceof ConstExprIntegerNode) {
             return (int) $node->constExpr->value;
@@ -426,12 +426,12 @@ final class TypeNodeSchemaMapper
      */
     private function mapArrayShape(ArrayShapeNode $node): array
     {
-        return self::isPositionalShape($node)
+        return $this->isPositionalShape($node)
             ? $this->mapTuple($node)
             : $this->mapNamedShape($node);
     }
 
-    private static function isPositionalShape(ArrayShapeNode $node): bool
+    private function isPositionalShape(ArrayShapeNode $node): bool
     {
         foreach ($node->items as $item) {
             if (null !== $item->keyName) {
@@ -470,7 +470,7 @@ final class TypeNodeSchemaMapper
         $required = [];
 
         foreach ($node->items as $item) {
-            $key = self::resolveShapeKey($item);
+            $key = $this->resolveShapeKey($item);
 
             if (null === $key) {
                 throw new UnsupportedSchemaTypeException((string) $node);
@@ -492,12 +492,12 @@ final class TypeNodeSchemaMapper
         return $schema;
     }
 
-    private static function resolveShapeKey(ArrayShapeItemNode|ObjectShapeItemNode $item): ?string
+    private function resolveShapeKey(ArrayShapeItemNode|ObjectShapeItemNode $item): ?string
     {
         return $item->keyName instanceof IdentifierTypeNode ? $item->keyName->name : null;
     }
 
-    private static function isNull(TypeNode $node): bool
+    private function isNull(TypeNode $node): bool
     {
         return $node instanceof IdentifierTypeNode && 'null' === $node->name;
     }
@@ -507,7 +507,7 @@ final class TypeNodeSchemaMapper
      *
      * @return list<string>|string
      */
-    private static function normaliseTypeList(array $types): array|string
+    private function normaliseTypeList(array $types): array|string
     {
         $unique = [];
 

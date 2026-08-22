@@ -58,15 +58,15 @@ final readonly class ReflectedToolExecutor implements ToolExecutorInterface
             $result instanceof ImageContent,
             $result instanceof ResourceLink,
             $result instanceof TextContent => new CallToolResult(content: [$result]),
-            \is_array($result) => self::structuredOrContent($result, $this->method),
-            default => throw self::buildUnsupportedError($this->method, $result),
+            \is_array($result) => $this->structuredOrContent($result, $this->method),
+            default => throw $this->buildUnsupportedError($this->method, $result),
         };
     }
 
     /**
      * @param array<array-key, mixed> $result
      */
-    private static function structuredOrContent(array $result, \ReflectionMethod $method): CallToolResult
+    private function structuredOrContent(array $result, \ReflectionMethod $method): CallToolResult
     {
         if (array_is_list($result) && [] !== $result) {
             $blocks = [];
@@ -83,7 +83,7 @@ final readonly class ReflectedToolExecutor implements ToolExecutorInterface
             }
 
             if (\count($blocks) !== \count($result)) {
-                throw self::buildUnsupportedError($method, $result);
+                throw $this->buildUnsupportedError($method, $result);
             }
 
             return new CallToolResult(content: $blocks);
@@ -92,13 +92,13 @@ final readonly class ReflectedToolExecutor implements ToolExecutorInterface
         try {
             Assert::that($result)->isMap('Tool structured content must be a string-keyed object.');
         } catch (\InvalidArgumentException) {
-            throw self::buildUnsupportedError($method, $result);
+            throw $this->buildUnsupportedError($method, $result);
         }
 
         return new CallToolResult(content: [], structuredContent: $result);
     }
 
-    private static function buildUnsupportedError(\ReflectionMethod $method, mixed $result): UnsupportedReturnValueException
+    private function buildUnsupportedError(\ReflectionMethod $method, mixed $result): UnsupportedReturnValueException
     {
         return new UnsupportedReturnValueException(
             $method->getDeclaringClass()->getName(),

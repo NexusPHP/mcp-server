@@ -52,7 +52,7 @@ final readonly class RequestBodySizeLimitMiddleware implements MiddlewareInterfa
             return $size > $this->maxBytes ? $this->reject() : $handler->handle($request);
         }
 
-        $buffered = self::readPastCap($body, $this->maxBytes);
+        $buffered = $this->readPastCap($body, $this->maxBytes);
 
         if ($this->maxBytes < \strlen($buffered)) {
             return $this->reject();
@@ -66,7 +66,7 @@ final readonly class RequestBodySizeLimitMiddleware implements MiddlewareInterfa
      *
      * @param int<0, max> $maxBytes
      */
-    private static function readPastCap(StreamInterface $body, int $maxBytes): string
+    private function readPastCap(StreamInterface $body, int $maxBytes): string
     {
         $limit = $maxBytes + 1;
         $buffered = '';

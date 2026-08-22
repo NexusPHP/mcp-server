@@ -60,7 +60,7 @@ final readonly class AttributeScanner
     {
         foreach ((new \ReflectionObject($source))->getMethods(\ReflectionMethod::IS_PUBLIC) as $method) {
             if (str_starts_with($method->getName(), '__')) {
-                self::rejectDiscoveryAttributes($method);
+                $this->rejectDiscoveryAttributes($method);
             }
 
             foreach ($method->getAttributes(AsTool::class) as $attribute) {
@@ -79,20 +79,20 @@ final readonly class AttributeScanner
 
             foreach ($method->getAttributes(AsResource::class) as $attribute) {
                 yield new ResourceEntry(
-                    self::buildResource($method, $attribute->newInstance()),
+                    $this->buildResource($method, $attribute->newInstance()),
                     new ReflectedResourceReader($source, $method),
                 );
             }
 
             foreach ($method->getAttributes(AsResourceTemplate::class) as $attribute) {
                 yield new ResourceTemplateEntry(
-                    self::buildResourceTemplate($method, $attribute->newInstance()),
+                    $this->buildResourceTemplate($method, $attribute->newInstance()),
                     new ReflectedTemplatedResourceReader($source, $method),
                 );
             }
 
             foreach ($method->getAttributes(AsCompletion::class) as $attribute) {
-                yield self::buildCompletion($source, $method, $attribute->newInstance());
+                yield $this->buildCompletion($source, $method, $attribute->newInstance());
             }
         }
     }
@@ -100,7 +100,7 @@ final readonly class AttributeScanner
     /**
      * @throws LogicException
      */
-    private static function rejectDiscoveryAttributes(\ReflectionMethod $method): void
+    private function rejectDiscoveryAttributes(\ReflectionMethod $method): void
     {
         foreach ([AsTool::class, AsPrompt::class, AsResource::class, AsResourceTemplate::class, AsCompletion::class] as $attribute) {
             if ([] !== $method->getAttributes($attribute)) {
@@ -117,13 +117,13 @@ final readonly class AttributeScanner
     /**
      * @throws LogicException
      */
-    private static function buildCompletion(
+    private function buildCompletion(
         object $source,
         \ReflectionMethod $method,
         AsCompletion $attribute,
     ): PromptCompletionEntry|ResourceTemplateCompletionEntry {
-        self::rejectIfVariadic($method);
-        self::rejectUnsupportedCompletionParameterType($method);
+        $this->rejectIfVariadic($method);
+        $this->rejectUnsupportedCompletionParameterType($method);
 
         $class = $method->getDeclaringClass()->getName();
         $name = $method->getName();
@@ -132,11 +132,11 @@ final readonly class AttributeScanner
         $uriTemplate = $attribute->uriTemplate;
 
         if (null !== $prompt && null !== $uriTemplate) {
-            self::refuseCompletionAttribute($class, $name, 'it must name either a "prompt" or a "uriTemplate", not both');
+            $this->refuseCompletionAttribute($class, $name, 'it must name either a "prompt" or a "uriTemplate", not both');
         }
 
         if ('' === $argument) {
-            self::refuseCompletionAttribute($class, $name, 'its "argument" must be a non-empty string');
+            $this->refuseCompletionAttribute($class, $name, 'its "argument" must be a non-empty string');
         }
 
         $provider = new ReflectedCompletionProvider($source, $method);
@@ -149,7 +149,7 @@ final readonly class AttributeScanner
             return new ResourceTemplateCompletionEntry($uriTemplate, $argument, $provider);
         }
 
-        self::refuseCompletionAttribute($class, $name, 'it must name the completed "prompt" or "uriTemplate"');
+        $this->refuseCompletionAttribute($class, $name, 'it must name the completed "prompt" or "uriTemplate"');
     }
 
     /**
@@ -158,19 +158,19 @@ final readonly class AttributeScanner
      *
      * @throws LogicException
      */
-    private static function rejectUnsupportedCompletionParameterType(\ReflectionMethod $method): void
+    private function rejectUnsupportedCompletionParameterType(\ReflectionMethod $method): void
     {
         foreach ($method->getParameters() as $parameter) {
             $type = $parameter->getType();
 
             if (InputSchemaGenerator::isInjectedContext($parameter)
                 || ($type instanceof \ReflectionNamedType && $type->getName() === 'array')
-                || self::acceptsRawStringArgument($type)
+                || $this->acceptsRawStringArgument($type)
             ) {
                 continue;
             }
 
-            self::refuseParameterType(
+            $this->refuseParameterType(
                 $method->getDeclaringClass()->getName(),
                 $method->getName(),
                 $parameter->getName(),
@@ -179,11 +179,11 @@ final readonly class AttributeScanner
         }
     }
 
-    private static function acceptsRawStringArgument(?\ReflectionType $type): bool
+    private function acceptsRawStringArgument(?\ReflectionType $type): bool
     {
         if ($type instanceof \ReflectionUnionType) {
             foreach ($type->getTypes() as $member) {
-                if (self::acceptsRawStringArgument($member)) {
+                if ($this->acceptsRawStringArgument($member)) {
                     return true;
                 }
             }
@@ -210,8 +210,8 @@ final readonly class AttributeScanner
 
     private function buildPrompt(\ReflectionMethod $method, AsPrompt $attribute): Prompt
     {
-        self::rejectIfVariadic($method);
-        self::rejectUnsupportedParameterType($method);
+        $this->rejectIfVariadic($method);
+        $this->rejectUnsupportedParameterType($method);
 
         return new Prompt(
             name: $attribute->name ?? $method->getName(),
@@ -248,10 +248,10 @@ final readonly class AttributeScanner
         return [] === $arguments ? null : $arguments;
     }
 
-    private static function buildResource(\ReflectionMethod $method, AsResource $attribute): Resource
+    private function buildResource(\ReflectionMethod $method, AsResource $attribute): Resource
     {
-        self::rejectIfVariadic($method);
-        self::rejectUnsupportedParameterType($method);
+        $this->rejectIfVariadic($method);
+        $this->rejectUnsupportedParameterType($method);
 
         return new Resource(
             name: $attribute->name ?? $method->getName(),
@@ -266,10 +266,10 @@ final readonly class AttributeScanner
         );
     }
 
-    private static function buildResourceTemplate(\ReflectionMethod $method, AsResourceTemplate $attribute): ResourceTemplate
+    private function buildResourceTemplate(\ReflectionMethod $method, AsResourceTemplate $attribute): ResourceTemplate
     {
-        self::rejectIfVariadic($method);
-        self::rejectUnsupportedParameterType($method);
+        $this->rejectIfVariadic($method);
+        $this->rejectUnsupportedParameterType($method);
 
         if (str_contains($attribute->uriTemplate, '{uri}')) {
             throw new LogicException(\sprintf(
@@ -294,14 +294,14 @@ final readonly class AttributeScanner
     /**
      * @throws LogicException
      */
-    private static function rejectUnsupportedParameterType(\ReflectionMethod $method): void
+    private function rejectUnsupportedParameterType(\ReflectionMethod $method): void
     {
         foreach ($method->getParameters() as $parameter) {
-            if (InputSchemaGenerator::isInjectedContext($parameter) || self::acceptsStringArgument($parameter->getType())) {
+            if (InputSchemaGenerator::isInjectedContext($parameter) || $this->acceptsStringArgument($parameter->getType())) {
                 continue;
             }
 
-            self::refuseParameterType(
+            $this->refuseParameterType(
                 $method->getDeclaringClass()->getName(),
                 $method->getName(),
                 $parameter->getName(),
@@ -310,24 +310,24 @@ final readonly class AttributeScanner
         }
     }
 
-    private static function acceptsStringArgument(?\ReflectionType $type): bool
+    private function acceptsStringArgument(?\ReflectionType $type): bool
     {
         if ($type instanceof \ReflectionUnionType) {
             foreach ($type->getTypes() as $member) {
-                if (self::acceptsStringArgument($member)) {
+                if ($this->acceptsStringArgument($member)) {
                     return true;
                 }
             }
         } elseif ($type instanceof \ReflectionNamedType) {
             return $type->isBuiltin()
                 ? $type->getName() === 'string' || $type->getName() === 'mixed'
-                : self::isStringResolvableEnum($type->getName());
+                : $this->isStringResolvableEnum($type->getName());
         }
 
         return ! $type instanceof \ReflectionType;
     }
 
-    private static function isStringResolvableEnum(string $name): bool
+    private function isStringResolvableEnum(string $name): bool
     {
         if (! enum_exists($name)) {
             return false;
@@ -341,7 +341,7 @@ final readonly class AttributeScanner
     /**
      * @throws LogicException
      */
-    private static function rejectIfVariadic(\ReflectionMethod $method): void
+    private function rejectIfVariadic(\ReflectionMethod $method): void
     {
         foreach ($method->getParameters() as $parameter) {
             if ($parameter->isVariadic()) {
@@ -355,12 +355,12 @@ final readonly class AttributeScanner
         }
     }
 
-    private static function refuseCompletionAttribute(string $class, string $method, string $reason): never
+    private function refuseCompletionAttribute(string $class, string $method, string $reason): never
     {
         throw new LogicException(\sprintf('%s::%s() declares an invalid #[AsCompletion] attribute: %s.', $class, $method, $reason));
     }
 
-    private static function refuseParameterType(string $class, string $method, string $parameter, string $type): never
+    private function refuseParameterType(string $class, string $method, string $parameter, string $type): never
     {
         throw new LogicException(\sprintf(
             '%s::%s() declares parameter "$%s" of unsupported type "%s". It is bound from a string value.',

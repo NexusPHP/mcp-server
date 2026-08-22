@@ -75,7 +75,7 @@ final readonly class DnsRebindingProtectionMiddleware implements MiddlewareInter
             return true;
         }
 
-        return self::matches($request->getHeaderLine('Host'), $this->allowedHosts);
+        return $this->matches($request->getHeaderLine('Host'), $this->allowedHosts);
     }
 
     private function isOriginAllowed(ServerRequestInterface $request): bool
@@ -84,13 +84,13 @@ final readonly class DnsRebindingProtectionMiddleware implements MiddlewareInter
             return true;
         }
 
-        return self::matches($request->getHeaderLine('Origin'), $this->allowedOrigins);
+        return $this->matches($request->getHeaderLine('Origin'), $this->allowedOrigins);
     }
 
     /**
      * @param list<non-empty-string> $allowed
      */
-    private static function matches(string $value, array $allowed): bool
+    private function matches(string $value, array $allowed): bool
     {
         return \in_array(self::WILDCARD, $allowed, true)
             || \in_array(strtolower($value), $allowed, true);

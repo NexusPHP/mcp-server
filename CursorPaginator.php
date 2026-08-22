@@ -43,7 +43,7 @@ final readonly class CursorPaginator
      */
     public function paginate(array $entries, ?Cursor $cursor): CursorPage
     {
-        $startIndex = self::resolveStartIndex($entries, $cursor);
+        $startIndex = $this->resolveStartIndex($entries, $cursor);
 
         $page = \array_slice($entries, $startIndex, $this->pageSize, preserve_keys: true);
         $hasMore = $startIndex + \count($page) < \count($entries);
@@ -62,7 +62,7 @@ final readonly class CursorPaginator
      *
      * @throws InvalidCursorException
      */
-    private static function resolveStartIndex(array $entries, ?Cursor $cursor): int
+    private function resolveStartIndex(array $entries, ?Cursor $cursor): int
     {
         if (null === $cursor) {
             return 0;

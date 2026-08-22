@@ -58,7 +58,7 @@ final readonly class RequestStateSigner
      */
     public function sign(string $payload, string $binding = ''): string
     {
-        return $payload.self::SEPARATOR.hash_hmac($this->algorithm, self::bind($binding, $payload), $this->secret);
+        return $payload.self::SEPARATOR.hash_hmac($this->algorithm, $this->bind($binding, $payload), $this->secret);
     }
 
     /**
@@ -81,7 +81,7 @@ final readonly class RequestStateSigner
     /**
      * Length-prefixes the binding, so no two binding-and-payload pairs share a signing input.
      */
-    private static function bind(string $binding, string $payload): string
+    private function bind(string $binding, string $payload): string
     {
         return \strlen($binding).self::SEPARATOR.$binding.$payload;
     }

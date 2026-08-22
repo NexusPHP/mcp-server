@@ -38,7 +38,7 @@ final class ArgumentBinder
     public function bind(\ReflectionMethod $method, array $values, ServerContext $context): array
     {
         try {
-            return self::resolveBindings($method, $values, $context);
+            return $this->resolveBindings($method, $values, $context);
         } catch (\InvalidArgumentException $e) {
             throw new InvalidParamsException($context->requestId, SafeDisplay::sanitiseCause($e->getMessage()), $e);
         }
@@ -52,7 +52,7 @@ final class ArgumentBinder
      * @throws \InvalidArgumentException
      * @throws LogicException
      */
-    private static function resolveBindings(\ReflectionMethod $method, array $values, ServerContext $context): array
+    private function resolveBindings(\ReflectionMethod $method, array $values, ServerContext $context): array
     {
         $arguments = [];
 
@@ -66,10 +66,10 @@ final class ArgumentBinder
                 Assert::that($list)->isList(\sprintf('"%s" must be a list, {type} given.', $name));
 
                 foreach ($list as $element) {
-                    $arguments[] = self::bindArgument($parameter, $element);
+                    $arguments[] = $this->bindArgument($parameter, $element);
                 }
             } elseif (\array_key_exists($name, $values)) {
-                $arguments[] = self::bindArgument($parameter, $values[$name]);
+                $arguments[] = $this->bindArgument($parameter, $values[$name]);
             } elseif ($parameter->isDefaultValueAvailable()) {
                 $arguments[] = $parameter->getDefaultValue();
             } else {
@@ -80,23 +80,23 @@ final class ArgumentBinder
         return $arguments;
     }
 
-    private static function bindArgument(\ReflectionParameter $parameter, mixed $value): mixed
+    private function bindArgument(\ReflectionParameter $parameter, mixed $value): mixed
     {
-        if (self::acceptsNull($parameter, $value)) {
+        if ($this->acceptsNull($parameter, $value)) {
             return null;
         }
 
         $class = InputSchemaGenerator::resolveExpandableNativeClass($parameter);
 
         return null !== $class
-            ? self::instantiate($class, $parameter->getName(), $value)
-            : self::hydrate($parameter, $value);
+            ? $this->instantiate($class, $parameter->getName(), $value)
+            : $this->hydrate($parameter, $value);
     }
 
     /**
      * Whether `$value` is the `null` a nullable parameter's advertised schema permits.
      */
-    private static function acceptsNull(\ReflectionParameter $parameter, mixed $value): bool
+    private function acceptsNull(\ReflectionParameter $parameter, mixed $value): bool
     {
         return null === $value && $parameter->getType()?->allowsNull() === true;
     }
@@ -107,7 +107,7 @@ final class ArgumentBinder
      * @throws \InvalidArgumentException
      * @throws LogicException
      */
-    private static function instantiate(string $class, string $argument, mixed $value): object
+    private function instantiate(string $class, string $argument, mixed $value): object
     {
         Assert::that($value)->isMap(\sprintf('"%s" must be an object, {type} given.', $argument));
 
@@ -124,8 +124,8 @@ final class ArgumentBinder
             $name = $parameter->getName();
 
             if (\array_key_exists($name, $value)) {
-                self::guardAgainstNestedObject($class, $parameter);
-                $arguments[] = self::hydrate($parameter, $value[$name], $argument);
+                $this->guardAgainstNestedObject($class, $parameter);
+                $arguments[] = $this->hydrate($parameter, $value[$name], $argument);
             } elseif ($parameter->isDefaultValueAvailable()) {
                 $arguments[] = $parameter->getDefaultValue();
             } else {
@@ -141,7 +141,7 @@ final class ArgumentBinder
      *
      * @throws LogicException
      */
-    private static function guardAgainstNestedObject(string $class, \ReflectionParameter $parameter): void
+    private function guardAgainstNestedObject(string $class, \ReflectionParameter $parameter): void
     {
         $type = $parameter->getType();
 
@@ -163,9 +163,9 @@ final class ArgumentBinder
         ));
     }
 
-    private static function hydrate(\ReflectionParameter $parameter, mixed $value, ?string $scope = null): mixed
+    private function hydrate(\ReflectionParameter $parameter, mixed $value, ?string $scope = null): mixed
     {
-        if (self::acceptsNull($parameter, $value)) {
+        if ($this->acceptsNull($parameter, $value)) {
             return null;
         }
 
@@ -200,14 +200,14 @@ final class ArgumentBinder
             return EnumValueValidator::parse($name, $value, $context);
         }
 
-        return self::resolvePureCase($name, $value, $context);
+        return $this->resolvePureCase($name, $value, $context);
     }
 
     /**
      * @param class-string<\UnitEnum> $enum
      * @param non-empty-string        $context
      */
-    private static function resolvePureCase(string $enum, mixed $value, string $context): \UnitEnum
+    private function resolvePureCase(string $enum, mixed $value, string $context): \UnitEnum
     {
         if (\is_string($value)) {
             foreach ($enum::cases() as $case) {

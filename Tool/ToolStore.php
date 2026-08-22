@@ -144,7 +144,7 @@ final class ToolStore implements MutableToolStoreInterface
                         $inputErrors,
                     ))),
                 ),
-                errorData: ['validation_errors' => self::describeViolations($inputErrors)],
+                errorData: ['validation_errors' => $this->describeViolations($inputErrors)],
             );
         }
 
@@ -168,7 +168,7 @@ final class ToolStore implements MutableToolStoreInterface
 
             $outputData = $result->structuredContent;
 
-            if ([] === $outputData && ! self::schemaAcceptsArray($tool->outputSchema)) {
+            if ([] === $outputData && ! $this->schemaAcceptsArray($tool->outputSchema)) {
                 $outputData = new \stdClass();
             }
 
@@ -187,7 +187,7 @@ final class ToolStore implements MutableToolStoreInterface
      *
      * @return non-empty-list<array{pointer: string, message: string}>
      */
-    private static function describeViolations(array $violations): array
+    private function describeViolations(array $violations): array
     {
         $described = [];
 
@@ -204,7 +204,7 @@ final class ToolStore implements MutableToolStoreInterface
     /**
      * @param array<string, mixed> $schema
      */
-    private static function schemaAcceptsArray(array $schema): bool
+    private function schemaAcceptsArray(array $schema): bool
     {
         $type = $schema['type'] ?? null;
 

@@ -72,11 +72,11 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
         $headers = $request->getHeader('Authorization');
 
         // RFC 6750 answers any request presenting no bearer credential with a bare challenge and no error code.
-        if (! self::presentsBearerScheme($headers)) {
+        if (! $this->presentsBearerScheme($headers)) {
             return $this->challenge(HttpStatus::Unauthorized, null);
         }
 
-        $presented = self::readBearerToken($headers);
+        $presented = $this->readBearerToken($headers);
 
         if (null === $presented) {
             return $this->challenge(HttpStatus::BadRequest, 'invalid_request');
@@ -133,7 +133,7 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
      *
      * @phpstan-assert-if-true non-empty-array<array-key, string> $headers
      */
-    private static function presentsBearerScheme(array $headers): bool
+    private function presentsBearerScheme(array $headers): bool
     {
         foreach ($headers as $header) {
             if (strcasecmp(explode(' ', $header)[0], WwwAuthenticateChallenge::BEARER_SCHEME) === 0) {
@@ -147,7 +147,7 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
     /**
      * @param non-empty-array<array-key, string> $headers
      */
-    private static function readBearerToken(array $headers): ?string
+    private function readBearerToken(array $headers): ?string
     {
         // RFC 7235 permits exactly one, and several joined into one string could smuggle a credential past a lenient validator.
         if (\count($headers) !== 1) {

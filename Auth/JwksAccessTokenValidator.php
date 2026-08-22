@@ -52,7 +52,7 @@ final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInt
             return null;
         }
 
-        $audience = self::readAudience($claims);
+        $audience = $this->readAudience($claims);
 
         if (($claims['iss'] ?? null) !== $this->expectedIssuer) {
             return null;
@@ -73,9 +73,9 @@ final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInt
 
         return new VerifiedAccessToken(
             audience: $audience,
-            scopes: self::readScopes($claims),
+            scopes: $this->readScopes($claims),
             subject: \is_string($subject) && '' !== $subject ? $subject : null,
-            clientId: self::readClientId($claims),
+            clientId: $this->readClientId($claims),
             expiresAt: (int) $expiresAt,
         );
     }
@@ -97,7 +97,7 @@ final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInt
      *
      * @return list<string>
      */
-    private static function readAudience(array $claims): array
+    private function readAudience(array $claims): array
     {
         $aud = $claims['aud'] ?? [];
 
@@ -125,7 +125,7 @@ final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInt
      *
      * @return null|non-empty-string
      */
-    private static function readClientId(array $claims): ?string
+    private function readClientId(array $claims): ?string
     {
         foreach (['azp', 'client_id', 'cid'] as $claim) {
             $candidate = $claims[$claim] ?? null;
@@ -146,7 +146,7 @@ final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInt
      *
      * @return list<non-empty-string>
      */
-    private static function readScopes(array $claims): array
+    private function readScopes(array $claims): array
     {
         $scope = $claims['scope'] ?? $claims['scp'] ?? null;
 

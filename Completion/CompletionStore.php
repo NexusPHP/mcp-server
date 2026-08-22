@@ -52,8 +52,8 @@ final readonly class CompletionStore implements CompletionStoreInterface
             ->isIntOrNonEmptyString('Completion store template key must be a non-empty string.')
         ;
 
-        $this->promptCompletions = self::normalize($promptCompletions);
-        $this->templateCompletions = self::normalize($templateCompletions);
+        $this->promptCompletions = $this->normalize($promptCompletions);
+        $this->templateCompletions = $this->normalize($templateCompletions);
     }
 
     #[\Override]
@@ -82,7 +82,7 @@ final readonly class CompletionStore implements CompletionStoreInterface
      *
      * @return ProviderMap
      */
-    private static function normalize(array $completions): array
+    private function normalize(array $completions): array
     {
         $normalized = [];
 

@@ -629,7 +629,7 @@ final class ServerBuilder
 
         foreach ($sources as $source) {
             $contributed = false;
-            $metadata = self::findServerMetadata($source);
+            $metadata = $this->findServerMetadata($source);
 
             if (null !== $metadata) {
                 if (null !== $this->serverMetadata) {
@@ -648,7 +648,7 @@ final class ServerBuilder
 
                 if ($entry instanceof ToolEntry) {
                     if (\array_key_exists($entry->tool->name, $this->discoveredFeatures['tools'])) {
-                        self::refuseDuplicateEntry('tool', $entry->tool->name, $source::class, $this->discoveredFeatures['tools'][$entry->tool->name]);
+                        $this->refuseDuplicateEntry('tool', $entry->tool->name, $source::class, $this->discoveredFeatures['tools'][$entry->tool->name]);
                     }
 
                     $this->discoveredFeatures['tools'][$entry->tool->name] = $source::class;
@@ -659,7 +659,7 @@ final class ServerBuilder
 
                 if ($entry instanceof PromptEntry) {
                     if (\array_key_exists($entry->prompt->name, $this->discoveredFeatures['prompts'])) {
-                        self::refuseDuplicateEntry('prompt', $entry->prompt->name, $source::class, $this->discoveredFeatures['prompts'][$entry->prompt->name]);
+                        $this->refuseDuplicateEntry('prompt', $entry->prompt->name, $source::class, $this->discoveredFeatures['prompts'][$entry->prompt->name]);
                     }
 
                     $this->discoveredFeatures['prompts'][$entry->prompt->name] = $source::class;
@@ -670,7 +670,7 @@ final class ServerBuilder
 
                 if ($entry instanceof ResourceEntry) {
                     if (\array_key_exists($entry->resource->uri, $this->discoveredFeatures['resources'])) {
-                        self::refuseDuplicateEntry('resource', $entry->resource->uri, $source::class, $this->discoveredFeatures['resources'][$entry->resource->uri]);
+                        $this->refuseDuplicateEntry('resource', $entry->resource->uri, $source::class, $this->discoveredFeatures['resources'][$entry->resource->uri]);
                     }
 
                     $this->discoveredFeatures['resources'][$entry->resource->uri] = $source::class;
@@ -681,7 +681,7 @@ final class ServerBuilder
 
                 if ($entry instanceof ResourceTemplateEntry) {
                     if (\array_key_exists($entry->template->uriTemplate, $this->discoveredFeatures['resource-templates'])) {
-                        self::refuseDuplicateEntry('resource template', $entry->template->uriTemplate, $source::class, $this->discoveredFeatures['resource-templates'][$entry->template->uriTemplate]);
+                        $this->refuseDuplicateEntry('resource template', $entry->template->uriTemplate, $source::class, $this->discoveredFeatures['resource-templates'][$entry->template->uriTemplate]);
                     }
 
                     $this->discoveredFeatures['resource-templates'][$entry->template->uriTemplate] = $source::class;
@@ -694,7 +694,7 @@ final class ServerBuilder
                     $promptKey = \sprintf('%s:%s', $entry->prompt, $entry->argument);
 
                     if (\array_key_exists($promptKey, $this->discoveredFeatures['completions-prompt'])) {
-                        self::refuseDuplicateEntry('prompt completion', $promptKey, $source::class, $this->discoveredFeatures['completions-prompt'][$promptKey]);
+                        $this->refuseDuplicateEntry('prompt completion', $promptKey, $source::class, $this->discoveredFeatures['completions-prompt'][$promptKey]);
                     }
 
                     $this->discoveredFeatures['completions-prompt'][$promptKey] = $source::class;
@@ -706,7 +706,7 @@ final class ServerBuilder
                 $completionKey = \sprintf('%s:%s', $entry->uriTemplate, $entry->argument);
 
                 if (\array_key_exists($completionKey, $this->discoveredFeatures['completions-template'])) {
-                    self::refuseDuplicateEntry('resource template completion', $completionKey, $source::class, $this->discoveredFeatures['completions-template'][$completionKey]);
+                    $this->refuseDuplicateEntry('resource template completion', $completionKey, $source::class, $this->discoveredFeatures['completions-template'][$completionKey]);
                 }
 
                 $this->discoveredFeatures['completions-template'][$completionKey] = $source::class;
@@ -763,7 +763,7 @@ final class ServerBuilder
         $this->assertNotBuilt();
 
         if (\array_key_exists($method, JsonRpcMethodRegistry::requests())) {
-            self::refuseReservedMethod($method, isNotification: false);
+            $this->refuseReservedMethod($method, isNotification: false);
         }
 
         $this->extensions->assertNotOwned($method);
@@ -797,7 +797,7 @@ final class ServerBuilder
         $this->assertNotBuilt();
 
         if (! \array_key_exists($method, JsonRpcMethodRegistry::requests())) {
-            self::refuseUnreservedMethod($method, isNotification: false);
+            $this->refuseUnreservedMethod($method, isNotification: false);
         }
 
         $this->customRequestHandlers[$method] = $handler;
@@ -821,7 +821,7 @@ final class ServerBuilder
         $this->assertNotBuilt();
 
         if (\array_key_exists($method, JsonRpcMethodRegistry::notifications())) {
-            self::refuseReservedMethod($method, isNotification: true);
+            $this->refuseReservedMethod($method, isNotification: true);
         }
 
         $this->extensions->assertNotOwned($method, isNotification: true);
@@ -849,7 +849,7 @@ final class ServerBuilder
         $this->assertNotBuilt();
 
         if (! \array_key_exists($method, JsonRpcMethodRegistry::notifications())) {
-            self::refuseUnreservedMethod($method, isNotification: true);
+            $this->refuseUnreservedMethod($method, isNotification: true);
         }
 
         $this->customNotificationHandlers[$method] = $handler;
@@ -995,7 +995,7 @@ final class ServerBuilder
         return $instructions;
     }
 
-    private static function findServerMetadata(object $source): ?AsServer
+    private function findServerMetadata(object $source): ?AsServer
     {
         $attributes = (new \ReflectionObject($source))->getAttributes(AsServer::class);
 
@@ -1020,11 +1020,11 @@ final class ServerBuilder
             completions: $this->hasCompletionsCapability() ? [] : null,
             extensions: $this->extensions->buildCapabilitySlot(),
             prompts: $this->hasPromptsCapability()
-                ? self::listChangedFlag($this->getPromptStore() instanceof ListChangeSourceInterface, $honoured?->promptsListChanged)
+                ? $this->listChangedFlag($this->getPromptStore() instanceof ListChangeSourceInterface, $honoured?->promptsListChanged)
                 : null,
             resources: $this->resourcesCapability($honoured),
             tools: $this->hasToolsCapability()
-                ? self::listChangedFlag($this->getToolStore() instanceof ListChangeSourceInterface, $honoured?->toolsListChanged)
+                ? $this->listChangedFlag($this->getToolStore() instanceof ListChangeSourceInterface, $honoured?->toolsListChanged)
                 : null,
         );
     }
@@ -1063,7 +1063,7 @@ final class ServerBuilder
      *
      * @return array{listChanged?: bool}
      */
-    private static function listChangedFlag(bool $reportsChanges, ?bool $honoured): array
+    private function listChangedFlag(bool $reportsChanges, ?bool $honoured): array
     {
         if (true !== $honoured || ! $reportsChanges) {
             return [];
@@ -1084,7 +1084,7 @@ final class ServerBuilder
         $reportsChanges = $this->getResourceStore() instanceof ListChangeSourceInterface
             || $this->getResourceTemplateStore() instanceof ListChangeSourceInterface;
 
-        $capability = self::listChangedFlag($reportsChanges, $honoured?->resourcesListChanged);
+        $capability = $this->listChangedFlag($reportsChanges, $honoured?->resourcesListChanged);
 
         if (null !== $honoured?->resourceSubscriptions) {
             $capability['subscribe'] = true;
@@ -1236,12 +1236,12 @@ final class ServerBuilder
         return $handlers;
     }
 
-    private static function refuseDuplicateEntry(string $kind, string $key, string $source, string $owner): never
+    private function refuseDuplicateEntry(string $kind, string $key, string $source, string $owner): never
     {
         throw new LogicException(\sprintf('"%s" declares %s "%s", which "%s" already declares.', $source, $kind, $key, $owner));
     }
 
-    private static function refuseReservedMethod(string $method, bool $isNotification): never
+    private function refuseReservedMethod(string $method, bool $isNotification): never
     {
         throw new LogicException(\sprintf(
             '%s method "%s" is reserved by the MCP specification. Use %s() to attach a handler to it.',
@@ -1251,7 +1251,7 @@ final class ServerBuilder
         ));
     }
 
-    private static function refuseUnreservedMethod(string $method, bool $isNotification): never
+    private function refuseUnreservedMethod(string $method, bool $isNotification): never
     {
         throw new LogicException(\sprintf(
             '%s method "%s" is not reserved by the MCP specification. Use %s() to register a vendor extension.',

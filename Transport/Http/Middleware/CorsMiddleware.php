@@ -42,7 +42,7 @@ final readonly class CorsMiddleware implements MiddlewareInterface
     #[\Override]
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        if (self::isPreflight($request)) {
+        if ($this->isPreflight($request)) {
             return $this->preflight($request);
         }
 
@@ -96,7 +96,7 @@ final readonly class CorsMiddleware implements MiddlewareInterface
             || \in_array($origin, $this->allowedOrigins, true);
     }
 
-    private static function isPreflight(ServerRequestInterface $request): bool
+    private function isPreflight(ServerRequestInterface $request): bool
     {
         return $request->getMethod() === 'OPTIONS'
             && $request->hasHeader('Access-Control-Request-Method');

@@ -42,10 +42,10 @@ final readonly class InputSchemaGenerator
      */
     public function generate(\ReflectionMethod $method): array
     {
-        $methodAttribute = self::readAttribute($method);
+        $methodAttribute = $this->readAttribute($method);
 
         if (null !== $methodAttribute && null !== $methodAttribute->definition) {
-            return self::ensureDialect($methodAttribute->definition);
+            return $this->ensureDialect($methodAttribute->definition);
         }
 
         [$properties, $required] = $this->buildObjectMembers(
@@ -185,7 +185,7 @@ final readonly class InputSchemaGenerator
      */
     private function buildParameterSchema(\ReflectionParameter $parameter, ?ParamTagValueNode $tag, bool $topLevel): array
     {
-        $attribute = self::readAttribute($parameter);
+        $attribute = $this->readAttribute($parameter);
 
         if (null !== $attribute && null !== $attribute->definition) {
             return $attribute->definition;
@@ -211,7 +211,7 @@ final readonly class InputSchemaGenerator
         }
 
         if ($parameter->isDefaultValueAvailable()) {
-            $inferred['default'] = self::normaliseDefault($parameter->getDefaultValue());
+            $inferred['default'] = $this->normaliseDefault($parameter->getDefaultValue());
         }
 
         return array_merge($inferred, $explicit);
@@ -245,7 +245,7 @@ final readonly class InputSchemaGenerator
             ), previous: $exception);
         }
 
-        return self::allowsNull($parameter) ? $this->mapper->makeNullable($schema) : $schema;
+        return $this->allowsNull($parameter) ? $this->mapper->makeNullable($schema) : $schema;
     }
 
     /**
@@ -257,17 +257,17 @@ final readonly class InputSchemaGenerator
     {
         $schema = $this->expandClass($class);
 
-        return self::allowsNull($parameter) ? $this->mapper->makeNullable($schema) : $schema;
+        return $this->allowsNull($parameter) ? $this->mapper->makeNullable($schema) : $schema;
     }
 
-    private static function allowsNull(\ReflectionParameter $parameter): bool
+    private function allowsNull(\ReflectionParameter $parameter): bool
     {
         $type = $parameter->getType();
 
         return $type instanceof \ReflectionType && $type->allowsNull();
     }
 
-    private static function normaliseDefault(mixed $value): mixed
+    private function normaliseDefault(mixed $value): mixed
     {
         return match (true) {
             $value instanceof \BackedEnum => $value->value,
@@ -281,7 +281,7 @@ final readonly class InputSchemaGenerator
      *
      * @return array<string, mixed>
      */
-    private static function ensureDialect(array $schema): array
+    private function ensureDialect(array $schema): array
     {
         if (! \array_key_exists('$schema', $schema)) {
             $schema = ['$schema' => self::DIALECT] + $schema;
@@ -290,7 +290,7 @@ final readonly class InputSchemaGenerator
         return $schema;
     }
 
-    private static function readAttribute(\ReflectionMethod|\ReflectionParameter $reflection): ?InputSchema
+    private function readAttribute(\ReflectionMethod|\ReflectionParameter $reflection): ?InputSchema
     {
         $attributes = $reflection->getAttributes(InputSchema::class);
 

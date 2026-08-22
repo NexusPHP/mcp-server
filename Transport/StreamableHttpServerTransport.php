@@ -138,7 +138,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
             );
         }
 
-        if (! self::acceptsRequiredContentTypes($request)) {
+        if (! $this->acceptsRequiredContentTypes($request)) {
             return $this->responseFactory->createResponse(HttpStatus::NotAcceptable->value);
         }
 
@@ -165,7 +165,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         }
 
         if (! \array_key_exists('id', $envelope)) {
-            if (! self::isAcceptableNotification($envelope)) {
+            if (! $this->isAcceptableNotification($envelope)) {
                 return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
             }
 
@@ -178,7 +178,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
                 return $this->responseFactory->createResponse(HttpStatus::Accepted->value);
             }
 
-            $this->events->emitMessage($envelope, self::buildReceiveContext($request));
+            $this->events->emitMessage($envelope, $this->buildReceiveContext($request));
 
             return $this->responseFactory->createResponse(HttpStatus::Accepted->value);
         }
@@ -191,7 +191,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
 
         $clientId = $requestId->id;
 
-        $mismatch = StandardHeaders::validate(self::readHeaders($request), $envelope);
+        $mismatch = StandardHeaders::validate($this->readHeaders($request), $envelope);
 
         if (null !== $mismatch) {
             return $this->buildErrorResponse($mismatch, id: $requestId);
@@ -319,11 +319,11 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      * The client MUST accept both media types (`Accept: application/json, text/event-stream`) so the server
      * is free to answer with a buffered JSON object or an SSE stream.
      */
-    private static function acceptsRequiredContentTypes(ServerRequestInterface $request): bool
+    private function acceptsRequiredContentTypes(ServerRequestInterface $request): bool
     {
-        $ranges = self::parseAcceptableMediaRanges($request->getHeaderLine('Accept'));
+        $ranges = $this->parseAcceptableMediaRanges($request->getHeaderLine('Accept'));
 
-        return self::matchesMediaRange($ranges, 'application/json') && self::matchesMediaRange($ranges, 'text/event-stream');
+        return $this->matchesMediaRange($ranges, 'application/json') && $this->matchesMediaRange($ranges, 'text/event-stream');
     }
 
     /**
@@ -331,7 +331,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      *
      * @return list<string>
      */
-    private static function parseAcceptableMediaRanges(string $accept): array
+    private function parseAcceptableMediaRanges(string $accept): array
     {
         $ranges = [];
 
@@ -354,7 +354,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      * @param list<string>     $ranges
      * @param non-empty-string $mediaType
      */
-    private static function matchesMediaRange(array $ranges, string $mediaType): bool
+    private function matchesMediaRange(array $ranges, string $mediaType): bool
     {
         $typeWildcard = strstr($mediaType, '/', true).'/*';
 
@@ -373,7 +373,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      *
      * @param array<string, mixed> $envelope
      */
-    private static function isAcceptableNotification(array $envelope): bool
+    private function isAcceptableNotification(array $envelope): bool
     {
         $method = $envelope['method'] ?? null;
 
@@ -397,7 +397,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $internalId = ++$this->lastRequestId;
         $this->sinks[$internalId] = ['clientId' => $clientId, 'buffered' => $deferred, 'stream' => null];
 
-        $this->emitRequest($envelope, $internalId, self::buildReceiveContext($request, $clientId));
+        $this->emitRequest($envelope, $internalId, $this->buildReceiveContext($request, $clientId));
 
         return $deferred->getFuture()->await();
     }
@@ -418,7 +418,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $response = $this->buildSseResponse($stream);
         $this->sinks[$internalId] = ['clientId' => $clientId, 'buffered' => $unused, 'stream' => $stream];
 
-        $this->emitRequest($envelope, $internalId, self::buildReceiveContext($request, $clientId));
+        $this->emitRequest($envelope, $internalId, $this->buildReceiveContext($request, $clientId));
 
         return $response;
     }
@@ -483,7 +483,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      *
      * @param null|int|non-empty-string $clientId
      */
-    private static function buildReceiveContext(ServerRequestInterface $request, null|int|string $clientId = null): ReceiveContext
+    private function buildReceiveContext(ServerRequestInterface $request, null|int|string $clientId = null): ReceiveContext
     {
         $token = $request->getAttribute(VerifiedAccessToken::REQUEST_ATTRIBUTE);
 
@@ -515,13 +515,13 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $sink = $this->sinks[$internalId];
         $envelope = $message->jsonSerialize();
         $envelope['id'] = $sink['clientId'];
-        $status = self::resolveStatus($message, null !== $context && $context->fromHandler);
+        $status = $this->resolveStatus($message, null !== $context && $context->fromHandler);
         $failure = null;
 
         try {
-            $payload = self::encode($envelope);
+            $payload = $this->encode($envelope);
         } catch (\JsonException $e) {
-            $payload = self::encode(self::buildUnencodableError($sink['clientId']));
+            $payload = $this->encode($this->buildUnencodableError($sink['clientId']));
             $status = HttpStatus::InternalServerError->value;
             $failure = $e;
         }
@@ -545,7 +545,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         unset($this->sinks[$internalId]);
 
         if (null !== $stream) {
-            $stream->push(self::frame($payload));
+            $stream->push($this->frame($payload));
             $stream->end();
         } else {
             try {
@@ -567,7 +567,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      *
      * @return array<string, mixed>
      */
-    private static function buildUnencodableError(int|string $clientId): array
+    private function buildUnencodableError(int|string $clientId): array
     {
         return (new JsonRpcErrorResponse(
             id: new RequestId(id: $clientId),
@@ -600,7 +600,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $stream = $sink['stream'];
 
         if (null !== $stream) {
-            $stream->push(self::frame(self::encode($notification->jsonSerialize())));
+            $stream->push($this->frame($this->encode($notification->jsonSerialize())));
         } elseif (ResponseMode::Auto === $this->responseMode) {
             $this->upgradeToStream($internalId, $sink['clientId'], $sink['buffered'], $notification->jsonSerialize());
         } else {
@@ -618,7 +618,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      */
     private function upgradeToStream(int $internalId, int|string $clientId, DeferredFuture $buffered, array $envelope): void
     {
-        $frame = self::frame(self::encode($envelope));
+        $frame = $this->frame($this->encode($envelope));
         $stream = $this->buildStream($internalId);
         $response = $this->buildSseResponse($stream);
 
@@ -674,7 +674,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      * A result and a handler-produced error both ride HTTP 200 with the JSON-RPC payload in the body,
      * while a protocol error carries a real status.
      */
-    private static function resolveStatus(JsonRpcErrorResponse|JsonRpcResultResponse $message, bool $fromHandler): int
+    private function resolveStatus(JsonRpcErrorResponse|JsonRpcResultResponse $message, bool $fromHandler): int
     {
         if ($message instanceof JsonRpcResultResponse) {
             return HttpStatus::Ok->value;
@@ -712,14 +712,14 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
 
         return $this->responseFactory->createResponse($status)
             ->withHeader('Content-Type', 'application/json')
-            ->withBody($this->streamFactory->createStream(self::encode($envelope)))
+            ->withBody($this->streamFactory->createStream($this->encode($envelope)))
         ;
     }
 
     /**
      * @return array<string, string>
      */
-    private static function readHeaders(ServerRequestInterface $request): array
+    private function readHeaders(ServerRequestInterface $request): array
     {
         return array_map(
             static fn(array $values): string => implode(', ', $values),
@@ -727,7 +727,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         );
     }
 
-    private static function frame(string $payload): string
+    private function frame(string $payload): string
     {
         return \sprintf("event: message\ndata: %s\n\n", $payload);
     }
@@ -735,7 +735,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     /**
      * @param array<string, mixed> $envelope
      */
-    private static function encode(array $envelope): string
+    private function encode(array $envelope): string
     {
         return json_encode($envelope, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE);
     }

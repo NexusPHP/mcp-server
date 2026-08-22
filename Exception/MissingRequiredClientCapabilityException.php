@@ -33,7 +33,7 @@ final class MissingRequiredClientCapabilityException extends AbstractJsonRpcProt
             $requestId,
             \sprintf(
                 'This request requires client capabilities the client did not declare: %s.',
-                implode(', ', self::describeCapabilities($requiredCapabilities->toArray())),
+                implode(', ', $this->describeCapabilities($requiredCapabilities->toArray())),
             ),
             $previous,
             errorData: ['requiredCapabilities' => $requiredCapabilities->toArray()],
@@ -54,12 +54,12 @@ final class MissingRequiredClientCapabilityException extends AbstractJsonRpcProt
      *
      * @return list<string>
      */
-    private static function describeCapabilities(array $capabilities): array
+    private function describeCapabilities(array $capabilities): array
     {
         $described = [];
 
         foreach ($capabilities as $slot => $members) {
-            if (\is_array($members) && [] !== $members && self::hasOnlyStringKeys($members)) {
+            if (\is_array($members) && [] !== $members && $this->hasOnlyStringKeys($members)) {
                 foreach (array_keys($members) as $member) {
                     $described[] = \sprintf('%s.%s', $slot, $member);
                 }
@@ -78,7 +78,7 @@ final class MissingRequiredClientCapabilityException extends AbstractJsonRpcProt
      *
      * @param non-empty-array<array-key, mixed> $members
      */
-    private static function hasOnlyStringKeys(array $members): bool
+    private function hasOnlyStringKeys(array $members): bool
     {
         foreach (array_keys($members) as $key) {
             if (! \is_string($key)) {

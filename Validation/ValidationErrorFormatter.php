@@ -29,10 +29,10 @@ final class ValidationErrorFormatter
     {
         $violations = [];
 
-        foreach (self::collectLeafErrors($error) as $leaf) {
-            $pointer = self::renderPointer($leaf);
+        foreach ($this->collectLeafErrors($error) as $leaf) {
+            $pointer = $this->renderPointer($leaf);
 
-            foreach (self::formatLeafError($leaf) as $message) {
+            foreach ($this->formatLeafError($leaf) as $message) {
                 $violations[] = new SchemaViolation($pointer, $message);
             }
         }
@@ -40,7 +40,7 @@ final class ValidationErrorFormatter
         return $violations;
     }
 
-    private static function renderPointer(ValidationError $error): string
+    private function renderPointer(ValidationError $error): string
     {
         $pointer = '';
 
@@ -54,7 +54,7 @@ final class ValidationErrorFormatter
     /**
      * @return iterable<int, ValidationError>
      */
-    private static function collectLeafErrors(ValidationError $error): iterable
+    private function collectLeafErrors(ValidationError $error): iterable
     {
         $subErrors = $error->subErrors();
 
@@ -64,7 +64,7 @@ final class ValidationErrorFormatter
             foreach ($subErrors as $subError) {
                 \assert($subError instanceof ValidationError);
 
-                yield from self::collectLeafErrors($subError);
+                yield from $this->collectLeafErrors($subError);
             }
         }
     }
@@ -74,7 +74,7 @@ final class ValidationErrorFormatter
      *
      * @return list<non-empty-string>
      */
-    private static function formatLeafError(ValidationError $error): array
+    private function formatLeafError(ValidationError $error): array
     {
         $path = $error->data()->fullPath();
         $label = [] === $path ? null : implode('.', $path);
@@ -89,8 +89,8 @@ final class ValidationErrorFormatter
                 return [\sprintf(
                     '%smust be %s, %s given.',
                     null === $label ? '' : \sprintf('"%s" ', $label),
-                    implode(' or ', array_map(self::describeJsonType(...), \is_array($expected) ? $expected : [$expected])),
-                    self::describePhpType($actual),
+                    implode(' or ', array_map($this->describeJsonType(...), \is_array($expected) ? $expected : [$expected])),
+                    $this->describePhpType($actual),
                 )];
 
             case 'required':
@@ -145,7 +145,7 @@ final class ValidationErrorFormatter
         }
     }
 
-    private static function describeJsonType(mixed $type): string
+    private function describeJsonType(mixed $type): string
     {
         \assert(\is_string($type));
 
@@ -164,7 +164,7 @@ final class ValidationErrorFormatter
      * Maps a JSON-space type name to the `{type} given.` idiom, where a JSON object
      * decodes to a PHP array on this SDK's transports.
      */
-    private static function describePhpType(string $type): string
+    private function describePhpType(string $type): string
     {
         return match ($type) {
             'boolean' => 'bool',

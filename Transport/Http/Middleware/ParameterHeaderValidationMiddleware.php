@@ -65,7 +65,7 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
     {
         $body = (string) $request->getBody();
         $request = $request->withBody($this->streamFactory->createStream($body));
-        $envelope = self::readEnvelope($body);
+        $envelope = $this->readEnvelope($body);
 
         if (CallToolRequest::getMethod() !== ($envelope['method'] ?? null)) {
             return $handler->handle($request);
@@ -87,7 +87,7 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
         $mismatch = ParameterHeaders::validate(
             $this->resolveBindings($name),
             \is_array($arguments) ? $arguments : [],
-            self::readHeaders($request),
+            $this->readHeaders($request),
         );
 
         if (null === $mismatch) {
@@ -140,7 +140,7 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
     /**
      * @return array<array-key, mixed>
      */
-    private static function readEnvelope(string $body): array
+    private function readEnvelope(string $body): array
     {
         $decoded = json_decode($body, associative: true);
 
@@ -150,7 +150,7 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
     /**
      * @return array<string, string>
      */
-    private static function readHeaders(ServerRequestInterface $request): array
+    private function readHeaders(ServerRequestInterface $request): array
     {
         return array_map(
             static fn(array $values): string => implode(', ', $values),

@@ -52,7 +52,7 @@ final readonly class OpisSchemaValidator implements SchemaValidatorInterface
     {
         $error = $this->validator->validate(
             Helper::toJSON($data),
-            (object) Helper::toJSON(self::normaliseSubSchemas($schema)),
+            (object) Helper::toJSON($this->normaliseSubSchemas($schema)),
         )->error();
 
         return null === $error ? [] : $this->formatter->format($error);
@@ -65,11 +65,11 @@ final readonly class OpisSchemaValidator implements SchemaValidatorInterface
      *
      * @return array<array-key, mixed>
      */
-    private static function normaliseSubSchemas(array $schema): array
+    private function normaliseSubSchemas(array $schema): array
     {
         foreach (self::SCHEMA_KEYWORDS as $keyword) {
             if (isset($schema[$keyword]) && \is_array($schema[$keyword])) {
-                $schema[$keyword] = self::asSchemaObject($schema[$keyword]);
+                $schema[$keyword] = $this->asSchemaObject($schema[$keyword]);
             }
         }
 
@@ -88,7 +88,7 @@ final readonly class OpisSchemaValidator implements SchemaValidatorInterface
 
             foreach ($map as $name => $subSchema) {
                 if (\is_array($subSchema)) {
-                    $map[$name] = self::asSchemaObject($subSchema);
+                    $map[$name] = $this->asSchemaObject($subSchema);
                 }
             }
 
@@ -104,7 +104,7 @@ final readonly class OpisSchemaValidator implements SchemaValidatorInterface
 
             foreach ($list as $index => $subSchema) {
                 if (\is_array($subSchema)) {
-                    $list[$index] = self::asSchemaObject($subSchema);
+                    $list[$index] = $this->asSchemaObject($subSchema);
                 }
             }
 
@@ -119,8 +119,8 @@ final readonly class OpisSchemaValidator implements SchemaValidatorInterface
      *
      * @return array<array-key, mixed>|\stdClass
      */
-    private static function asSchemaObject(array $subSchema): array|\stdClass
+    private function asSchemaObject(array $subSchema): array|\stdClass
     {
-        return [] === $subSchema ? new \stdClass() : self::normaliseSubSchemas($subSchema);
+        return [] === $subSchema ? new \stdClass() : $this->normaliseSubSchemas($subSchema);
     }
 }
