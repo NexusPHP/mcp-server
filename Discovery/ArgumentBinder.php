@@ -17,7 +17,6 @@ use Nexus\Assert\Assert;
 use Nexus\Mcp\Core\Exception\InvalidParamsException;
 use Nexus\Mcp\Core\Exception\LogicException;
 use Nexus\Mcp\Core\SafeDisplay;
-use Nexus\Mcp\Core\Validation\EnumValueValidator;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
@@ -197,7 +196,11 @@ final class ArgumentBinder
         $context = \sprintf('"%s"', $label);
 
         if (is_subclass_of($name, \BackedEnum::class)) {
-            return EnumValueValidator::parse($name, $value, $context);
+            /** @var non-empty-list<int|string> $values */
+            $values = array_column($name::cases(), 'value');
+            Assert::that($value)->isOneOf($values, \sprintf('%s must be one of {choices}, {value} given.', $context));
+
+            return $name::from($value);
         }
 
         return $this->resolvePureCase($name, $value, $context);
