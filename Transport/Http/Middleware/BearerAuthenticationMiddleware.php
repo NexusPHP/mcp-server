@@ -88,7 +88,7 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
             return $this->challenge(HttpStatus::Unauthorized, 'invalid_token');
         }
 
-        if (null !== $token->expiresAt && ($this->clock)() >= $token->expiresAt + $this->expiryLeewaySeconds) {
+        if (($this->clock)() >= $token->expiresAt + $this->expiryLeewaySeconds) {
             return $this->challenge(HttpStatus::Unauthorized, 'invalid_token');
         }
 

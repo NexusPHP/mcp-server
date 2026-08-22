@@ -69,14 +69,20 @@ final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInt
             return null;
         }
 
+        $expiresAt = (int) $expiresAt;
+
+        if ($expiresAt < 1) {
+            return null;
+        }
+
         $subject = $claims['sub'] ?? null;
 
         return new VerifiedAccessToken(
             audience: $audience,
+            expiresAt: $expiresAt,
             scopes: $this->readScopes($claims),
             subject: \is_string($subject) && '' !== $subject ? $subject : null,
             clientId: $this->readClientId($claims),
-            expiresAt: (int) $expiresAt,
         );
     }
 
