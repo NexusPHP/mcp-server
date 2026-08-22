@@ -38,11 +38,13 @@ final class SseResponseStream implements StreamInterface
     private ?DeferredFuture $reader = null;
 
     /**
-     * @param float            $keepAliveInterval Seconds an idle read waits before yielding a keep-alive frame
-     * @param \Closure(): void $onClose           Runs when the consumer closes the body (e.g. client disconnect)
+     * @param float                $keepAliveInterval Seconds an idle read waits before yielding a keep-alive frame
+     * @param int<1, max>          $maxBufferedBytes  Unread bytes past which a further push abandons the stream
+     * @param \Closure(bool): void $onClose           Runs when the body closes, with whether the buffer overflowed
      */
     public function __construct(
         private readonly float $keepAliveInterval,
+        private readonly int $maxBufferedBytes,
         private readonly \Closure $onClose,
     ) {
     }
@@ -54,11 +56,19 @@ final class SseResponseStream implements StreamInterface
     }
 
     /**
-     * Appends a frame for the consumer to read, discarding one pushed after the stream ended.
+     * Appends a frame for the consumer to read, discarding one pushed after the stream ended. A push that finds
+     * the unread buffer already at its cap abandons the stream instead, as a consumer close would.
      */
     public function push(string $frame): void
     {
         if ($this->ended) {
+            return;
+        }
+
+        if ($this->maxBufferedBytes <= \strlen($this->buffer)) {
+            $this->end();
+            ($this->onClose)(true);
+
             return;
         }
 
@@ -79,7 +89,7 @@ final class SseResponseStream implements StreamInterface
     public function close(): void
     {
         $this->end();
-        ($this->onClose)();
+        ($this->onClose)(false);
     }
 
     #[\Override]

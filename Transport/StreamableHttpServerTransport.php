@@ -59,6 +59,7 @@ use Psr\Log\NullLogger;
 final class StreamableHttpServerTransport implements CancellableTransportInterface, RequestHandlerInterface
 {
     private const string LABEL = 'Streamable HTTP server';
+    private const int DEFAULT_MAX_BUFFERED_BYTES = 1_048_576;
 
     private TransportState $state = TransportState::Idle;
 
@@ -103,16 +104,22 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      */
     private array $cancelListeners = [];
 
+    /**
+     * @param int<1, max> $maxBufferedBytes Unread SSE bytes past which a further frame abandons the stream
+     */
     public function __construct(
         private readonly ResponseFactoryInterface $responseFactory,
         private readonly StreamFactoryInterface $streamFactory,
         private readonly LoggerInterface $logger = new NullLogger(),
         private readonly ResponseMode $responseMode = ResponseMode::Auto,
         private readonly float $keepAliveInterval = 15.0,
+        private readonly int $maxBufferedBytes = self::DEFAULT_MAX_BUFFERED_BYTES,
     ) {
         if ($this->keepAliveInterval <= 0.0) {
             throw new \InvalidArgumentException(\sprintf('The SSE keep-alive interval must be positive, %s given.', $this->keepAliveInterval));
         }
+
+        Assert::that($this->maxBufferedBytes)->isPositiveInt('The SSE buffer cap must be positive, {value} given.');
 
         $this->events = TransportEvents::create($this->logger, self::LABEL);
     }
@@ -366,9 +373,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         /** @var DeferredFuture<ResponseInterface> $unused */
         $unused = new DeferredFuture();
         $internalId = ++$this->lastRequestId;
-        $stream = new SseResponseStream($this->keepAliveInterval, function () use ($internalId): void {
-            $this->releaseStream($internalId);
-        });
+        $stream = $this->buildStream($internalId);
         $response = $this->buildSseResponse($stream);
         $this->sinks[$internalId] = ['clientId' => $clientId, 'buffered' => $unused, 'stream' => $stream];
 
@@ -573,9 +578,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     private function upgradeToStream(int $internalId, int|string $clientId, DeferredFuture $buffered, array $envelope): void
     {
         $frame = self::frame(self::encode($envelope));
-        $stream = new SseResponseStream($this->keepAliveInterval, function () use ($internalId): void {
-            $this->releaseStream($internalId);
-        });
+        $stream = $this->buildStream($internalId);
         $response = $this->buildSseResponse($stream);
 
         if (! \array_key_exists($internalId, $this->sinks)) {
@@ -588,8 +591,27 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $buffered->complete($response);
     }
 
+    private function buildStream(int $internalId): SseResponseStream
+    {
+        return new SseResponseStream(
+            $this->keepAliveInterval,
+            $this->maxBufferedBytes,
+            function (bool $overflowed) use ($internalId): void {
+                if ($overflowed) {
+                    $this->logger->warning(
+                        '{label} transport abandoned a stream whose reader fell at least {limit} bytes behind.',
+                        ['label' => self::LABEL, 'limit' => $this->maxBufferedBytes],
+                    );
+                }
+
+                $this->releaseStream($internalId);
+            },
+        );
+    }
+
     /**
-     * Retires a stream whose body the consumer closed (a client disconnect), and a no-op once it has ended.
+     * Retires a stream whose body the consumer closed (a client disconnect or a buffer overflow), and a no-op
+     * once it has ended.
      */
     private function releaseStream(int $internalId): void
     {
