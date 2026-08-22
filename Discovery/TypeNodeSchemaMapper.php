@@ -66,7 +66,7 @@ final class TypeNodeSchemaMapper
             return $docCore;
         }
 
-        if (null !== $docCore && $this->docRefinesNative($nativeCore, $docCore)) {
+        if (null !== $docCore && $this->isRefinedByDoc($nativeCore, $docCore)) {
             return $docCore;
         }
 
@@ -132,7 +132,7 @@ final class TypeNodeSchemaMapper
         return [] === $schema ? true : $schema;
     }
 
-    private function docRefinesNative(TypeNode $native, TypeNode $doc): bool
+    private function isRefinedByDoc(TypeNode $native, TypeNode $doc): bool
     {
         if ($this->isBareArray($native) && $this->isArrayLike($doc)) {
             return $this->isMappable($doc);

@@ -1022,7 +1022,7 @@ final class ServerBuilder
             prompts: $this->hasPromptsCapability()
                 ? $this->listChangedFlag($this->getPromptStore() instanceof ListChangeSourceInterface, $honoured?->promptsListChanged)
                 : null,
-            resources: $this->resourcesCapability($honoured),
+            resources: $this->buildResourcesCapability($honoured),
             tools: $this->hasToolsCapability()
                 ? $this->listChangedFlag($this->getToolStore() instanceof ListChangeSourceInterface, $honoured?->toolsListChanged)
                 : null,
@@ -1075,7 +1075,7 @@ final class ServerBuilder
     /**
      * @return null|array{listChanged?: bool, subscribe?: bool}
      */
-    private function resourcesCapability(?SubscriptionFilter $honoured): ?array
+    private function buildResourcesCapability(?SubscriptionFilter $honoured): ?array
     {
         if (! $this->hasResourcesCapability()) {
             return null;

@@ -39,7 +39,7 @@ final class ReflectedResourceResult
         $contents = match (true) {
             \is_string($result) => [new TextResourceContents(uri: $uri, text: $result)],
             $result instanceof BlobResourceContents || $result instanceof TextResourceContents => [$result],
-            \is_array($result) => self::contentsList($result, $method),
+            \is_array($result) => self::buildContentsList($result, $method),
             default => throw self::buildUnsupportedError($method, $result),
         };
 
@@ -51,7 +51,7 @@ final class ReflectedResourceResult
      *
      * @return list<BlobResourceContents|TextResourceContents>
      */
-    private static function contentsList(array $result, \ReflectionMethod $method): array
+    private static function buildContentsList(array $result, \ReflectionMethod $method): array
     {
         $contents = [];
 

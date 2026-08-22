@@ -58,7 +58,7 @@ final readonly class ReflectedToolExecutor implements ToolExecutorInterface
             $result instanceof ImageContent,
             $result instanceof ResourceLink,
             $result instanceof TextContent => new CallToolResult(content: [$result]),
-            \is_array($result) => $this->structuredOrContent($result, $this->method),
+            \is_array($result) => $this->resolveStructuredOrContent($result, $this->method),
             default => throw $this->buildUnsupportedError($this->method, $result),
         };
     }
@@ -66,7 +66,7 @@ final readonly class ReflectedToolExecutor implements ToolExecutorInterface
     /**
      * @param array<array-key, mixed> $result
      */
-    private function structuredOrContent(array $result, \ReflectionMethod $method): CallToolResult
+    private function resolveStructuredOrContent(array $result, \ReflectionMethod $method): CallToolResult
     {
         if (array_is_list($result) && [] !== $result) {
             $blocks = [];

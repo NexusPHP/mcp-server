@@ -69,7 +69,7 @@ final readonly class OpisSchemaValidator implements SchemaValidatorInterface
     {
         foreach (self::SCHEMA_KEYWORDS as $keyword) {
             if (isset($schema[$keyword]) && \is_array($schema[$keyword])) {
-                $schema[$keyword] = $this->asSchemaObject($schema[$keyword]);
+                $schema[$keyword] = $this->castToSchemaObject($schema[$keyword]);
             }
         }
 
@@ -88,7 +88,7 @@ final readonly class OpisSchemaValidator implements SchemaValidatorInterface
 
             foreach ($map as $name => $subSchema) {
                 if (\is_array($subSchema)) {
-                    $map[$name] = $this->asSchemaObject($subSchema);
+                    $map[$name] = $this->castToSchemaObject($subSchema);
                 }
             }
 
@@ -104,7 +104,7 @@ final readonly class OpisSchemaValidator implements SchemaValidatorInterface
 
             foreach ($list as $index => $subSchema) {
                 if (\is_array($subSchema)) {
-                    $list[$index] = $this->asSchemaObject($subSchema);
+                    $list[$index] = $this->castToSchemaObject($subSchema);
                 }
             }
 
@@ -119,7 +119,7 @@ final readonly class OpisSchemaValidator implements SchemaValidatorInterface
      *
      * @return array<array-key, mixed>|\stdClass
      */
-    private function asSchemaObject(array $subSchema): array|\stdClass
+    private function castToSchemaObject(array $subSchema): array|\stdClass
     {
         return [] === $subSchema ? new \stdClass() : $this->normaliseSubSchemas($subSchema);
     }

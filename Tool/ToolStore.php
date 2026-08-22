@@ -168,7 +168,7 @@ final class ToolStore implements MutableToolStoreInterface
 
             $outputData = $result->structuredContent;
 
-            if ([] === $outputData && ! $this->schemaAcceptsArray($tool->outputSchema)) {
+            if ([] === $outputData && ! $this->acceptsArray($tool->outputSchema)) {
                 $outputData = new \stdClass();
             }
 
@@ -204,7 +204,7 @@ final class ToolStore implements MutableToolStoreInterface
     /**
      * @param array<string, mixed> $schema
      */
-    private function schemaAcceptsArray(array $schema): bool
+    private function acceptsArray(array $schema): bool
     {
         $type = $schema['type'] ?? null;
 

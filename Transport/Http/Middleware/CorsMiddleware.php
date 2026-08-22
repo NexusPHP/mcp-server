@@ -43,13 +43,13 @@ final readonly class CorsMiddleware implements MiddlewareInterface
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         if ($this->isPreflight($request)) {
-            return $this->preflight($request);
+            return $this->answerPreflight($request);
         }
 
         return $this->decorate($request, $handler->handle($request));
     }
 
-    private function preflight(ServerRequestInterface $request): ResponseInterface
+    private function answerPreflight(ServerRequestInterface $request): ResponseInterface
     {
         $response = $this->responseFactory->createResponse(HttpStatus::NoContent->value)
             ->withAddedHeader('Vary', 'Origin')
