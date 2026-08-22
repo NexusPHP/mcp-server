@@ -63,7 +63,6 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      */
     public const string ENVELOPE_ATTRIBUTE = 'nexus.mcp.envelope';
 
-    private const string LABEL = 'Streamable HTTP server';
     private const int DEFAULT_MAX_BUFFERED_BYTES = 1_048_576;
 
     private TransportState $state = TransportState::Idle;
@@ -127,7 +126,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
 
         Assert::that($this->maxBufferedBytes)->isPositiveInt('The SSE buffer cap must be positive, {value} given.');
 
-        $this->events = TransportEvents::create($this->logger, self::LABEL);
+        $this->events = TransportEvents::create($this->logger, 'Streamable HTTP server');
         $this->standardHeaders = new StandardHeaders();
     }
 
@@ -155,7 +154,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
             try {
                 $envelope = json_decode((string) $request->getBody(), associative: true, flags: \JSON_THROW_ON_ERROR);
             } catch (\JsonException $e) {
-                $this->logger->warning('{label} transport rejected a malformed JSON body.', ['label' => self::LABEL, 'exception' => $e]);
+                $this->logger->warning('Streamable HTTP server transport rejected a malformed JSON body.', ['exception' => $e]);
                 $this->events->emitError($e);
 
                 return $this->buildErrorResponse(new ParseError(message: ParseError::DEFAULT_MESSAGE));
@@ -165,7 +164,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         try {
             Assert::that($envelope)->isMap('JSON-RPC envelope must be a JSON object, {type} given.');
         } catch (\InvalidArgumentException $e) {
-            $this->logger->warning('{label} transport rejected a non-object envelope.', ['label' => self::LABEL, 'exception' => $e]);
+            $this->logger->warning('Streamable HTTP server transport rejected a non-object envelope.', ['exception' => $e]);
             $this->events->emitError($e);
 
             return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
@@ -182,8 +181,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
 
             if (CancelledNotification::getMethod() === ($envelope['method'] ?? null)) {
                 $this->logger->debug(
-                    '{label} transport ignored a client cancellation notification: the response stream is the signal on this transport.',
-                    ['label' => self::LABEL],
+                    'Streamable HTTP server transport ignored a client cancellation notification: the response stream is the signal on this transport.',
                 );
 
                 return $this->responseFactory->createResponse(HttpStatus::Accepted->value);
@@ -226,7 +224,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         };
 
         $this->state = TransportState::Running;
-        $this->logger->info('{label} transport started.', ['label' => self::LABEL]);
+        $this->logger->info('Streamable HTTP server transport started.');
     }
 
     #[\Override]
@@ -250,7 +248,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
             return;
         }
 
-        $this->logger->warning('{label} transport dropped an unexpected server-initiated request.', ['label' => self::LABEL]);
+        $this->logger->warning('Streamable HTTP server transport dropped an unexpected server-initiated request.');
     }
 
     #[\Override]
@@ -283,7 +281,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
                     $this->retireSinks();
                 } finally {
                     $this->events->emitClose();
-                    $this->logger->info('{label} transport closed.', ['label' => self::LABEL]);
+                    $this->logger->info('Streamable HTTP server transport closed.');
                 }
             } finally {
                 $completion->complete();
@@ -510,7 +508,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $id = $message->id;
 
         if (! $id instanceof RequestId) {
-            $this->logger->warning('{label} transport discarded a response that carries no id to correlate.', ['label' => self::LABEL]);
+            $this->logger->warning('Streamable HTTP server transport discarded a response that carries no id to correlate.');
 
             return;
         }
@@ -518,7 +516,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $internalId = $id->id;
 
         if (! \is_int($internalId) || ! \array_key_exists($internalId, $this->sinks)) {
-            $this->logger->warning('{label} transport discarded an orphan response with no in-flight request.', ['label' => self::LABEL]);
+            $this->logger->warning('Streamable HTTP server transport discarded an orphan response with no in-flight request.');
 
             return;
         }
@@ -540,7 +538,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $this->deliver($sink, $internalId, $payload, $status);
 
         if (null !== $failure) {
-            $this->logger->error('{label} transport replaced a response JSON cannot encode with an internal error: {reason}.', ['label' => self::LABEL, 'reason' => $failure->getMessage()]);
+            $this->logger->error('Streamable HTTP server transport replaced a response JSON cannot encode with an internal error: {reason}.', ['reason' => $failure->getMessage()]);
         }
     }
 
@@ -594,7 +592,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $related = $context?->relatedRequestId;
 
         if (! $related instanceof RequestId) {
-            $this->logger->debug('{label} transport dropped a notification with no related request to stream it to.', ['label' => self::LABEL]);
+            $this->logger->debug('Streamable HTTP server transport dropped a notification with no related request to stream it to.');
 
             return;
         }
@@ -602,7 +600,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $internalId = $related->id;
 
         if (! \is_int($internalId) || ! \array_key_exists($internalId, $this->sinks)) {
-            $this->logger->debug('{label} transport dropped a notification for a request that is no longer in flight.', ['label' => self::LABEL]);
+            $this->logger->debug('Streamable HTTP server transport dropped a notification for a request that is no longer in flight.');
 
             return;
         }
@@ -615,7 +613,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         } elseif (ResponseMode::Auto === $this->responseMode) {
             $this->upgradeToStream($internalId, $sink['clientId'], $sink['buffered'], $notification->jsonSerialize());
         } else {
-            $this->logger->debug('{label} transport dropped a notification: the JSON response mode cannot stream it.', ['label' => self::LABEL]);
+            $this->logger->debug('Streamable HTTP server transport dropped a notification: the JSON response mode cannot stream it.');
         }
     }
 
@@ -651,8 +649,8 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
             function (bool $overflowed) use ($internalId): void {
                 if ($overflowed) {
                     $this->logger->warning(
-                        '{label} transport abandoned a stream whose reader fell at least {limit} bytes behind.',
-                        ['label' => self::LABEL, 'limit' => $this->maxBufferedBytes],
+                        'Streamable HTTP server transport abandoned a stream whose reader fell at least {limit} bytes behind.',
+                        ['limit' => $this->maxBufferedBytes],
                     );
                 }
 
