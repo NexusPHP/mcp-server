@@ -14,7 +14,6 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Discovery;
 
 use Nexus\Assert\Assert;
-use Nexus\Assert\ExpectationFailedException;
 use Nexus\Mcp\Core\Exception\InvalidParamsException;
 use Nexus\Mcp\Core\Exception\LogicException;
 use Nexus\Mcp\Core\SafeDisplay;
@@ -40,7 +39,7 @@ final class ArgumentBinder
     {
         try {
             return self::resolveBindings($method, $values, $context);
-        } catch (ExpectationFailedException $e) {
+        } catch (\InvalidArgumentException $e) {
             throw new InvalidParamsException($context->requestId, SafeDisplay::sanitiseCause($e->getMessage()), $e);
         }
     }
@@ -50,7 +49,7 @@ final class ArgumentBinder
      *
      * @return list<mixed>
      *
-     * @throws ExpectationFailedException
+     * @throws \InvalidArgumentException
      * @throws LogicException
      */
     private static function resolveBindings(\ReflectionMethod $method, array $values, ServerContext $context): array
@@ -74,7 +73,7 @@ final class ArgumentBinder
             } elseif ($parameter->isDefaultValueAvailable()) {
                 $arguments[] = $parameter->getDefaultValue();
             } else {
-                throw new ExpectationFailedException('missing the required "{name}" key.', ['name' => $name]);
+                throw new \InvalidArgumentException(\sprintf('missing the required "%s" key.', $name));
             }
         }
 
@@ -105,7 +104,7 @@ final class ArgumentBinder
     /**
      * @param class-string $class
      *
-     * @throws ExpectationFailedException
+     * @throws \InvalidArgumentException
      * @throws LogicException
      */
     private static function instantiate(string $class, string $argument, mixed $value): object
@@ -130,10 +129,7 @@ final class ArgumentBinder
             } elseif ($parameter->isDefaultValueAvailable()) {
                 $arguments[] = $parameter->getDefaultValue();
             } else {
-                throw new ExpectationFailedException(
-                    '"{argument}" is missing the required "{name}" key.',
-                    ['argument' => $argument, 'name' => $name],
-                );
+                throw new \InvalidArgumentException(\sprintf('"%s" is missing the required "%s" key.', $argument, $name));
             }
         }
 
@@ -221,16 +217,14 @@ final class ArgumentBinder
             }
         }
 
-        throw new ExpectationFailedException(
-            '{context} must be one of [{cases}], {value} given.',
-            [
-                'context' => $context,
-                'cases' => implode(', ', array_map(
-                    static fn(\UnitEnum $case): string => var_export($case->name, true),
-                    $enum::cases(),
-                )),
-                'value' => var_export($value, true),
-            ],
-        );
+        throw new \InvalidArgumentException(\sprintf(
+            '%s must be one of [%s], %s given.',
+            $context,
+            implode(', ', array_map(
+                static fn(\UnitEnum $case): string => var_export($case->name, true),
+                $enum::cases(),
+            )),
+            var_export($value, true),
+        ));
     }
 }

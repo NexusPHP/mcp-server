@@ -14,7 +14,6 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Tool;
 
 use Nexus\Assert\Assert;
-use Nexus\Assert\ExpectationFailedException;
 use Nexus\Mcp\Core\Schema\ContentBlock\AudioContent;
 use Nexus\Mcp\Core\Schema\ContentBlock\EmbeddedResource;
 use Nexus\Mcp\Core\Schema\ContentBlock\ImageContent;
@@ -92,7 +91,7 @@ final readonly class ReflectedToolExecutor implements ToolExecutorInterface
 
         try {
             Assert::that($result)->isMap('Tool structured content must be a string-keyed object.');
-        } catch (ExpectationFailedException) {
+        } catch (\InvalidArgumentException) {
             throw self::buildUnsupportedError($method, $result);
         }
 
