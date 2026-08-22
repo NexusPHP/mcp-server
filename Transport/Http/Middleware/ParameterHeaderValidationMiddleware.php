@@ -24,6 +24,7 @@ use Nexus\Mcp\Core\Schema\Request\CallToolRequest;
 use Nexus\Mcp\Core\Schema\RequestId;
 use Nexus\Mcp\Server\ListChangeSourceInterface;
 use Nexus\Mcp\Server\Tool\ToolStoreInterface;
+use Nexus\Mcp\Server\Transport\StreamableHttpServerTransport;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -69,7 +70,13 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
     {
         $body = (string) $request->getBody();
         $request = $request->withBody($this->streamFactory->createStream($body));
-        $envelope = $this->readEnvelope($body);
+        $envelope = json_decode($body, associative: true);
+
+        if (! \is_array($envelope)) {
+            return $handler->handle($request);
+        }
+
+        $request = $request->withAttribute(StreamableHttpServerTransport::ENVELOPE_ATTRIBUTE, $envelope);
 
         if (CallToolRequest::getMethod() !== ($envelope['method'] ?? null)) {
             return $handler->handle($request);
@@ -139,16 +146,6 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
         } while (null !== $cursor);
 
         return $bindings;
-    }
-
-    /**
-     * @return array<array-key, mixed>
-     */
-    private function readEnvelope(string $body): array
-    {
-        $decoded = json_decode($body, associative: true);
-
-        return \is_array($decoded) ? $decoded : [];
     }
 
     /**

@@ -58,6 +58,11 @@ use Psr\Log\NullLogger;
  */
 final class StreamableHttpServerTransport implements CancellableTransportInterface, RequestHandlerInterface
 {
+    /**
+     * PSR-7 request attribute a middleware leaves the decoded JSON-RPC envelope on.
+     */
+    public const string ENVELOPE_ATTRIBUTE = 'nexus.mcp.envelope';
+
     private const string LABEL = 'Streamable HTTP server';
     private const int DEFAULT_MAX_BUFFERED_BYTES = 1_048_576;
 
@@ -144,13 +149,17 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
             return $this->responseFactory->createResponse(HttpStatus::NotAcceptable->value);
         }
 
-        try {
-            $envelope = json_decode((string) $request->getBody(), associative: true, flags: \JSON_THROW_ON_ERROR);
-        } catch (\JsonException $e) {
-            $this->logger->warning('{label} transport rejected a malformed JSON body.', ['label' => self::LABEL, 'exception' => $e]);
-            $this->events->emitError($e);
+        $envelope = $request->getAttribute(self::ENVELOPE_ATTRIBUTE);
 
-            return $this->buildErrorResponse(new ParseError(message: ParseError::DEFAULT_MESSAGE));
+        if (! \is_array($envelope)) {
+            try {
+                $envelope = json_decode((string) $request->getBody(), associative: true, flags: \JSON_THROW_ON_ERROR);
+            } catch (\JsonException $e) {
+                $this->logger->warning('{label} transport rejected a malformed JSON body.', ['label' => self::LABEL, 'exception' => $e]);
+                $this->events->emitError($e);
+
+                return $this->buildErrorResponse(new ParseError(message: ParseError::DEFAULT_MESSAGE));
+            }
         }
 
         try {
