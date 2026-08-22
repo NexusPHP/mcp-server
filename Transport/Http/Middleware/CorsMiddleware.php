@@ -26,8 +26,6 @@ use Psr\Http\Server\RequestHandlerInterface;
  */
 final readonly class CorsMiddleware implements MiddlewareInterface
 {
-    private const string WILDCARD = '*';
-
     /**
      * @param list<non-empty-string> $allowedOrigins Origins granted cross-origin access, or `['*']` to allow any
      * @param int                    $maxAge         Seconds a browser may cache the preflight result
@@ -92,8 +90,7 @@ final readonly class CorsMiddleware implements MiddlewareInterface
 
         $origin = $request->getHeaderLine('Origin');
 
-        return \in_array(self::WILDCARD, $this->allowedOrigins, true)
-            || \in_array($origin, $this->allowedOrigins, true);
+        return \in_array('*', $this->allowedOrigins, true) || \in_array($origin, $this->allowedOrigins, true);
     }
 
     private function isPreflight(ServerRequestInterface $request): bool

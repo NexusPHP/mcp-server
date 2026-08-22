@@ -31,13 +31,6 @@ use Psr\Http\Server\RequestHandlerInterface;
  */
 final readonly class ProtectedResourceMetadataHandler implements RequestHandlerInterface
 {
-    /**
-     * MCP requires the token in the `Authorization` header and forbids it in the query string.
-     */
-    private const string BEARER_METHOD_HEADER = 'header';
-
-    private const string WELL_KNOWN_PATH = '/.well-known/oauth-protected-resource';
-
     private ProtectedResourceMetadata $document;
 
     /**
@@ -66,14 +59,14 @@ final readonly class ProtectedResourceMetadataHandler implements RequestHandlerI
             $identifier,
             $authorizationServers,
             [] === $scopesSupported ? null : new ScopeSet($scopesSupported),
-            [self::BEARER_METHOD_HEADER],
+            ['header'],
             $resourceName,
         );
 
         $path = rtrim((string) parse_url($identifier->value, \PHP_URL_PATH), '/');
         $this->paths = '' === $path
-            ? [self::WELL_KNOWN_PATH]
-            : [self::WELL_KNOWN_PATH.$path, self::WELL_KNOWN_PATH];
+            ? ['/.well-known/oauth-protected-resource']
+            : ['/.well-known/oauth-protected-resource'.$path, '/.well-known/oauth-protected-resource'];
     }
 
     #[\Override]

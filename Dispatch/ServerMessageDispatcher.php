@@ -68,8 +68,6 @@ use function Amp\async;
  */
 final readonly class ServerMessageDispatcher implements MessageDispatcherInterface
 {
-    private const string OVERLOADED_MESSAGE = 'Server overloaded';
-
     private PendingCoroutines $coroutines;
 
     /**
@@ -223,7 +221,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                 id: $request->id,
                 error: new UnknownProtocolError(
                     code: SdkErrorCode::Overloaded->value,
-                    message: self::OVERLOADED_MESSAGE,
+                    message: 'Server overloaded',
                 ),
             ), $method);
 

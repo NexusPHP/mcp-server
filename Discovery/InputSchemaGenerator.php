@@ -27,8 +27,6 @@ use PHPStan\PhpDocParser\Ast\Type\TypeNode;
  */
 final readonly class InputSchemaGenerator
 {
-    private const string DIALECT = 'https://json-schema.org/draft/2020-12/schema';
-
     public function __construct(
         private DocBlockTypeResolver $resolver = new DocBlockTypeResolver(),
         private TypeNodeSchemaMapper $mapper = new TypeNodeSchemaMapper(),
@@ -54,7 +52,7 @@ final readonly class InputSchemaGenerator
             true,
         );
 
-        $schema = ['type' => 'object', '$schema' => self::DIALECT];
+        $schema = ['type' => 'object', '$schema' => 'https://json-schema.org/draft/2020-12/schema'];
 
         if ([] !== $properties) {
             $schema['properties'] = $properties;
@@ -284,7 +282,7 @@ final readonly class InputSchemaGenerator
     private function ensureDialect(array $schema): array
     {
         if (! \array_key_exists('$schema', $schema)) {
-            $schema = ['$schema' => self::DIALECT] + $schema;
+            $schema = ['$schema' => 'https://json-schema.org/draft/2020-12/schema'] + $schema;
         }
 
         return $schema;

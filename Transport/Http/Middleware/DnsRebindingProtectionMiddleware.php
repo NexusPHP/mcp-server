@@ -29,8 +29,6 @@ use Psr\Http\Server\RequestHandlerInterface;
  */
 final readonly class DnsRebindingProtectionMiddleware implements MiddlewareInterface
 {
-    private const string WILDCARD = '*';
-
     /**
      * @var list<non-empty-string>
      */
@@ -92,8 +90,7 @@ final readonly class DnsRebindingProtectionMiddleware implements MiddlewareInter
      */
     private function matches(string $value, array $allowed): bool
     {
-        return \in_array(self::WILDCARD, $allowed, true)
-            || \in_array(strtolower($value), $allowed, true);
+        return \in_array('*', $allowed, true) || \in_array(strtolower($value), $allowed, true);
     }
 
     /**

@@ -43,14 +43,8 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     public const int DEFAULT_MAX_SUBSCRIPTIONS = 1_024;
     public const int DEFAULT_MAX_SUBSCRIPTIONS_PER_PEER = 256;
     public const int DEFAULT_MAX_RESOURCE_SUBSCRIPTIONS_PER_STREAM = 256;
-    private const string TOOLS = 'tools';
-    private const string PROMPTS = 'prompts';
-    private const string RESOURCES = 'resources';
 
     /**
-     * Keyed by object identity, since request ids are unique per connection and a sessionless
-     * endpoint serves many through one store.
-     *
      * @var array<int, SubscriptionEntry>
      */
     private array $entries = [];
@@ -100,15 +94,15 @@ final class SubscriptionStore implements SubscriptionStoreInterface
         private readonly int $maxSubscriptionsPerPeer = self::DEFAULT_MAX_SUBSCRIPTIONS_PER_PEER,
         private readonly int $maxResourceSubscriptionsPerStream = self::DEFAULT_MAX_RESOURCE_SUBSCRIPTIONS_PER_STREAM,
     ) {
-        Assert::that($maxSubscriptions)
-            ->isPositiveInt('The maximum open subscriptions must be a positive integer, {value} given.')
-        ;
-        Assert::that($maxSubscriptionsPerPeer)
-            ->isPositiveInt('The maximum open subscriptions per peer must be a positive integer, {value} given.')
-        ;
-        Assert::that($maxResourceSubscriptionsPerStream)
-            ->isPositiveInt('The maximum resource subscriptions per stream must be a positive integer, {value} given.')
-        ;
+        Assert::that($maxSubscriptions)->isPositiveInt(
+            'The maximum open subscriptions must be a positive integer, {value} given.',
+        );
+        Assert::that($maxSubscriptionsPerPeer)->isPositiveInt(
+            'The maximum open subscriptions per peer must be a positive integer, {value} given.',
+        );
+        Assert::that($maxResourceSubscriptionsPerStream)->isPositiveInt(
+            'The maximum resource subscriptions per stream must be a positive integer, {value} given.',
+        );
     }
 
     #[\Override]
@@ -241,19 +235,22 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     #[\Override]
     public function emitToolListChanged(): void
     {
-        $this->coalesceListChange(self::TOOLS);
+        $this->pendingListChanges['tools'] = true;
+        $this->scheduleEndOfTickFlush();
     }
 
     #[\Override]
     public function emitPromptListChanged(): void
     {
-        $this->coalesceListChange(self::PROMPTS);
+        $this->pendingListChanges['prompts'] = true;
+        $this->scheduleEndOfTickFlush();
     }
 
     #[\Override]
     public function emitResourceListChanged(): void
     {
-        $this->coalesceListChange(self::RESOURCES);
+        $this->pendingListChanges['resources'] = true;
+        $this->scheduleEndOfTickFlush();
     }
 
     #[\Override]
@@ -290,15 +287,6 @@ final class SubscriptionStore implements SubscriptionStoreInterface
         }
     }
 
-    /**
-     * @param self::PROMPTS|self::RESOURCES|self::TOOLS $kind
-     */
-    private function coalesceListChange(string $kind): void
-    {
-        $this->pendingListChanges[$kind] = true;
-        $this->scheduleEndOfTickFlush();
-    }
-
     private function scheduleEndOfTickFlush(): void
     {
         EventLoop::defer(function (): void {
@@ -307,7 +295,7 @@ final class SubscriptionStore implements SubscriptionStoreInterface
             $this->pendingListChanges = [];
             $this->pendingResourceUpdates = [];
 
-            foreach ([self::TOOLS, self::PROMPTS, self::RESOURCES] as $kind) {
+            foreach (['tools', 'prompts', 'resources'] as $kind) {
                 if (\array_key_exists($kind, $kinds)) {
                     $this->broadcastListChange($kind);
                 }
@@ -327,8 +315,8 @@ final class SubscriptionStore implements SubscriptionStoreInterface
         foreach ($this->entries as $entry) {
             $honoured = $entry->honoured;
             $wanted = match ($kind) {
-                self::TOOLS => true === $honoured->toolsListChanged,
-                self::PROMPTS => true === $honoured->promptsListChanged,
+                'tools' => true === $honoured->toolsListChanged,
+                'prompts' => true === $honoured->promptsListChanged,
                 default => true === $honoured->resourcesListChanged,
             };
 
@@ -338,8 +326,8 @@ final class SubscriptionStore implements SubscriptionStoreInterface
 
             $params = new EmptyNotificationParams(new NotificationMetaObject(subscriptionId: $entry->subscriptionId));
             $this->pushTo($entry, match ($kind) {
-                self::TOOLS => new ToolListChangedNotification(params: $params),
-                self::PROMPTS => new PromptListChangedNotification(params: $params),
+                'tools' => new ToolListChangedNotification(params: $params),
+                'prompts' => new PromptListChangedNotification(params: $params),
                 default => new ResourceListChangedNotification(params: $params),
             });
         }
