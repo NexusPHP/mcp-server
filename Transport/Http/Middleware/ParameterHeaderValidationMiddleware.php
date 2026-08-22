@@ -47,12 +47,16 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
      */
     private ?array $bindings = null;
 
+    private readonly ParameterHeaders $parameterHeaders;
+
     public function __construct(
         private readonly ToolStoreInterface $store,
         private readonly ResponseFactoryInterface $responseFactory,
         private readonly StreamFactoryInterface $streamFactory,
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {
+        $this->parameterHeaders = new ParameterHeaders();
+
         if ($store instanceof ListChangeSourceInterface) {
             $store->onListChanged(function (): void {
                 $this->bindings = null;
@@ -84,7 +88,7 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
         }
 
         $arguments = $params['arguments'] ?? [];
-        $mismatch = ParameterHeaders::validate(
+        $mismatch = $this->parameterHeaders->validate(
             $this->resolveBindings($name),
             \is_array($arguments) ? $arguments : [],
             $this->readHeaders($request),

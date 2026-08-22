@@ -80,6 +80,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     private ?DeferredFuture $closeCompletion = null;
 
     private readonly TransportEvents $events;
+    private readonly StandardHeaders $standardHeaders;
 
     /**
      * The last transport-internal request id minted, ascending and never reused, so a retired sink's id
@@ -122,6 +123,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         Assert::that($this->maxBufferedBytes)->isPositiveInt('The SSE buffer cap must be positive, {value} given.');
 
         $this->events = TransportEvents::create($this->logger, self::LABEL);
+        $this->standardHeaders = new StandardHeaders();
     }
 
     #[\Override]
@@ -191,7 +193,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
 
         $clientId = $requestId->id;
 
-        $mismatch = StandardHeaders::validate($this->readHeaders($request), $envelope);
+        $mismatch = $this->standardHeaders->validate($this->readHeaders($request), $envelope);
 
         if (null !== $mismatch) {
             return $this->buildErrorResponse($mismatch, id: $requestId);
