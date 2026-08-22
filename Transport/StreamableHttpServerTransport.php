@@ -321,9 +321,50 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      */
     private static function acceptsRequiredContentTypes(ServerRequestInterface $request): bool
     {
-        $accept = strtolower($request->getHeaderLine('Accept'));
+        $ranges = self::parseAcceptableMediaRanges($request->getHeaderLine('Accept'));
 
-        return str_contains($accept, 'application/json') && str_contains($accept, 'text/event-stream');
+        return self::matchesMediaRange($ranges, 'application/json') && self::matchesMediaRange($ranges, 'text/event-stream');
+    }
+
+    /**
+     * The RFC 9110 media ranges an `Accept` header lists with a positive quality.
+     *
+     * @return list<string>
+     */
+    private static function parseAcceptableMediaRanges(string $accept): array
+    {
+        $ranges = [];
+
+        foreach (explode(',', $accept) as $element) {
+            $parts = explode(';', $element);
+
+            foreach ($parts as $parameter) {
+                if (preg_match('/\A\s*q\s*=\s*0(?:\.0{0,3})?\s*\z/i', $parameter) === 1) {
+                    continue 2;
+                }
+            }
+
+            $ranges[] = strtolower(trim($parts[0]));
+        }
+
+        return $ranges;
+    }
+
+    /**
+     * @param list<string>     $ranges
+     * @param non-empty-string $mediaType
+     */
+    private static function matchesMediaRange(array $ranges, string $mediaType): bool
+    {
+        $typeWildcard = strstr($mediaType, '/', true).'/*';
+
+        foreach ($ranges as $range) {
+            if ($range === $mediaType || '*/*' === $range || $range === $typeWildcard) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
