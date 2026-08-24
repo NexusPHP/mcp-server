@@ -35,6 +35,9 @@
         "psr/log": "^3.0",
         "revolt/event-loop": "^1.0.8"
     },
+    "suggest": {
+        "firebase/php-jwt": "Required with JwksAccessTokenValidator (^7.0)."
+    },
     "minimum-stability": "dev",
     "prefer-stable": true,
     "autoload": {
