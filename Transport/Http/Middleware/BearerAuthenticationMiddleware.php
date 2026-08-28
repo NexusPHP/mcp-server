@@ -14,6 +14,8 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Transport\Http\Middleware;
 
 use Nexus\Assert\Assert;
+use Nexus\Clock\Clock;
+use Nexus\Clock\SystemClock;
 use Nexus\Mcp\Core\Auth\ResourceIdentifier;
 use Nexus\Mcp\Core\Auth\ScopeSet;
 use Nexus\Mcp\Core\Auth\VerifiedAccessToken;
@@ -40,15 +42,9 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
     private ScopeSet $requiredScopes;
 
     /**
-     * @var \Closure(): int
-     */
-    private \Closure $clock;
-
-    /**
      * @param string                 $resource            Canonical URI of this MCP server, which a token's audience must name
      * @param list<non-empty-string> $requiredScopes
      * @param int<0, max>            $expiryLeewaySeconds
-     * @param null|\Closure(): int   $clock               Reads the current Unix timestamp
      */
     public function __construct(
         private AccessTokenValidatorInterface $validator,
@@ -57,13 +53,12 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
         private ResponseFactoryInterface $responseFactory,
         array $requiredScopes = [],
         private int $expiryLeewaySeconds = 0,
-        ?\Closure $clock = null,
+        private Clock $clock = new SystemClock(),
     ) {
         Assert::that($expiryLeewaySeconds)->isNaturalInt('Expiry leeway must be a non-negative integer, {value} given.');
 
         $this->resource = new ResourceIdentifier($resource);
         $this->requiredScopes = new ScopeSet($requiredScopes);
-        $this->clock = $clock ?? static fn(): int => time();
     }
 
     #[\Override]
@@ -88,7 +83,7 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
             return $this->challenge(HttpStatus::Unauthorized, 'invalid_token');
         }
 
-        if (($this->clock)() >= $token->expiresAt + $this->expiryLeewaySeconds) {
+        if ($this->clock->now()->getTimestamp() >= $token->expiresAt + $this->expiryLeewaySeconds) {
             return $this->challenge(HttpStatus::Unauthorized, 'invalid_token');
         }
 

@@ -25,6 +25,7 @@
         "amphp/amp": "^3.1.1",
         "amphp/byte-stream": "^2.1",
         "nexusphp/assert": "^1.4",
+        "nexusphp/clock": "^1.0",
         "nexusphp/mcp-core": "self.version",
         "opis/json-schema": "^2.6",
         "phpstan/phpdoc-parser": "^2.3",
