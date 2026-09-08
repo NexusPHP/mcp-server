@@ -70,12 +70,12 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     private array $uriWatchers = [];
 
     /**
-     * @var array<non-empty-string, true>
+     * @var array<non-empty-string, non-empty-string>
      */
     private array $pendingListChanges = [];
 
     /**
-     * @var array<non-empty-string, true>
+     * @var array<non-empty-string, non-empty-string>
      */
     private array $pendingResourceUpdates = [];
 
@@ -235,21 +235,21 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     #[\Override]
     public function emitToolListChanged(): void
     {
-        $this->pendingListChanges['tools'] = true;
+        $this->pendingListChanges['tools'] = 'tools';
         $this->scheduleEndOfTickFlush();
     }
 
     #[\Override]
     public function emitPromptListChanged(): void
     {
-        $this->pendingListChanges['prompts'] = true;
+        $this->pendingListChanges['prompts'] = 'prompts';
         $this->scheduleEndOfTickFlush();
     }
 
     #[\Override]
     public function emitResourceListChanged(): void
     {
-        $this->pendingListChanges['resources'] = true;
+        $this->pendingListChanges['resources'] = 'resources';
         $this->scheduleEndOfTickFlush();
     }
 
@@ -258,7 +258,7 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     {
         Assert::that($uri)->isNonEmptyString('An updated resource URI must be a non-empty string.');
 
-        $this->pendingResourceUpdates[$uri] = true;
+        $this->pendingResourceUpdates[$uri] = $uri;
         $this->scheduleEndOfTickFlush();
     }
 
@@ -295,14 +295,12 @@ final class SubscriptionStore implements SubscriptionStoreInterface
             $this->pendingListChanges = [];
             $this->pendingResourceUpdates = [];
 
-            foreach (['tools', 'prompts', 'resources'] as $kind) {
-                if (\array_key_exists($kind, $kinds)) {
-                    $this->broadcastListChange($kind);
-                }
+            foreach ($kinds as $kind) {
+                $this->broadcastListChange($kind);
             }
 
-            foreach (array_keys($uris) as $uri) {
-                $this->broadcastResourceUpdate((string) $uri);
+            foreach ($uris as $uri) {
+                $this->broadcastResourceUpdate($uri);
             }
         });
     }

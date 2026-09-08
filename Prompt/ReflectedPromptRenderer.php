@@ -72,13 +72,21 @@ final readonly class ReflectedPromptRenderer implements PromptRendererInterface
      */
     private function buildMessageList(array $result): array
     {
-        $messages = array_filter($result, static fn(mixed $item): bool => $item instanceof PromptMessage);
-
-        if (! array_is_list($result) || [] === $result || \count($messages) !== \count($result)) {
+        if (! array_is_list($result) || [] === $result) {
             throw $this->buildUnsupportedError($this->method, $result);
         }
 
-        return array_values($messages);
+        $messages = [];
+
+        foreach ($result as $item) {
+            if (! $item instanceof PromptMessage) {
+                throw $this->buildUnsupportedError($this->method, $result);
+            }
+
+            $messages[] = $item;
+        }
+
+        return $messages;
     }
 
     private function buildUnsupportedError(\ReflectionMethod $method, mixed $result): UnsupportedReturnValueException
