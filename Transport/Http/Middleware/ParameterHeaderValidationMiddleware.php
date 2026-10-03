@@ -68,15 +68,19 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
     #[\Override]
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        $body = (string) $request->getBody();
-        $request = $request->withBody($this->streamFactory->createStream($body));
-        $envelope = json_decode($body, associative: true);
+        $envelope = $request->getAttribute(StreamableHttpServerTransport::ENVELOPE_ATTRIBUTE);
 
         if (! \is_array($envelope)) {
-            return $handler->handle($request);
-        }
+            $body = (string) $request->getBody();
+            $request = $request->withBody($this->streamFactory->createStream($body));
+            $envelope = json_decode($body, associative: true);
 
-        $request = $request->withAttribute(StreamableHttpServerTransport::ENVELOPE_ATTRIBUTE, $envelope);
+            if (! \is_array($envelope)) {
+                return $handler->handle($request);
+            }
+
+            $request = $request->withAttribute(StreamableHttpServerTransport::ENVELOPE_ATTRIBUTE, $envelope);
+        }
 
         if (CallToolRequest::getMethod() !== ($envelope['method'] ?? null)) {
             return $handler->handle($request);

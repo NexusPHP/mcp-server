@@ -100,24 +100,10 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
 
     private function challenge(HttpStatus $status, ?string $error): ResponseInterface
     {
-        $parameters = ['resource_metadata' => $this->resourceMetadataUrl];
-
-        if (null !== $error) {
-            $parameters['error'] = $error;
-        }
-
-        $scope = $this->requiredScopes->toParameter();
-
-        if (null !== $scope) {
-            $parameters['scope'] = $scope;
-        }
-
-        return $this->responseFactory->createResponse($status->value)
-            ->withHeader('WWW-Authenticate', (new WwwAuthenticateChallenge(
-                WwwAuthenticateChallenge::BEARER_SCHEME,
-                $parameters,
-            ))->toHeaderValue())
-        ;
+        return $this->responseFactory->createResponse($status->value)->withHeader(
+            'WWW-Authenticate',
+            WwwAuthenticateChallenge::buildForResource($this->resourceMetadataUrl, $error, $this->requiredScopes)->toHeaderValue(),
+        );
     }
 
     /**

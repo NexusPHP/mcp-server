@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Transport\Http;
 
+use Nexus\Mcp\Core\Exception\LogicException;
 use Nexus\Mcp\Server\Tool\ToolStoreInterface;
 use Nexus\Mcp\Server\Transport\Http\Middleware\CorsMiddleware;
 use Nexus\Mcp\Server\Transport\Http\Middleware\DnsRebindingProtectionMiddleware;
@@ -37,11 +38,12 @@ final readonly class SecuredHttpEndpoint implements RequestHandlerInterface
     private MiddlewarePipeline $pipeline;
 
     /**
-     * @param list<non-empty-string>   $allowedOrigins Origins permitted to reach the endpoint, or `['*']` to allow any
-     * @param list<non-empty-string>   $allowedHosts   Hosts permitted to reach the endpoint (empty disables `Host` validation), or `['*']` to allow any
-     * @param null|int<0, max>         $maxBodyBytes   Request body bytes past which the request is refused, or `null` for no cap
-     * @param null|ToolStoreInterface  $toolStore      The served tool store, enabling `Mcp-Param-{Name}` validation
-     * @param null|MiddlewareInterface $authentication Bearer token enforcement, making the endpoint an OAuth resource server
+     * @param list<non-empty-string>   $allowedOrigins  Origins permitted to reach the endpoint, or `['*']` to allow any
+     * @param list<non-empty-string>   $allowedHosts    Hosts permitted to reach the endpoint (empty disables `Host` validation), or `['*']` to allow any
+     * @param null|int<0, max>         $maxBodyBytes    Request body bytes past which the request is refused, or `null` for no cap
+     * @param null|ToolStoreInterface  $toolStore       The served tool store, enabling `Mcp-Param-{Name}` validation
+     * @param null|MiddlewareInterface $authentication  Bearer token enforcement, making the endpoint an OAuth resource server
+     * @param null|MiddlewareInterface $operationScopes Per-operation scope enforcement, run once the body is within its cap
      */
     public function __construct(
         RequestHandlerInterface $handler,
@@ -53,6 +55,7 @@ final readonly class SecuredHttpEndpoint implements RequestHandlerInterface
         ?ToolStoreInterface $toolStore = null,
         LoggerInterface $logger = new NullLogger(),
         ?MiddlewareInterface $authentication = null,
+        ?MiddlewareInterface $operationScopes = null,
     ) {
         $middleware = [
             new CorsMiddleware($allowedOrigins, $responseFactory),
@@ -65,6 +68,14 @@ final readonly class SecuredHttpEndpoint implements RequestHandlerInterface
 
         if (null !== $maxBodyBytes) {
             $middleware[] = new RequestBodySizeLimitMiddleware($maxBodyBytes, $responseFactory, $streamFactory);
+        }
+
+        if (null !== $operationScopes) {
+            if (null === $authentication) {
+                throw new LogicException('SecuredHttpEndpoint was given "operationScopes" with no "authentication" to validate the token they are checked against.');
+            }
+
+            $middleware[] = $operationScopes;
         }
 
         if (null !== $toolStore) {
