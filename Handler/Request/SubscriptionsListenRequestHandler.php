@@ -54,15 +54,25 @@ final readonly class SubscriptionsListenRequestHandler implements RequestHandler
         $peer = $authInfo->clientId ?? $authInfo?->subject;
         $entry = $this->store->open($subscriptionId, $this->narrow($request->params->notifications), $context->sender, $peer);
 
-        try {
-            $entry->closed->getFuture()->await($context->cancellation);
-        } catch (CancelledException) {
-            // The client abandoned the stream, so the dispatcher drops the response, which is the spec's abrupt close.
+        if ($this->deliversAnything($entry->honoured)) {
+            try {
+                $entry->closed->getFuture()->await($context->cancellation);
+            } catch (CancelledException) {
+                // The client abandoned the stream, so the dispatcher drops the response, which is the spec's abrupt close.
+            }
         }
 
         $this->store->discard($entry);
 
         return new SubscriptionsListenResult(new SubscriptionsListenResultMetaObject(subscriptionId: $subscriptionId));
+    }
+
+    private function deliversAnything(SubscriptionFilter $honoured): bool
+    {
+        return true === $honoured->toolsListChanged
+            || true === $honoured->promptsListChanged
+            || true === $honoured->resourcesListChanged
+            || [] !== ($honoured->resourceSubscriptions ?? []);
     }
 
     /**
