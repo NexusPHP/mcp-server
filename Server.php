@@ -63,7 +63,7 @@ final readonly class Server
 
     /**
      * Attaches the dispatcher and starts the transport without blocking, for a
-     * request-scoped transport (streamable HTTP in a PSR-15 stack) the host drives per request.
+     * request-scoped transport (streamable HTTP in a PSR-15 stack) driven by the host per request.
      */
     public function listen(TransportInterface $transport): void
     {

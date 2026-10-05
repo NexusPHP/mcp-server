@@ -28,7 +28,7 @@ final readonly class ServerContext extends AbstractContext
 {
     /**
      * @param null|array<int|non-empty-string, InputResponse> $inputResponses The client's answers to a prior `InputRequiredResult`
-     * @param null|string                                     $requestState   The continuation token that result carried, echoed back unchanged
+     * @param null|string                                     $requestState   The continuation token carried by that result, echoed back unchanged
      */
     public function __construct(
         RequestId $requestId,

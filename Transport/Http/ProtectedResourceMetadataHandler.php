@@ -34,7 +34,7 @@ final readonly class ProtectedResourceMetadataHandler implements RequestHandlerI
     private ProtectedResourceMetadata $document;
 
     /**
-     * The request paths this document belongs at, path-scoped before root.
+     * The request paths where this document belongs, path-scoped before root.
      *
      * @var list<string>
      */
@@ -72,7 +72,7 @@ final readonly class ProtectedResourceMetadataHandler implements RequestHandlerI
     #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        // The document describes one MCP server, so it belongs only at the well-known paths RFC 9728 derives from that server's URL.
+        // The document describes one MCP server, so it belongs only at the well-known paths derived by RFC 9728 from that server's URL.
         if (! \in_array($request->getUri()->getPath(), $this->paths, true)) {
             return $this->responseFactory->createResponse(HttpStatus::NotFound->value);
         }

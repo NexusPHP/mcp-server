@@ -22,8 +22,8 @@ final readonly class AsCompletion
 {
     /**
      * @param string      $argument    Name of the prompt argument or template variable being completed
-     * @param null|string $prompt      Name of the prompt the argument belongs to
-     * @param null|string $uriTemplate URI template the variable belongs to
+     * @param null|string $prompt      Name of the prompt that the argument belongs to
+     * @param null|string $uriTemplate URI template that the variable belongs to
      */
     public function __construct(
         public string $argument,

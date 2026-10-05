@@ -27,7 +27,7 @@ enum ServerInfoDisclosure
     case Full;
 
     /**
-     * Only the two fields the spec requires, so a client that already discovered the
+     * Only the two fields required by the spec, so a client that already discovered the
      * server does not receive its icons and descriptions again on every response.
      */
     case NameAndVersion;

@@ -19,7 +19,7 @@ use Nexus\Mcp\Core\Schema\Enum\ProtocolErrorCode;
 use Nexus\Mcp\Core\Schema\RequestId;
 
 /**
- * Thrown when a `resources/read` names a URI no resource is registered under.
+ * Thrown when a `resources/read` names a URI that no resource is registered under.
  */
 final class ResourceNotRegisteredException extends AbstractJsonRpcProtocolException
 {

@@ -59,7 +59,7 @@ use Psr\Log\NullLogger;
 final class StreamableHttpServerTransport implements CancellableTransportInterface, RequestHandlerInterface
 {
     /**
-     * PSR-7 request attribute a middleware leaves the decoded JSON-RPC envelope on.
+     * PSR-7 request attribute where a middleware leaves the decoded JSON-RPC envelope.
      */
     public const string ENVELOPE_ATTRIBUTE = 'nexus.mcp.envelope';
 
@@ -94,7 +94,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
 
     /**
      * In-flight requests keyed by the transport-internal id, the `buffered` deferred carrying the response
-     * `handle()` awaits until `stream` is set and SSE frames take over.
+     * awaited by `handle()` until `stream` is set and SSE frames take over.
      *
      * @var array<int, array{
      *   clientId: int|non-empty-string,
@@ -336,7 +336,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     }
 
     /**
-     * The RFC 9110 media ranges an `Accept` header lists with a positive quality.
+     * The RFC 9110 media ranges listed by an `Accept` header with a positive quality.
      *
      * @return list<string>
      */
@@ -412,7 +412,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     }
 
     /**
-     * Answers immediately with an SSE stream the dispatch coroutine writes progress frames and the final
+     * Answers immediately with an SSE stream that the dispatch coroutine writes progress frames and the final
      * response to.
      *
      * @param array<string, mixed> $envelope
@@ -488,7 +488,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     }
 
     /**
-     * Carries the HTTP request, and the token a bearer-authentication stage validated it with, to handlers.
+     * Carries the HTTP request, and the token that a bearer-authentication stage validated it with, to handlers.
      *
      * @param null|int|non-empty-string $clientId
      */
@@ -570,7 +570,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     }
 
     /**
-     * The error standing in for a response JSON cannot encode, echoing the client's own id.
+     * The error standing in for a response that JSON cannot encode, echoing the client's own id.
      *
      * @param int|non-empty-string $clientId
      *

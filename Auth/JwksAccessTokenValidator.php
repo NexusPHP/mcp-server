@@ -29,7 +29,7 @@ final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInt
 
     /**
      * @param array<string, Key>|\ArrayAccess<string, Key> $keys           Keys by `kid`, typically a `Firebase\JWT\CachedKeySet`
-     * @param non-empty-string                             $expectedIssuer The `iss` every accepted token must carry
+     * @param non-empty-string                             $expectedIssuer The `iss` that every accepted token must carry
      * @param string                                       $resource       Canonical URI of this MCP server, which a token's audience must name
      */
     public function __construct(
@@ -125,7 +125,7 @@ final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInt
     }
 
     /**
-     * The client the token names, from `azp`, `client_id` or `cid`, skipping any that names nobody.
+     * The client named by the token, from `azp`, `client_id` or `cid`, skipping any that names nobody.
      *
      * @param array<array-key, mixed> $claims
      *

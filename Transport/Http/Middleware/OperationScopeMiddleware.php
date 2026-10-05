@@ -64,7 +64,7 @@ final readonly class OperationScopeMiddleware implements MiddlewareInterface
      * @param array<int|non-empty-string, list<non-empty-string>> $tools          Scopes keyed by tool name
      * @param array<int|non-empty-string, list<non-empty-string>> $prompts        Scopes keyed by prompt name
      * @param array<int|non-empty-string, list<non-empty-string>> $resources      Scopes keyed by resource URI or URI template
-     * @param list<non-empty-string>                              $endpointScopes Scopes the authentication middleware asks of every request, named in each challenge beside the operation's own
+     * @param list<non-empty-string>                              $endpointScopes Scopes that the authentication middleware asks of every request, named in each challenge beside the operation's own
      */
     public function __construct(
         private string $resourceMetadataUrl,

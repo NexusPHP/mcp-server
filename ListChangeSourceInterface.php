@@ -19,7 +19,7 @@ namespace Nexus\Mcp\Server;
 interface ListChangeSourceInterface
 {
     /**
-     * Registers a listener invoked once per change to the entries this store lists.
+     * Registers a listener invoked once per change to the entries listed by this store.
      *
      * @param \Closure(): void $listener
      */

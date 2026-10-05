@@ -19,7 +19,7 @@ use Nexus\Mcp\Server\ServerContext;
 
 /**
  * Reads a single resource whose URI matched a registered `ResourceTemplate`,
- * receiving the variable bindings the matcher extracted.
+ * receiving the variable bindings extracted by the matcher.
  */
 interface TemplatedResourceReaderInterface
 {

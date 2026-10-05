@@ -16,7 +16,7 @@ namespace Nexus\Mcp\Server\Exception;
 use Nexus\Mcp\Core\Exception\McpExceptionInterface;
 
 /**
- * Thrown when a discovered handler returns a value the adapter cannot map to its result type.
+ * Thrown when a discovered handler returns a value that the adapter cannot map to its result type.
  */
 final class UnsupportedReturnValueException extends \LogicException implements McpExceptionInterface
 {

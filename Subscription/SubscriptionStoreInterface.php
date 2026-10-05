@@ -26,7 +26,7 @@ interface SubscriptionStoreInterface
     /**
      * Opens a stream, acknowledging it before it becomes visible to any emit.
      *
-     * @param RequestId             $subscriptionId Id every message on the stream carries, as the client sent it
+     * @param RequestId             $subscriptionId Id carried by every message on the stream, as the client sent it
      * @param null|non-empty-string $peer           Stable peer identity for the per-peer budget, null when the transport cannot supply one
      *
      * @throws SubscriptionLimitReachedException
@@ -34,7 +34,7 @@ interface SubscriptionStoreInterface
     public function open(RequestId $subscriptionId, SubscriptionFilter $requested, SenderInterface $sender, ?string $peer = null): SubscriptionEntry;
 
     /**
-     * Narrows `$requested` to the notification types this store delivers, omitting rather than
+     * Narrows `$requested` to the notification types delivered by this store, omitting rather than
      * falsifying the ones it does not honour.
      */
     public function honour(SubscriptionFilter $requested): SubscriptionFilter;
@@ -46,7 +46,7 @@ interface SubscriptionStoreInterface
     public function close(SubscriptionEntry $entry): void;
 
     /**
-     * Deregisters `$entry` without announcing anything, for a stream the client already abandoned.
+     * Deregisters `$entry` without announcing anything, for a stream already abandoned by the client.
      */
     public function discard(SubscriptionEntry $entry): void;
 

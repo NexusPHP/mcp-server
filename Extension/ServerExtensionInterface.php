@@ -17,7 +17,7 @@ use Nexus\Mcp\Core\Extension\ExtensionInterface;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
- * Declares an extension the server serves, enabled via `ServerBuilder::enableExtension()`.
+ * Declares an extension served by the server, enabled via `ServerBuilder::enableExtension()`.
  *
  * @extends ExtensionInterface<ServerContext>
  */

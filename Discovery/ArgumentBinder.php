@@ -93,7 +93,7 @@ final class ArgumentBinder
     }
 
     /**
-     * Whether `$value` is the `null` a nullable parameter's advertised schema permits.
+     * Whether `$value` is the `null` permitted by a nullable parameter's advertised schema.
      */
     private function acceptsNull(\ReflectionParameter $parameter, mixed $value): bool
     {

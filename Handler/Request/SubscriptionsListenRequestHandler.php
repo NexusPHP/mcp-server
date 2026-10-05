@@ -35,7 +35,7 @@ use Nexus\Mcp\Server\Subscription\SubscriptionStoreInterface;
 final readonly class SubscriptionsListenRequestHandler implements RequestHandlerInterface
 {
     /**
-     * @param null|SubscriptionFilter $deliverable The `listChanged` types a change-reporting store backs, or `null` for no narrowing
+     * @param null|SubscriptionFilter $deliverable The `listChanged` types backed by a change-reporting store, or `null` for no narrowing
      */
     public function __construct(
         private SubscriptionStoreInterface $store,
@@ -76,7 +76,7 @@ final readonly class SubscriptionsListenRequestHandler implements RequestHandler
     }
 
     /**
-     * Drops the `listChanged` types no registered store can produce, so the acknowledgement promises only
+     * Drops the `listChanged` types that no registered store can produce, so the acknowledgement promises only
      * what `server/discover` advertises.
      */
     private function narrow(SubscriptionFilter $requested): SubscriptionFilter

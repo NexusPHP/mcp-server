@@ -16,7 +16,7 @@ namespace Nexus\Mcp\Server;
 use Nexus\Assert\Assert;
 
 /**
- * Mints and checks the `requestState` an `InputRequiredResult` carries across a round trip. It signs
+ * Mints and checks the `requestState` carried by an `InputRequiredResult` across a round trip. It signs
  * without encrypting, so a state may hold a continuation marker and never a secret.
  *
  * @see https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/mrtr
@@ -62,7 +62,7 @@ final readonly class RequestStateSigner
     }
 
     /**
-     * The payload a state carries, or null when its signature does not hold, meaning this server did
+     * The payload carried by a state, or null when its signature does not hold, meaning this server did
      * not mint it or minted it for a different `$binding`.
      */
     public function verify(string $state, string $binding = ''): ?string

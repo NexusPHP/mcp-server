@@ -33,7 +33,7 @@ interface ResourceStoreInterface
     public function list(?Cursor $cursor): ListResourcesResult;
 
     /**
-     * Throw `ResourceNotRegisteredException` for a URI this store does not hold, so a composite may fall
+     * Throw `ResourceNotRegisteredException` for a URI not held by this store, so a composite may fall
      * through to templates. A `ResourceNotFoundException` is authoritative and ends the read.
      *
      * @param non-empty-string $uri

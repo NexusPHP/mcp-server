@@ -318,7 +318,7 @@ final class ServerBuilder
     }
 
     /**
-     * Sets how many entries one page of a list result carries, for every store the builder assembles itself.
+     * Sets how many entries one page of a list result carries, for every store assembled by the builder itself.
      */
     public function setPageSize(int $pageSize): self
     {
@@ -333,7 +333,7 @@ final class ServerBuilder
 
     /**
      * Sets how many milliseconds a client may treat a list result as fresh (zero re-fetches every time),
-     * for every store the builder assembles itself.
+     * for every store assembled by the builder itself.
      */
     public function setTtlMs(int $ttlMs): self
     {
@@ -347,7 +347,7 @@ final class ServerBuilder
     }
 
     /**
-     * Sets which caches may serve a list result, for every store the builder assembles itself.
+     * Sets which caches may serve a list result, for every store assembled by the builder itself.
      */
     public function setCacheScope(CacheScope $cacheScope): self
     {
@@ -441,7 +441,7 @@ final class ServerBuilder
     }
 
     /**
-     * The tool store the built server serves, or null when it exposes no tools. Call it once every tool is
+     * The tool store served by the built server, or null when it exposes no tools. Call it once every tool is
      * registered, since it holds the store it returns.
      */
     public function getToolStore(): ?ToolStoreInterface
@@ -471,7 +471,7 @@ final class ServerBuilder
     }
 
     /**
-     * The prompt store the built server serves, or null when it exposes no prompts. Call it once every
+     * The prompt store served by the built server, or null when it exposes no prompts. Call it once every
      * prompt is registered, since it holds the store it returns.
      */
     public function getPromptStore(): ?PromptStoreInterface
@@ -500,7 +500,7 @@ final class ServerBuilder
     }
 
     /**
-     * The resource store the built server serves, or null when it exposes neither resources nor templates.
+     * The resource store served by the built server, or null when it exposes neither resources nor templates.
      * Call it once every resource is registered, since it holds the store it returns.
      */
     public function getResourceStore(): ?ResourceStoreInterface
@@ -531,7 +531,7 @@ final class ServerBuilder
     }
 
     /**
-     * The resource template store the built server serves, or null when it exposes no templates. Call it
+     * The resource template store served by the built server, or null when it exposes no templates. Call it
      * once every template is registered, since it holds the store it returns.
      */
     public function getResourceTemplateStore(): ?ResourceTemplateStoreInterface
@@ -607,7 +607,7 @@ final class ServerBuilder
     }
 
     /**
-     * The completion store the built server serves, or null when it serves no completions. Call it once
+     * The completion store served by the built server, or null when it serves no completions. Call it once
      * every completion is registered, since it holds the store it returns.
      */
     public function getCompletionStore(): ?CompletionStoreInterface
@@ -1037,7 +1037,7 @@ final class ServerBuilder
     }
 
     /**
-     * The `listChanged` types a registered change-reporting store stands behind, matching what
+     * The `listChanged` types that a registered change-reporting store stands behind, matching what
      * `deriveCapabilities()` advertises.
      */
     private function resolveDeliverableNotifications(): SubscriptionFilter
