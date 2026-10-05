@@ -63,6 +63,7 @@ use Nexus\Mcp\Server\Completion\CompletionStoreInterface;
 use Nexus\Mcp\Server\Completion\PromptCompletionEntry;
 use Nexus\Mcp\Server\Discovery\AttributeScanner;
 use Nexus\Mcp\Server\Dispatch\ServerMessageDispatcher;
+use Nexus\Mcp\Server\Extension\OptionalClientDeclarationInterface;
 use Nexus\Mcp\Server\Extension\RequestHandlerDecoratorInterface;
 use Nexus\Mcp\Server\Extension\ServerExtensionInterface;
 use Nexus\Mcp\Server\Handler\Request\CallToolRequestHandler;
@@ -214,6 +215,13 @@ final class ServerBuilder
      * @var ExtensionCollection<ServerContext>
      */
     private readonly ExtensionCollection $extensions;
+
+    /**
+     * The enabled extensions whose requests are served to a client that did not declare them, keyed by identifier.
+     *
+     * @var array<non-empty-string, OptionalClientDeclarationInterface>
+     */
+    private array $optionalClientDeclarations = [];
 
     public function __construct()
     {
@@ -725,7 +733,7 @@ final class ServerBuilder
 
     /**
      * Enables `$extension`, advertising its capability identifier and serving its methods
-     * behind the per-request declared-capability gate.
+     * behind the per-request declared-capability gate, unless it is a `OptionalClientDeclarationInterface`.
      *
      * @throws LogicException
      */
@@ -742,6 +750,10 @@ final class ServerBuilder
                 ? $extension->getRequestHandlerDecorators()
                 : [],
         );
+
+        if ($extension instanceof OptionalClientDeclarationInterface) {
+            $this->optionalClientDeclarations[$extension->getIdentifier()] = $extension;
+        }
 
         return $this;
     }
@@ -1180,7 +1192,8 @@ final class ServerBuilder
     }
 
     /**
-     * Wraps each enabled extension's request handlers in the declared-capability gate.
+     * Wraps each enabled extension's request handlers in the declared-capability gate, leaving bare those of
+     * an extension that a client need not declare.
      *
      * @return array<non-empty-string, RequestHandlerInterface<non-empty-string, Result, ServerContext>>
      */
@@ -1190,7 +1203,9 @@ final class ServerBuilder
 
         foreach ($this->extensions->getRequestHandlerGroups() as $identifier => $group) {
             foreach ($group as $method => $handler) {
-                $handlers[$method] = new ExtensionGateRequestHandler($identifier, $handler);
+                $handlers[$method] = \array_key_exists($identifier, $this->optionalClientDeclarations)
+                    ? $handler
+                    : new ExtensionGateRequestHandler($identifier, $handler);
             }
         }
 
