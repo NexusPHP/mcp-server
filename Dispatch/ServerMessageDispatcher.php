@@ -23,6 +23,7 @@ use Nexus\Mcp\Core\Dispatch\RequestBoundSender;
 use Nexus\Mcp\Core\Dispatch\ResponseSender;
 use Nexus\Mcp\Core\Exception\AbstractJsonRpcProtocolException;
 use Nexus\Mcp\Core\Exception\DuplicateInboundRequestIdException;
+use Nexus\Mcp\Core\Exception\InvalidParamsException;
 use Nexus\Mcp\Core\Exception\InvalidRequestException;
 use Nexus\Mcp\Core\Exception\MethodMisroutedException;
 use Nexus\Mcp\Core\Exception\MethodNotFoundException;
@@ -52,9 +53,11 @@ use Nexus\Mcp\Core\Schema\RequestId;
 use Nexus\Mcp\Core\Schema\RequestParams;
 use Nexus\Mcp\Core\Schema\RequestParams\InputResponseCarrierInterface;
 use Nexus\Mcp\Core\Schema\Result;
+use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Transport\ReceiveContext;
 use Nexus\Mcp\Core\Transport\SendContext;
 use Nexus\Mcp\Core\Transport\TransportInterface;
+use Nexus\Mcp\Server\RequestStateSigner;
 use Nexus\Mcp\Server\ServerContext;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -84,6 +87,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
      * @param HandlerRegistry<NotificationHandlerInterface<non-empty-string>>                   $notificationHandlers
      * @param null|Implementation                                                               $serverInfo           Identity stamped on every outgoing result, or null to disclose none
      * @param null|int<1, max>                                                                  $maxInFlight          Messages processed at once before further ones are shed, or null for no cap
+     * @param null|RequestStateSigner                                                           $requestStateSigner   Verifies every echoed `requestState` before its handler runs, or null to pass it through
      */
     public function __construct(
         private HandlerRegistry $requestHandlers,
@@ -93,6 +97,7 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
         private ?Implementation $serverInfo = null,
         private ?int $maxInFlight = null,
         private PendingInboundRequests $inboundRequests = new PendingInboundRequests(),
+        private ?RequestStateSigner $requestStateSigner = null,
     ) {
         $this->coroutines = new PendingCoroutines($this->logger);
         $this->unstartedListens = new PendingCoroutines($this->logger);
@@ -278,6 +283,20 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                     $sender = new RequestBoundSender($transport, $request->id);
                     $params = $request->params;
                     $carrier = $params instanceof InputResponseCarrierInterface ? $params : null;
+                    $requestState = $carrier?->getRequestState();
+                    $signer = null === $carrier ? null : $this->requestStateSigner?->bindFor($request, $context);
+                    $payload = null;
+
+                    if (null !== $signer && null !== $requestState) {
+                        $payload = $signer->verify($requestState);
+
+                        if (null === $payload) {
+                            $this->logger->warning('Rejected the "requestState" echoed on {method}.', ['method' => $method]);
+
+                            throw new InvalidParamsException($request->id, 'Invalid or expired "requestState".');
+                        }
+                    }
+
                     $serverContext = new ServerContext(
                         $request->id,
                         $cancellation,
@@ -285,9 +304,20 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
                         $sender,
                         $context,
                         $carrier?->getInputResponses(),
-                        $carrier?->getRequestState(),
+                        $requestState,
+                        $signer,
+                        $payload,
                     );
                     $result = $handler->handle($request, $serverContext);
+
+                    if (
+                        null !== $signer
+                        && $result instanceof InputRequiredResult
+                        && null !== $result->requestState
+                        && $signer->verify($result->requestState) === null
+                    ) {
+                        throw new \LogicException(\sprintf('The handler for "%s" answered with a "requestState" that does not verify under the server\'s signer.', $method));
+                    }
 
                     if (null !== $this->serverInfo && ! $result->meta->declaresServerInfo()) {
                         $result = $result->rebuildWithMeta(new GenericResultMetaObject(

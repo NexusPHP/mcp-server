@@ -27,8 +27,10 @@ use Nexus\Mcp\Core\Transport\ReceiveContext;
 final readonly class ServerContext extends AbstractContext
 {
     /**
-     * @param null|array<int|non-empty-string, InputResponse> $inputResponses The client's answers to a prior `InputRequiredResult`
-     * @param null|string                                     $requestState   The continuation token carried by that result, echoed back unchanged
+     * @param null|array<int|non-empty-string, InputResponse> $inputResponses      The client's answers to a prior `InputRequiredResult`
+     * @param null|string                                     $requestState        The continuation token carried by that result, echoed back unchanged
+     * @param null|RequestStateSigner                         $requestStateSigner  The server's signer bound to this request, null when none is configured
+     * @param null|string                                     $requestStatePayload The payload of `$requestState` once the signer verified it
      */
     public function __construct(
         RequestId $requestId,
@@ -38,6 +40,8 @@ final readonly class ServerContext extends AbstractContext
         public ReceiveContext $receiveContext = new ReceiveContext(),
         public ?array $inputResponses = null,
         public ?string $requestState = null,
+        public ?RequestStateSigner $requestStateSigner = null,
+        public ?string $requestStatePayload = null,
     ) {
         parent::__construct($requestId, $cancellation, $meta->progressToken, $sender);
     }

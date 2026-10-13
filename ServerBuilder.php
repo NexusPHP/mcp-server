@@ -130,6 +130,7 @@ final class ServerBuilder
 
     private LoggerInterface $logger;
     private SchemaValidatorInterface $schemaValidator;
+    private ?RequestStateSigner $requestStateSigner = null;
 
     /**
      * @var array<non-empty-string, ToolEntry>
@@ -313,6 +314,19 @@ final class ServerBuilder
         $this->assertNotBuilt();
 
         $this->schemaValidator = $validator;
+
+        return $this;
+    }
+
+    /**
+     * Sets the signer that mints every `requestState` through `$context->requestStateSigner` and verifies
+     * every echoed one before its handler runs, bound to the request under the signer's policy.
+     */
+    public function setRequestStateSigner(RequestStateSigner $signer): self
+    {
+        $this->assertNotBuilt();
+
+        $this->requestStateSigner = $signer;
 
         return $this;
     }
@@ -902,6 +916,7 @@ final class ServerBuilder
                 serverInfo: $this->serverInfoDisclosure->project($serverInfo),
                 maxInFlight: $this->maxInFlight,
                 inboundRequests: $inboundRequests,
+                requestStateSigner: $this->requestStateSigner,
             ),
             $this->logger,
             $this->subscriptionStore,
