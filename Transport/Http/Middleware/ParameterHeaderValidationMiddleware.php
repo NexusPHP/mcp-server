@@ -88,16 +88,11 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
 
         $params = $envelope['params'] ?? null;
 
-        if (! \is_array($params)) {
+        if (! \is_array($params) || ! \is_string($params['name'] ?? null)) {
             return $handler->handle($request);
         }
 
-        $name = $params['name'] ?? null;
-
-        if (! \is_string($name)) {
-            return $handler->handle($request);
-        }
-
+        $name = $params['name'];
         $arguments = $params['arguments'] ?? [];
         $mismatch = $this->parameterHeaders->validate(
             $this->resolveBindings($name),
@@ -138,8 +133,8 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
 
                 if (! $result->valid) {
                     $this->logger->warning(
-                        'Skipping {tool} header validation: its "x-mcp-header" declarations are invalid.',
-                        ['tool' => $tool->name, 'reason' => $result->reason],
+                        'Tool {tool} declares an invalid "x-mcp-header", so only its {checked} valid declarations are checked.',
+                        ['tool' => $tool->name, 'reason' => $result->reason, 'checked' => \count($result->bindings)],
                     );
                 }
 
