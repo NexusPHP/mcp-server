@@ -19,7 +19,7 @@ use Opis\JsonSchema\Validator;
 /**
  * Default `SchemaValidatorInterface` backed by opis/json-schema.
  */
-final readonly class OpisSchemaValidator implements SchemaValidatorInterface
+final class OpisSchemaValidator implements SchemaValidatorInterface
 {
     private const array SCHEMA_KEYWORDS = [
         'additionalProperties',
@@ -37,8 +37,13 @@ final readonly class OpisSchemaValidator implements SchemaValidatorInterface
     private const array SCHEMA_LIST_KEYWORDS = ['allOf', 'anyOf', 'oneOf', 'prefixItems'];
     private const int MAX_ERRORS = 8;
 
-    private Validator $validator;
-    private ValidationErrorFormatter $formatter;
+    private readonly Validator $validator;
+    private readonly ValidationErrorFormatter $formatter;
+
+    /**
+     * @var array<string, object>
+     */
+    private array $schemas = [];
 
     public function __construct()
     {
@@ -50,10 +55,12 @@ final readonly class OpisSchemaValidator implements SchemaValidatorInterface
     #[\Override]
     public function validate(mixed $data, array $schema): array
     {
-        $error = $this->validator->validate(
-            Helper::toJSON($data),
-            (object) Helper::toJSON($this->normaliseSubSchemas($schema)),
-        )->error();
+        // opis caches every schema object it parses for its own lifetime, so each distinct schema is built once.
+        $parsed = $this->schemas[json_encode($schema, \JSON_THROW_ON_ERROR)] ??= (object) Helper::toJSON(
+            $this->normaliseSubSchemas($schema),
+        );
+
+        $error = $this->validator->validate(Helper::toJSON($data), $parsed)->error();
 
         return null === $error ? [] : $this->formatter->format($error);
     }
