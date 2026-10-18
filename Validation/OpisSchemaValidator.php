@@ -37,7 +37,7 @@ final class OpisSchemaValidator implements SchemaValidatorInterface
     private const array SCHEMA_LIST_KEYWORDS = ['allOf', 'anyOf', 'oneOf', 'prefixItems'];
     private const int MAX_ERRORS = 8;
 
-    private readonly Validator $validator;
+    private ?Validator $validator = null;
     private readonly ValidationErrorFormatter $formatter;
 
     /**
@@ -47,8 +47,6 @@ final class OpisSchemaValidator implements SchemaValidatorInterface
 
     public function __construct()
     {
-        // `SafeDisplay` caps the composed diagnostic at 256 characters, so a deeper walk is never peer-visible.
-        $this->validator = new Validator(max_errors: self::MAX_ERRORS);
         $this->formatter = new ValidationErrorFormatter();
     }
 
@@ -59,6 +57,9 @@ final class OpisSchemaValidator implements SchemaValidatorInterface
         $parsed = $this->schemas[json_encode($schema, \JSON_THROW_ON_ERROR)] ??= (object) Helper::toJSON(
             $this->normaliseSubSchemas($schema),
         );
+
+        // `SafeDisplay` caps the composed diagnostic at 256 characters, so a deeper walk is never peer-visible.
+        $this->validator ??= new Validator(max_errors: self::MAX_ERRORS);
 
         $error = $this->validator->validate(Helper::toJSON($data), $parsed)->error();
 
