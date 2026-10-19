@@ -13,7 +13,10 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server;
 
+use Amp\Cancellation;
 use Amp\DeferredFuture;
+use Amp\NullCancellation;
+use Nexus\Mcp\Core\Dispatch\CancellableMessageDispatcherInterface;
 use Nexus\Mcp\Core\Dispatch\MessageDispatcherInterface;
 use Nexus\Mcp\Core\Schema\RequestId;
 use Nexus\Mcp\Core\Transport\CancellableTransportInterface;
@@ -38,12 +41,21 @@ final readonly class Server
     /**
      * Runs the server on the transport, blocking until it closes, for a long-lived
      * transport that owns its read loop (stdio).
+     *
+     * A requested `$cancellation` closes the transport, and on a `CancellableMessageDispatcherInterface` also cancels every request in flight.
      */
-    public function run(TransportInterface $transport): void
+    public function run(TransportInterface $transport, Cancellation $cancellation = new NullCancellation()): void
     {
         $this->logger->info('Starting MCP server.');
 
         $deferred = new DeferredFuture();
+
+        // Registered ahead of the flushing drain listener, so a request started from an already-read line is cancelled before the wait.
+        $transport->onDrain(function () use ($cancellation): void {
+            if ($cancellation->isRequested()) {
+                $this->cancelInFlight();
+            }
+        });
 
         $this->attachDispatchListeners($transport);
 
@@ -56,7 +68,22 @@ final readonly class Server
         });
 
         $transport->start();
-        $deferred->getFuture()->await();
+
+        $stop = $cancellation->subscribe(function () use ($transport): void {
+            $this->cancelInFlight();
+
+            try {
+                $transport->close();
+            } catch (\Throwable $e) {
+                $this->logger->error('Closing the transport on cancellation failed.', ['exception' => $e]);
+            }
+        });
+
+        try {
+            $deferred->getFuture()->await();
+        } finally {
+            $cancellation->unsubscribe($stop);
+        }
 
         $this->logger->info('MCP server stopped.');
     }
@@ -70,6 +97,13 @@ final readonly class Server
         $this->attachDispatchListeners($transport);
 
         $transport->start();
+    }
+
+    private function cancelInFlight(): void
+    {
+        if ($this->dispatcher instanceof CancellableMessageDispatcherInterface) {
+            $this->dispatcher->cancelAll();
+        }
     }
 
     private function attachDispatchListeners(TransportInterface $transport): void

@@ -15,8 +15,8 @@ namespace Nexus\Mcp\Server\Dispatch;
 
 use Amp\Cancellation;
 use Amp\DeferredFuture;
+use Nexus\Mcp\Core\Dispatch\CancellableMessageDispatcherInterface;
 use Nexus\Mcp\Core\Dispatch\LogThrottle;
-use Nexus\Mcp\Core\Dispatch\MessageDispatcherInterface;
 use Nexus\Mcp\Core\Dispatch\PendingCoroutines;
 use Nexus\Mcp\Core\Dispatch\PendingInboundRequests;
 use Nexus\Mcp\Core\Dispatch\RequestBoundSender;
@@ -69,7 +69,7 @@ use function Amp\async;
  *
  * @internal
  */
-final readonly class ServerMessageDispatcher implements MessageDispatcherInterface
+final readonly class ServerMessageDispatcher implements CancellableMessageDispatcherInterface
 {
     private PendingCoroutines $coroutines;
 
@@ -116,6 +116,12 @@ final readonly class ServerMessageDispatcher implements MessageDispatcherInterfa
     public function cancelRequest(RequestId $id): void
     {
         $this->inboundRequests->cancel($id);
+    }
+
+    #[\Override]
+    public function cancelAll(): void
+    {
+        $this->inboundRequests->cancelAll();
     }
 
     /**
