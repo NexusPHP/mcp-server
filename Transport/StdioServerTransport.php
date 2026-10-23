@@ -32,19 +32,17 @@ use Psr\Log\NullLogger;
  */
 final class StdioServerTransport implements TransportInterface
 {
-    private readonly ReadableStream $stdin;
     private readonly LineDuplex $duplex;
 
     /**
-     * @param null|ReadableStream $stdin Null for the process STDIN
+     * @param null|ReadableStream $stdin Null for the process STDIN, opened on start
      */
     public function __construct(
-        ?ReadableStream $stdin = null,
+        private ?ReadableStream $stdin = null,
         private readonly WritableStream $stdout = new WritableResourceStream(\STDOUT),
         LoggerInterface $logger = new NullLogger(),
         int $maxLineBytes = LineReader::DEFAULT_MAX_LINE_BYTES,
     ) {
-        $this->stdin = $stdin ?? self::openStdin();
         $this->duplex = new LineDuplex(
             hostTransport: self::class,
             label: 'Stdio server',
@@ -54,7 +52,7 @@ final class StdioServerTransport implements TransportInterface
                 $this->send($response);
             },
             onBeforeClose: function (): void {
-                $this->stdin->close();
+                $this->stdin?->close();
                 $this->stdout->close();
             },
         );
@@ -63,6 +61,8 @@ final class StdioServerTransport implements TransportInterface
     #[\Override]
     public function start(): void
     {
+        $this->duplex->assertIsStartable();
+        $this->stdin ??= self::openStdin();
         $this->duplex->start($this->stdin, $this->stdout);
     }
 

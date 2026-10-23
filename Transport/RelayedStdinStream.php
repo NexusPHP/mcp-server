@@ -36,8 +36,12 @@ final class RelayedStdinStream implements \IteratorAggregate, ReadableStream
     private const string RELAY = <<<'PHP'
         $stdin = fopen('php://stdin', 'rb', false, stream_context_create(['pipe' => ['blocking' => true]]));
 
-        while (false !== $chunk = fgets($stdin, 8192)) {
-            fwrite(STDOUT, $chunk);
+        while (true) {
+            $chunk = fgets($stdin, 8192);
+
+            if (false === $chunk || fwrite(STDOUT, $chunk) === false) {
+                break;
+            }
         }
         PHP;
 
@@ -58,6 +62,11 @@ final class RelayedStdinStream implements \IteratorAggregate, ReadableStream
 
         $this->relay = $relay;
         $this->socket = new ReadableResourceStream($pipes[1]);
+    }
+
+    public function __destruct()
+    {
+        $this->close();
     }
 
     #[\Override]
