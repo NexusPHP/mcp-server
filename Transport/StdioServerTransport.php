@@ -32,14 +32,19 @@ use Psr\Log\NullLogger;
  */
 final class StdioServerTransport implements TransportInterface
 {
+    private readonly ReadableStream $stdin;
     private readonly LineDuplex $duplex;
 
+    /**
+     * @param null|ReadableStream $stdin Null for the process STDIN
+     */
     public function __construct(
-        private readonly ReadableStream $stdin = new ReadableResourceStream(\STDIN),
+        ?ReadableStream $stdin = null,
         private readonly WritableStream $stdout = new WritableResourceStream(\STDOUT),
         LoggerInterface $logger = new NullLogger(),
         int $maxLineBytes = LineReader::DEFAULT_MAX_LINE_BYTES,
     ) {
+        $this->stdin = $stdin ?? self::openStdin();
         $this->duplex = new LineDuplex(
             hostTransport: self::class,
             label: 'Stdio server',
@@ -95,5 +100,13 @@ final class StdioServerTransport implements TransportInterface
     public function onClose(\Closure $listener): ListenerHandleInterface
     {
         return $this->duplex->onClose($listener);
+    }
+
+    private static function openStdin(): ReadableStream
+    {
+        stream_set_blocking(\STDIN, false);
+
+        // Windows refuses non-blocking mode on an anonymous pipe, and a read from an empty blocking pipe stalls the loop.
+        return stream_get_meta_data(\STDIN)['blocked'] ? new RelayedStdinStream(\STDIN) : new ReadableResourceStream(\STDIN);
     }
 }
