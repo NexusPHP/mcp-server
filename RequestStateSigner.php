@@ -42,19 +42,35 @@ final readonly class RequestStateSigner
     private const int SECRET_BYTES = 32;
 
     /**
+     * @var non-empty-list<non-empty-string>
+     */
+    private array $secrets;
+
+    /**
+     * @param non-empty-list<non-empty-string>|non-empty-string                       $secret     The signing key, or a key ring whose first key signs and whose every key verifies
      * @param int<1, max>                                                             $ttlSeconds How long a minted state verifies
      * @param string                                                                  $binding    The binding applied when `sign()` and `verify()` are given none
      * @param null|\Closure(JsonRpcRequest<non-empty-string>, ReceiveContext): string $policy     Derives the binding for a request in `bindFor()`, the authenticated subject and client, method and target when null
      */
     public function __construct(
-        private string $secret,
+        array|string $secret,
         private string $algorithm = 'sha256',
         private int $ttlSeconds = self::DEFAULT_TTL_SECONDS,
         private Clock $clock = new SystemClock(),
         private string $binding = '',
         private ?\Closure $policy = null,
     ) {
-        Assert::that($secret)->isNonEmptyString('The request-state signing secret must be a non-empty string.');
+        if (\is_string($secret)) {
+            Assert::that($secret)->isNonEmptyString('The request-state signing secret must be a non-empty string.');
+            $secret = [$secret];
+        }
+
+        Assert::that($secret)
+            ->isNonEmptyList('The request-state signing key ring must be a non-empty list, {type} given.')
+            ->values()->isNonEmptyString('Each request-state signing key must be a non-empty string, {type} given.')
+        ;
+        $this->secrets = $secret;
+
         Assert::that($algorithm)->isOneOf(
             hash_hmac_algos(),
             \sprintf('The request-state signing algorithm "%s" is not available.', $algorithm),
@@ -104,7 +120,12 @@ final readonly class RequestStateSigner
      */
     public function sign(string $payload, string $binding = ''): string
     {
-        return $this->seal($payload, $this->clock->now()->getTimestamp() + $this->ttlSeconds, '' === $binding ? $this->binding : $binding);
+        return $this->seal(
+            $payload,
+            $this->clock->now()->getTimestamp() + $this->ttlSeconds,
+            '' === $binding ? $this->binding : $binding,
+            $this->secrets[0],
+        );
     }
 
     /**
@@ -129,11 +150,15 @@ final readonly class RequestStateSigner
         $payload = substr($body, 0, $expiryAt);
         $expires = (int) substr($body, $expiryAt + 1);
 
-        if (! hash_equals($this->seal($payload, $expires, '' === $binding ? $this->binding : $binding), $state)) {
-            return null;
+        $binding = '' === $binding ? $this->binding : $binding;
+
+        foreach ($this->secrets as $secret) {
+            if (hash_equals($this->seal($payload, $expires, $binding, $secret), $state)) {
+                return $expires < $this->clock->now()->getTimestamp() ? null : $payload;
+            }
         }
 
-        return $expires < $this->clock->now()->getTimestamp() ? null : $payload;
+        return null;
     }
 
     /**
@@ -141,7 +166,7 @@ final readonly class RequestStateSigner
      */
     public function bindTo(string $binding): self
     {
-        return new self($this->secret, $this->algorithm, $this->ttlSeconds, $this->clock, $binding, $this->policy);
+        return new self($this->secrets, $this->algorithm, $this->ttlSeconds, $this->clock, $binding, $this->policy);
     }
 
     /**
@@ -151,7 +176,7 @@ final readonly class RequestStateSigner
      */
     public function bindBy(\Closure $policy): self
     {
-        return new self($this->secret, $this->algorithm, $this->ttlSeconds, $this->clock, $this->binding, $policy);
+        return new self($this->secrets, $this->algorithm, $this->ttlSeconds, $this->clock, $this->binding, $policy);
     }
 
     /**
@@ -161,7 +186,9 @@ final readonly class RequestStateSigner
      */
     public function bindFor(JsonRpcRequest $request, ReceiveContext $receiveContext): self
     {
-        return $this->bindTo(null === $this->policy ? self::deriveBinding($request, $receiveContext) : ($this->policy)($request, $receiveContext));
+        return $this->bindTo(null === $this->policy
+            ? self::deriveBinding($request, $receiveContext)
+            : ($this->policy)($request, $receiveContext));
     }
 
     /**
@@ -182,10 +209,10 @@ final readonly class RequestStateSigner
         return $arguments;
     }
 
-    private function seal(string $payload, int $expires, string $binding): string
+    private function seal(string $payload, int $expires, string $binding, string $secret): string
     {
         $body = $payload.self::SEPARATOR.$expires;
 
-        return $body.self::SEPARATOR.hash_hmac($this->algorithm, \strlen($binding).self::SEPARATOR.$binding.$body, $this->secret);
+        return $body.self::SEPARATOR.hash_hmac($this->algorithm, \strlen($binding).self::SEPARATOR.$binding.$body, $secret);
     }
 }
