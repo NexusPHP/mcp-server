@@ -44,7 +44,7 @@ final readonly class RequestStateSigner
     /**
      * @param int<1, max>                                                             $ttlSeconds How long a minted state verifies
      * @param string                                                                  $binding    The binding applied when `sign()` and `verify()` are given none
-     * @param null|\Closure(JsonRpcRequest<non-empty-string>, ReceiveContext): string $policy     Derives the binding for a request in `bindFor()`, the authenticated subject, method and target when null
+     * @param null|\Closure(JsonRpcRequest<non-empty-string>, ReceiveContext): string $policy     Derives the binding for a request in `bindFor()`, the authenticated subject and client, method and target when null
      */
     public function __construct(
         private string $secret,
@@ -74,8 +74,8 @@ final readonly class RequestStateSigner
     }
 
     /**
-     * The binding for a request under the default policy: the authenticated subject, the method, the tool
-     * name, prompt name or resource URI it targets, and a digest of its arguments.
+     * The binding for a request under the default policy: the authenticated subject and client, the method,
+     * the tool name, prompt name or resource URI it targets, and a digest of its arguments.
      *
      * @param JsonRpcRequest<non-empty-string> $request
      */
@@ -90,6 +90,7 @@ final readonly class RequestStateSigner
 
         return implode(self::BINDING_SEPARATOR, [
             $receiveContext->authInfo->subject ?? '',
+            $receiveContext->authInfo->clientId ?? '',
             $request::getMethod(),
             $target,
             null === $arguments ? '' : hash('sha256', json_encode(self::sortKeys($arguments), \JSON_THROW_ON_ERROR)),
