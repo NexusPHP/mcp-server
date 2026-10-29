@@ -350,11 +350,14 @@ final class TypeNodeSchemaMapper
      */
     private function mapGeneric(GenericTypeNode $node): array
     {
-        if ('int' === $node->type->name) {
+        $base = $node->type;
+        \assert($base instanceof IdentifierTypeNode);
+
+        if ('int' === $base->name) {
             return $this->mapIntRange($node);
         }
 
-        if (! \in_array($node->type->name, self::ARRAY_BASES, true)) {
+        if (! \in_array($base->name, self::ARRAY_BASES, true)) {
             throw new UnsupportedSchemaTypeException((string) $node);
         }
 
