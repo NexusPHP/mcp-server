@@ -23,6 +23,7 @@ use PHPStan\PhpDocParser\Ast\Type\ArrayTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\GenericTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\IdentifierTypeNode;
 use PHPStan\PhpDocParser\Ast\Type\NullableTypeNode;
+use PHPStan\PhpDocParser\Ast\Type\ObjectShapeNode;
 use PHPStan\PhpDocParser\Ast\Type\TypeNode;
 use PHPStan\PhpDocParser\Ast\Type\UnionTypeNode;
 
@@ -257,7 +258,25 @@ final class ArgumentBinder
             return null;
         }
 
+        if (\count($members) > 1) {
+            $members = array_values(array_filter(
+                $members,
+                fn(TypeNode $member): bool => \is_array($value) === $this->isArrayLike($member),
+            ));
+        }
+
         return \count($members) === 1 ? $this->hydrateNode($members[0], $value, $label) : $value;
+    }
+
+    private function isArrayLike(TypeNode $node): bool
+    {
+        return match (true) {
+            $node instanceof ArrayTypeNode, $node instanceof ArrayShapeNode, $node instanceof ObjectShapeNode => true,
+            $node instanceof GenericTypeNode => \in_array((string) $node->type, TypeNodeSchemaMapper::ARRAY_BASES, true),
+            $node instanceof IdentifierTypeNode => 'object' === $node->name
+                || \in_array($node->name, TypeNodeSchemaMapper::ARRAY_BASES, true),
+            default => false,
+        };
     }
 
     private function hydrateGeneric(GenericTypeNode $node, mixed $value, string $label): mixed

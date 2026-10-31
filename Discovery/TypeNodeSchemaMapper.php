@@ -187,13 +187,37 @@ final class TypeNodeSchemaMapper
     private function sharesBaseType(TypeNode $native, TypeNode $doc): bool
     {
         try {
-            $nativeType = $this->map($native)['type'] ?? null;
-            $docType = $this->map($doc)['type'] ?? null;
+            $nativeTypes = $this->readBaseTypes($this->map($native));
+            $docTypes = $this->readBaseTypes($this->map($doc));
         } catch (UnsupportedSchemaTypeException) {
             return false;
         }
 
-        return null !== $nativeType && $nativeType === $docType;
+        return [] !== $nativeTypes && $nativeTypes === $docTypes;
+    }
+
+    /**
+     * @param array<string, mixed> $schema
+     *
+     * @return list<string>
+     */
+    private function readBaseTypes(array $schema): array
+    {
+        $members = \is_array($schema['anyOf'] ?? null) ? $schema['anyOf'] : [$schema];
+        $types = [];
+
+        foreach ($members as $member) {
+            foreach ((array) (\is_array($member) ? $member['type'] ?? [] : []) as $type) {
+                if (\is_string($type)) {
+                    $type = 'object' === $type ? 'array' : $type;
+                    $types[$type] = $type;
+                }
+            }
+        }
+
+        sort($types);
+
+        return $types;
     }
 
     private function stripNull(TypeNode $node): TypeNode
