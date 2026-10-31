@@ -49,7 +49,7 @@ final readonly class InputSchemaGenerator
         [$properties, $required] = $this->buildObjectMembers(
             $method->getParameters(),
             $this->resolver->parseParamTags($method),
-            true,
+            [],
         );
 
         $schema = ['type' => 'object', '$schema' => 'https://json-schema.org/draft/2020-12/schema'];
@@ -110,6 +110,7 @@ final readonly class InputSchemaGenerator
         }
 
         $name = $type->getName();
+        $name = ('self' === $name ? $parameter->getDeclaringClass()?->getName() : null) ?? $name;
 
         return self::isExpandable($name) ? $name : null;
     }
@@ -117,22 +118,23 @@ final readonly class InputSchemaGenerator
     /**
      * @param iterable<\ReflectionParameter>   $parameters
      * @param array<string, ParamTagValueNode> $tags
+     * @param list<class-string>               $ancestors
      *
      * @return array{0: array<string, mixed>, 1: list<string>}
      */
-    private function buildObjectMembers(iterable $parameters, array $tags, bool $topLevel): array
+    private function buildObjectMembers(iterable $parameters, array $tags, array $ancestors): array
     {
         $properties = [];
         $required = [];
 
         foreach ($parameters as $parameter) {
-            if ($topLevel && self::isInjectedContext($parameter)) {
+            if ([] === $ancestors && self::isInjectedContext($parameter)) {
                 continue;
             }
 
             $name = $parameter->getName();
             $properties[$name] = TypeNodeSchemaMapper::asSubSchema(
-                $this->buildParameterSchema($parameter, $tags[$name] ?? null, $topLevel),
+                $this->buildParameterSchema($parameter, $tags[$name] ?? null, $ancestors),
             );
 
             if (! $parameter->isOptional()) {
@@ -144,14 +146,24 @@ final readonly class InputSchemaGenerator
     }
 
     /**
-     * Builds an object schema from a class's constructor parameters without expanding members.
+     * Builds an object schema from a class's constructor parameters.
      *
-     * @param class-string $class
+     * @param class-string       $class
+     * @param list<class-string> $ancestors
      *
      * @return array<string, mixed>
+     *
+     * @throws LogicException
      */
-    private function expandClass(string $class): array
+    private function expandClass(string $class, array $ancestors): array
     {
+        if (\in_array($class, $ancestors, true)) {
+            throw new LogicException(\sprintf(
+                'Cannot generate the input schema for %s because it contains itself. Add #[InputSchema(...)] to describe it explicitly.',
+                $class,
+            ));
+        }
+
         $reflection = new \ReflectionClass($class);
         $constructor = $reflection->getConstructor();
 
@@ -162,7 +174,7 @@ final readonly class InputSchemaGenerator
         [$properties, $required] = $this->buildObjectMembers(
             $constructor->getParameters(),
             $this->resolver->parseParamTags($constructor),
-            false,
+            [...$ancestors, $class],
         );
 
         $schema = ['type' => 'object'];
@@ -179,10 +191,15 @@ final readonly class InputSchemaGenerator
     }
 
     /**
+     * @param list<class-string> $ancestors
+     *
      * @return array<string, mixed>
      */
-    private function buildParameterSchema(\ReflectionParameter $parameter, ?ParamTagValueNode $tag, bool $topLevel): array
-    {
+    private function buildParameterSchema(
+        \ReflectionParameter $parameter,
+        ?ParamTagValueNode $tag,
+        array $ancestors,
+    ): array {
         $attribute = $this->readAttribute($parameter);
 
         if (null !== $attribute && null !== $attribute->definition) {
@@ -194,9 +211,9 @@ final readonly class InputSchemaGenerator
         if (isset($explicit['type'])) {
             $inferred = [];
         } else {
-            $class = $topLevel ? self::resolveExpandableNativeClass($parameter) : null;
+            $class = self::resolveExpandableNativeClass($parameter);
             $inferred = null !== $class
-                ? $this->expandNativeClass($parameter, $class)
+                ? $this->expandNativeClass($parameter, $class, $ancestors)
                 : $this->inferType($parameter, $tag?->type);
         }
 
@@ -247,13 +264,14 @@ final readonly class InputSchemaGenerator
     }
 
     /**
-     * @param class-string $class
+     * @param class-string       $class
+     * @param list<class-string> $ancestors
      *
      * @return array<string, mixed>
      */
-    private function expandNativeClass(\ReflectionParameter $parameter, string $class): array
+    private function expandNativeClass(\ReflectionParameter $parameter, string $class, array $ancestors): array
     {
-        $schema = $this->expandClass($class);
+        $schema = $this->expandClass($class, $ancestors);
 
         return $this->allowsNull($parameter) ? $this->mapper->makeNullable($schema) : $schema;
     }

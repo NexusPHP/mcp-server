@@ -92,7 +92,7 @@ final class ArgumentBinder
         return $arguments;
     }
 
-    private function bindArgument(\ReflectionParameter $parameter, mixed $value): mixed
+    private function bindArgument(\ReflectionParameter $parameter, mixed $value, ?string $scope = null): mixed
     {
         if ($this->acceptsNull($parameter, $value)) {
             return null;
@@ -101,8 +101,13 @@ final class ArgumentBinder
         $class = InputSchemaGenerator::resolveExpandableNativeClass($parameter);
 
         return null !== $class
-            ? $this->instantiate($class, $parameter->getName(), $value)
-            : $this->hydrate($parameter, $value);
+            ? $this->instantiate($class, $this->getLabelFor($parameter, $scope), $value)
+            : $this->hydrate($parameter, $value, $scope);
+    }
+
+    private function getLabelFor(\ReflectionParameter $parameter, ?string $scope): string
+    {
+        return null === $scope ? $parameter->getName() : \sprintf('%s.%s', $scope, $parameter->getName());
     }
 
     /**
@@ -136,8 +141,8 @@ final class ArgumentBinder
             $name = $parameter->getName();
 
             if (\array_key_exists($name, $value)) {
-                $this->guardAgainstNestedObject($class, $parameter);
-                $arguments[] = $this->hydrate($parameter, $value[$name], $argument);
+                $this->guardAgainstUnconstructableClass($class, $parameter);
+                $arguments[] = $this->bindArgument($parameter, $value[$name], $argument);
             } elseif ($parameter->isDefaultValueAvailable()) {
                 $arguments[] = $parameter->getDefaultValue();
             } else {
@@ -153,34 +158,28 @@ final class ArgumentBinder
      *
      * @throws LogicException
      */
-    private function guardAgainstNestedObject(string $class, \ReflectionParameter $parameter): void
+    private function guardAgainstUnconstructableClass(string $class, \ReflectionParameter $parameter): void
     {
         $type = $parameter->getType();
 
-        if (! $type instanceof \ReflectionNamedType || $type->isBuiltin()) {
+        if (! $type instanceof \ReflectionNamedType || $type->isBuiltin() || enum_exists($type->getName())) {
             return;
         }
 
-        $name = $type->getName();
-
-        if (enum_exists($name)) {
+        if (InputSchemaGenerator::resolveExpandableNativeClass($parameter) !== null) {
             return;
         }
 
         throw new LogicException(\sprintf(
-            '%s declares constructor parameter "$%s" of type "%s", which the binder cannot construct from a value map. Nested object expansion is not supported.',
+            '%s declares constructor parameter "$%s" of type "%s", which the binder cannot construct from a value map.',
             $class,
             $parameter->getName(),
-            $name,
+            $type->getName(),
         ));
     }
 
     private function hydrate(\ReflectionParameter $parameter, mixed $value, ?string $scope = null): mixed
     {
-        if ($this->acceptsNull($parameter, $value)) {
-            return null;
-        }
-
         $type = $parameter->getType();
         $label = null === $scope
             ? $parameter->getName()
