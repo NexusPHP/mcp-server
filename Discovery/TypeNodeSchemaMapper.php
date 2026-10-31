@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Discovery;
 
 use Nexus\Mcp\Server\Exception\UnsupportedSchemaTypeException;
+use PHPStan\PhpDocParser\Ast\ConstExpr\ConstExprFloatNode;
 use PHPStan\PhpDocParser\Ast\ConstExpr\ConstExprIntegerNode;
 use PHPStan\PhpDocParser\Ast\ConstExpr\ConstExprStringNode;
 use PHPStan\PhpDocParser\Ast\Type\ArrayShapeItemNode;
@@ -83,6 +84,10 @@ final class TypeNodeSchemaMapper
     public function makeNullable(array $schema): array
     {
         if (! \array_key_exists('type', $schema)) {
+            if (isset($schema['anyOf']) && \is_array($schema['anyOf'])) {
+                $schema['anyOf'][] = ['type' => 'null'];
+            }
+
             return $schema;
         }
 
@@ -161,7 +166,7 @@ final class TypeNodeSchemaMapper
             return false;
         }
 
-        return $nativeType === $docType;
+        return null !== $nativeType && $nativeType === $docType;
     }
 
     private function stripNull(TypeNode $node): TypeNode
@@ -212,6 +217,8 @@ final class TypeNodeSchemaMapper
             'non-positive-int' => ['type' => 'integer', 'maximum' => 0],
             'float', 'double' => ['type' => 'number'],
             'bool', 'boolean' => ['type' => 'boolean'],
+            'true' => ['type' => 'boolean', 'enum' => [true]],
+            'false' => ['type' => 'boolean', 'enum' => [false]],
             'string' => ['type' => 'string'],
             'non-empty-string' => ['type' => 'string', 'minLength' => 1],
             'array', 'iterable', 'list' => ['type' => 'array'],
@@ -260,87 +267,88 @@ final class TypeNodeSchemaMapper
      */
     private function mapUnion(UnionTypeNode $node): array
     {
-        $nonNull = [];
+        $literals = [];
+        $schemas = [];
         $hasNull = false;
 
         foreach ($node->types as $member) {
             if ($this->isNull($member)) {
                 $hasNull = true;
-
-                continue;
+            } elseif ($member instanceof ConstTypeNode) {
+                $literals[] = $member;
+            } else {
+                $schemas[] = $this->map($member);
             }
-
-            $nonNull[] = $member;
         }
 
-        if ([] === $nonNull) {
+        if ([] !== $literals) {
+            array_unshift($schemas, $this->mapConstUnion($literals, (string) $node));
+        }
+
+        if ([] === $schemas) {
             throw new UnsupportedSchemaTypeException((string) $node);
         }
 
-        if (\count($nonNull) === 1) {
-            $schema = $this->map($nonNull[0]);
-        } elseif ($nonNull[0] instanceof ConstTypeNode) {
-            $schema = $this->mapConstUnion($nonNull, (string) $node);
-        } else {
-            $types = [];
-
-            foreach ($nonNull as $member) {
-                $mapped = $this->map($member);
-                $type = $mapped['type'] ?? null;
-
-                if (\count($mapped) !== 1 || ! \is_string($type)) {
-                    throw new UnsupportedSchemaTypeException((string) $node);
-                }
-
-                $types[] = $type;
-            }
-
-            $schema = ['type' => $this->normaliseTypeList($types)];
-        }
+        $schema = \count($schemas) === 1 ? $schemas[0] : $this->combineAlternatives($schemas);
 
         return $hasNull ? $this->makeNullable($schema) : $schema;
     }
 
     /**
-     * Collects a union of string or integer literals into a single typed enum, rejecting any other const
-     * expression and any mix of literal types.
+     * @param non-empty-list<array<string, mixed>> $schemas
      *
-     * @param non-empty-list<TypeNode> $members
-     *
-     * @return array{type: string, enum: non-empty-list<int|string>}
+     * @return array<string, mixed>
      */
-    private function mapConstUnion(array $members, string $label): array
+    private function combineAlternatives(array $schemas): array
     {
-        [$type, $value] = $this->buildConstMember($members[0], $label);
-        $enum = [$value];
+        $types = [];
 
-        foreach (\array_slice($members, 1) as $member) {
-            [$memberType, $memberValue] = $this->buildConstMember($member, $label);
+        foreach ($schemas as $schema) {
+            $type = $schema['type'] ?? null;
 
-            if ($memberType !== $type) {
-                throw new UnsupportedSchemaTypeException($label);
+            if (\count($schema) !== 1 || ! \is_string($type)) {
+                return ['anyOf' => array_map(self::asSubSchema(...), $schemas)];
             }
 
-            $enum[] = $memberValue;
+            $types[] = $type;
         }
 
-        return ['type' => $type, 'enum' => $enum];
+        return ['type' => $this->normaliseTypeList($types)];
     }
 
     /**
-     * @return array{string, int|string}
+     * Collects a union of string, integer or float literals into a single typed enum, rejecting any other
+     * const expression.
+     *
+     * @param non-empty-list<ConstTypeNode> $members
+     *
+     * @return array{type: list<string>|string, enum: non-empty-list<float|int|string>}
      */
-    private function buildConstMember(TypeNode $node, string $label): array
+    private function mapConstUnion(array $members, string $label): array
     {
-        if (! $node instanceof ConstTypeNode) {
-            throw new UnsupportedSchemaTypeException($label);
+        $types = [];
+        $enum = [];
+
+        foreach ($members as $member) {
+            [$type, $value] = $this->buildConstMember($member, $label);
+            $types[] = $type;
+            $enum[] = $value;
         }
 
+        return ['type' => $this->normaliseTypeList($types), 'enum' => $enum];
+    }
+
+    /**
+     * @return array{string, float|int|string}
+     */
+    private function buildConstMember(ConstTypeNode $node, string $label): array
+    {
         $expr = $node->constExpr;
 
         return match (true) {
             $expr instanceof ConstExprStringNode => ['string', $expr->value],
             $expr instanceof ConstExprIntegerNode => ['integer', (int) $expr->value],
+            $expr instanceof ConstExprFloatNode => ['number', (float) $expr->value],
             default => throw new UnsupportedSchemaTypeException($label),
         };
     }
@@ -436,8 +444,10 @@ final class TypeNodeSchemaMapper
 
     private function isPositionalShape(ArrayShapeNode $node): bool
     {
-        foreach ($node->items as $item) {
-            if (null !== $item->keyName) {
+        foreach ($node->items as $index => $item) {
+            $key = $item->keyName;
+
+            if (null !== $key && ! ($key instanceof ConstExprIntegerNode && (string) $index === $key->value)) {
                 return false;
             }
         }
@@ -451,17 +461,29 @@ final class TypeNodeSchemaMapper
     private function mapTuple(ArrayShapeNode $node): array
     {
         $prefixItems = [];
+        $required = 0;
 
         foreach ($node->items as $item) {
             $prefixItems[] = self::asSubSchema($this->map($item->valueType));
+
+            if (! $item->optional) {
+                ++$required;
+            }
         }
 
-        return [
-            'type' => 'array',
-            'prefixItems' => $prefixItems,
-            'items' => false,
-            'minItems' => \count($prefixItems),
-        ];
+        $schema = ['type' => 'array', 'prefixItems' => $prefixItems];
+
+        if ($node->sealed) {
+            $schema['items'] = false;
+        } elseif (null !== $node->unsealedType) {
+            $schema['items'] = self::asSubSchema($this->map($node->unsealedType->valueType));
+        }
+
+        if ($required > 0) {
+            $schema['minItems'] = $required;
+        }
+
+        return $schema;
     }
 
     /**
@@ -492,12 +514,22 @@ final class TypeNodeSchemaMapper
             $schema['required'] = $required;
         }
 
+        if ($node instanceof ArrayShapeNode && null !== $node->unsealedType) {
+            $schema['additionalProperties'] = self::asSubSchema($this->map($node->unsealedType->valueType));
+        }
+
         return $schema;
     }
 
     private function resolveShapeKey(ArrayShapeItemNode|ObjectShapeItemNode $item): ?string
     {
-        return $item->keyName instanceof IdentifierTypeNode ? $item->keyName->name : null;
+        $key = $item->keyName;
+
+        return match (true) {
+            $key instanceof IdentifierTypeNode => $key->name,
+            $key instanceof ConstExprStringNode, $key instanceof ConstExprIntegerNode => $key->value,
+            default => null,
+        };
     }
 
     private function isNull(TypeNode $node): bool
