@@ -37,6 +37,7 @@ use PHPStan\PhpDocParser\Ast\Type\UnionTypeNode;
 final class TypeNodeSchemaMapper
 {
     public const array ARRAY_BASES = ['array', 'list', 'iterable', 'non-empty-array', 'non-empty-list'];
+    private const string NUMERIC_STRING_PATTERN = '^[ \t\n\r\v\f]*[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?[ \t\n\r\v\f]*$';
 
     /**
      * @return array<string, mixed>
@@ -272,6 +273,8 @@ final class TypeNodeSchemaMapper
             'false' => ['type' => 'boolean', 'enum' => [false]],
             'string' => ['type' => 'string'],
             'non-empty-string' => ['type' => 'string', 'minLength' => 1],
+            'non-falsy-string', 'truthy-string' => ['type' => 'string', 'minLength' => 1, 'not' => ['const' => '0']],
+            'numeric-string' => ['type' => 'string', 'pattern' => self::NUMERIC_STRING_PATTERN],
             'array', 'iterable', 'list' => ['type' => 'array'],
             'object', 'stdclass' => ['type' => 'object'],
             'mixed' => [],
