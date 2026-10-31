@@ -38,7 +38,6 @@ final readonly class RequestStateSigner
      */
     private const string SEPARATOR = '.';
 
-    private const string BINDING_SEPARATOR = "\0";
     private const int SECRET_BYTES = 32;
 
     /**
@@ -104,13 +103,13 @@ final readonly class RequestStateSigner
             default => ['', null],
         };
 
-        return implode(self::BINDING_SEPARATOR, [
-            $receiveContext->authInfo->subject ?? '',
-            $receiveContext->authInfo->clientId ?? '',
+        return json_encode([
+            $receiveContext->authInfo->subject ?? null,
+            $receiveContext->authInfo->clientId ?? null,
             $request::getMethod(),
             $target,
             null === $arguments ? '' : hash('sha256', json_encode(self::sortKeys($arguments), \JSON_THROW_ON_ERROR)),
-        ]);
+        ], \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES);
     }
 
     /**
