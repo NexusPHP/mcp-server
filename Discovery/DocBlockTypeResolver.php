@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Discovery;
 
 use PHPStan\PhpDocParser\Ast\PhpDoc\ParamTagValueNode;
+use PHPStan\PhpDocParser\Ast\PhpDoc\PhpDocNode;
 use PHPStan\PhpDocParser\Ast\Type\TypeNode;
 use PHPStan\PhpDocParser\Lexer\Lexer;
 use PHPStan\PhpDocParser\Parser\ConstExprParser;
@@ -55,18 +56,13 @@ final class DocBlockTypeResolver
     }
 
     /**
-     * Returns the `@param` tags keyed by parameter name without the leading `$`.
+     * Returns the `@param` tags keyed by parameter name without the leading `$`, with the `@var` of a constructor's
+     * promoted properties standing in for the parameters that carry no `@param`.
      *
      * @return array<string, ParamTagValueNode>
      */
     public function parseParamTags(\ReflectionFunctionAbstract $method): array
     {
-        $docComment = $method->getDocComment();
-
-        if (false === $docComment) {
-            return [];
-        }
-
         $key = \sprintf(
             '%s:%s:%s',
             (string) $method->getFileName(),
@@ -74,21 +70,64 @@ final class DocBlockTypeResolver
             $method->getName(),
         );
 
-        if (isset($this->tags[$key])) {
-            return $this->tags[$key];
-        }
+        $this->tags[$key] ??= $this->readParamTags($method) + $this->readPromotedVarTags($method);
 
-        $node = $this->phpDocParser->parse(new TokenIterator($this->lexer->tokenize($docComment)));
+        return $this->tags[$key];
+    }
+
+    /**
+     * @return array<string, ParamTagValueNode>
+     */
+    private function readParamTags(\ReflectionFunctionAbstract $method): array
+    {
+        $docComment = $method->getDocComment();
+
+        if (false === $docComment) {
+            return [];
+        }
 
         $tags = [];
 
-        foreach ($node->getParamTagValues() as $tag) {
+        foreach ($this->parseDocBlock($docComment)->getParamTagValues() as $tag) {
             $this->names->qualify($tag->type, $method);
             $tags[ltrim($tag->parameterName, '$')] = $tag;
         }
 
-        $this->tags[$key] = $tags;
+        return $tags;
+    }
+
+    /**
+     * @return array<string, ParamTagValueNode>
+     */
+    private function readPromotedVarTags(\ReflectionFunctionAbstract $method): array
+    {
+        if (! $method instanceof \ReflectionMethod) {
+            return [];
+        }
+
+        $tags = [];
+
+        foreach ($method->getParameters() as $parameter) {
+            $name = $parameter->getName();
+            $docComment = $parameter->isPromoted()
+                ? $method->getDeclaringClass()->getProperty($name)->getDocComment()
+                : false;
+
+            if (false === $docComment) {
+                continue;
+            }
+
+            foreach ($this->parseDocBlock($docComment)->getVarTagValues() as $var) {
+                $this->names->qualify($var->type, $method);
+                $tags[$name] = new ParamTagValueNode($var->type, false, '$'.$name, $var->description, false);
+            }
+        }
 
         return $tags;
+    }
+
+    private function parseDocBlock(string $docComment): PhpDocNode
+    {
+        return $this->phpDocParser->parse(new TokenIterator($this->lexer->tokenize($docComment)));
     }
 }
