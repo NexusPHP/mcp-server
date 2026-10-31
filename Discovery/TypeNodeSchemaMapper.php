@@ -36,7 +36,7 @@ use PHPStan\PhpDocParser\Ast\Type\UnionTypeNode;
  */
 final class TypeNodeSchemaMapper
 {
-    private const array ARRAY_BASES = ['array', 'list', 'iterable', 'non-empty-array', 'non-empty-list'];
+    public const array ARRAY_BASES = ['array', 'list', 'iterable', 'non-empty-array', 'non-empty-list'];
 
     /**
      * @return array<string, mixed>
@@ -56,6 +56,22 @@ final class TypeNodeSchemaMapper
             $node instanceof ConstTypeNode => $this->mapConstUnion([$node], (string) $node),
             default => throw new UnsupportedSchemaTypeException((string) $node),
         };
+    }
+
+    /**
+     * The type of a collection's values: the last argument of `list<V>` or `array<K, V>`.
+     *
+     * @throws UnsupportedSchemaTypeException
+     */
+    public function resolveElementType(GenericTypeNode $node): TypeNode
+    {
+        $arguments = $node->genericTypes;
+
+        if (! isset($arguments[0]) || isset($arguments[2])) {
+            throw new UnsupportedSchemaTypeException((string) $node);
+        }
+
+        return $arguments[1] ?? $arguments[0];
     }
 
     public function resolveTypeNode(?TypeNode $native, ?TypeNode $doc): ?TypeNode
@@ -135,6 +151,17 @@ final class TypeNodeSchemaMapper
     public static function asSubSchema(array $schema): array|true
     {
         return [] === $schema ? true : $schema;
+    }
+
+    public function resolveShapeKey(ArrayShapeItemNode|ObjectShapeItemNode $item): ?string
+    {
+        $key = $item->keyName;
+
+        return match (true) {
+            $key instanceof IdentifierTypeNode => $key->name,
+            $key instanceof ConstExprStringNode, $key instanceof ConstExprIntegerNode => $key->value,
+            default => null,
+        };
     }
 
     private function isRefinedByDoc(TypeNode $native, TypeNode $doc): bool
@@ -519,17 +546,6 @@ final class TypeNodeSchemaMapper
         }
 
         return $schema;
-    }
-
-    private function resolveShapeKey(ArrayShapeItemNode|ObjectShapeItemNode $item): ?string
-    {
-        $key = $item->keyName;
-
-        return match (true) {
-            $key instanceof IdentifierTypeNode => $key->name,
-            $key instanceof ConstExprStringNode, $key instanceof ConstExprIntegerNode => $key->value,
-            default => null,
-        };
     }
 
     private function isNull(TypeNode $node): bool
