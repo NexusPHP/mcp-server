@@ -32,6 +32,12 @@ final class DocBlockTypeResolver
     private Lexer $lexer;
     private TypeParser $typeParser;
     private PhpDocParser $phpDocParser;
+    private DocBlockNameResolver $names;
+
+    /**
+     * @var array<string, array<string, ParamTagValueNode>>
+     */
+    private array $tags = [];
 
     public function __construct()
     {
@@ -40,6 +46,7 @@ final class DocBlockTypeResolver
         $this->lexer = new Lexer($config);
         $this->typeParser = new TypeParser($config, $constExprParser);
         $this->phpDocParser = new PhpDocParser($config, $this->typeParser, $constExprParser);
+        $this->names = new DocBlockNameResolver();
     }
 
     public function parseNativeType(string $type): TypeNode
@@ -60,13 +67,27 @@ final class DocBlockTypeResolver
             return [];
         }
 
+        $key = \sprintf(
+            '%s:%s:%s',
+            (string) $method->getFileName(),
+            (string) $method->getStartLine(),
+            $method->getName(),
+        );
+
+        if (isset($this->tags[$key])) {
+            return $this->tags[$key];
+        }
+
         $node = $this->phpDocParser->parse(new TokenIterator($this->lexer->tokenize($docComment)));
 
         $tags = [];
 
         foreach ($node->getParamTagValues() as $tag) {
+            $this->names->qualify($tag->type, $method);
             $tags[ltrim($tag->parameterName, '$')] = $tag;
         }
+
+        $this->tags[$key] = $tags;
 
         return $tags;
     }

@@ -27,6 +27,7 @@
     ],
     "require": {
         "php": "^8.3",
+        "ext-tokenizer": "*",
         "amphp/amp": "^3.1.1",
         "amphp/byte-stream": "^2.1",
         "nexusphp/assert": "^1.5",
