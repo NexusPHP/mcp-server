@@ -26,8 +26,7 @@ use Nexus\Mcp\Core\Schema\Request\GetPromptRequest;
 use Nexus\Mcp\Core\Schema\Request\ReadResourceRequest;
 use Nexus\Mcp\Core\Schema\Request\SubscriptionsListenRequest;
 use Nexus\Mcp\Core\Schema\Resource\ResourceTemplateReference;
-use Nexus\Mcp\Core\UriTemplate\Matcher;
-use Nexus\Mcp\Core\UriTemplate\Validator;
+use Nexus\Mcp\Server\Auth\OperationScopes;
 use Nexus\Mcp\Server\Transport\StreamableHttpServerTransport;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -44,27 +43,14 @@ use Psr\Http\Server\RequestHandlerInterface;
 final readonly class OperationScopeMiddleware implements MiddlewareInterface
 {
     private ScopeSet $endpointScopes;
+    private OperationScopes $operationScopes;
 
     /**
-     * @var array<int|string, ScopeSet>
-     */
-    private array $tools;
-
-    /**
-     * @var array<int|string, ScopeSet>
-     */
-    private array $prompts;
-
-    /**
-     * @var array<non-empty-string, ScopeSet>
-     */
-    private array $resourcesByPattern;
-
-    /**
-     * @param array<int|non-empty-string, list<non-empty-string>> $tools          Scopes keyed by tool name
-     * @param array<int|non-empty-string, list<non-empty-string>> $prompts        Scopes keyed by prompt name
-     * @param array<int|non-empty-string, list<non-empty-string>> $resources      Scopes keyed by resource URI or URI template
-     * @param list<non-empty-string>                              $endpointScopes Scopes that the authentication middleware asks of every request, named in each challenge beside the operation's own
+     * @param array<int|non-empty-string, list<non-empty-string>> $tools           Deprecated, pass `$operationScopes`. Scopes keyed by tool name
+     * @param array<int|non-empty-string, list<non-empty-string>> $prompts         Deprecated, pass `$operationScopes`. Scopes keyed by prompt name
+     * @param array<int|non-empty-string, list<non-empty-string>> $resources       Deprecated, pass `$operationScopes`. Scopes keyed by resource URI or URI template
+     * @param list<non-empty-string>                              $endpointScopes  Scopes that the authentication middleware asks of every request, named in each challenge beside the operation's own
+     * @param null|OperationScopes                                $operationScopes The scopes of each tool, prompt and resource, which cannot be combined with `$tools`, `$prompts` or `$resources`
      */
     public function __construct(
         private string $resourceMetadataUrl,
@@ -74,20 +60,14 @@ final readonly class OperationScopeMiddleware implements MiddlewareInterface
         array $prompts = [],
         array $resources = [],
         array $endpointScopes = [],
+        ?OperationScopes $operationScopes = null,
     ) {
-        $this->endpointScopes = $this->buildScopeSet($endpointScopes);
-        $this->tools = $this->buildScopeSets($tools, 'tool');
-        $this->prompts = $this->buildScopeSets($prompts, 'prompt');
-
-        $resourcesByPattern = [];
-
-        foreach ($this->buildScopeSets($resources, 'resource') as $template => $scopes) {
-            $template = (string) $template;
-            Validator::validate($template, 'Operation scope resource');
-            $resourcesByPattern[Matcher::compile($template)] = $scopes;
+        if (null !== $operationScopes && ([] !== $tools || [] !== $prompts || [] !== $resources)) {
+            throw new LogicException('Pass operation scopes either as $operationScopes or as $tools, $prompts and $resources, not both.');
         }
 
-        $this->resourcesByPattern = $resourcesByPattern;
+        $this->endpointScopes = $this->buildScopeSet($endpointScopes);
+        $this->operationScopes = $operationScopes ?? new OperationScopes($tools, $prompts, $resources);
     }
 
     #[\Override]
@@ -129,25 +109,6 @@ final readonly class OperationScopeMiddleware implements MiddlewareInterface
     }
 
     /**
-     * @param array<int|non-empty-string, list<non-empty-string>> $scopesByName
-     *
-     * @return array<int|non-empty-string, ScopeSet>
-     */
-    private function buildScopeSets(array $scopesByName, string $kind): array
-    {
-        Assert::that($scopesByName)->keys()->isIntOrNonEmptyString(\sprintf(
-            'each operation scope %s key must be an int or non-empty string, {value} given.',
-            $kind,
-        ));
-        Assert::that($scopesByName)->values()->isList(\sprintf(
-            'each operation scope %s entry must be a list of scopes, {type} given.',
-            $kind,
-        ));
-
-        return array_map($this->buildScopeSet(...), $scopesByName);
-    }
-
-    /**
      * @param list<non-empty-string> $scopes
      */
     private function buildScopeSet(array $scopes): ScopeSet
@@ -165,8 +126,8 @@ final readonly class OperationScopeMiddleware implements MiddlewareInterface
         $params = $this->readMember($envelope, 'params');
 
         return match ($this->readMember($envelope, 'method')) {
-            CallToolRequest::getMethod() => $this->lookUp($this->tools, $this->readMember($params, 'name')),
-            GetPromptRequest::getMethod() => $this->lookUp($this->prompts, $this->readMember($params, 'name')),
+            CallToolRequest::getMethod() => $this->resolveToolScopes($this->readMember($params, 'name')),
+            GetPromptRequest::getMethod() => $this->resolvePromptScopes($this->readMember($params, 'name')),
             ReadResourceRequest::getMethod() => $this->resolveResourceScopes([$this->readMember($params, 'uri')]),
             CompleteRequest::getMethod() => $this->resolveReferenceScopes($this->readMember($params, 'ref')),
             SubscriptionsListenRequest::getMethod() => $this->resolveResourceScopes(
@@ -179,7 +140,7 @@ final readonly class OperationScopeMiddleware implements MiddlewareInterface
     private function resolveReferenceScopes(mixed $reference): ScopeSet
     {
         return match ($this->readMember($reference, 'type')) {
-            PromptReference::TYPE => $this->lookUp($this->prompts, $this->readMember($reference, 'name')),
+            PromptReference::TYPE => $this->resolvePromptScopes($this->readMember($reference, 'name')),
             ResourceTemplateReference::TYPE => $this->resolveResourceScopes([$this->readMember($reference, 'uri')]),
             default => new ScopeSet(),
         };
@@ -190,27 +151,22 @@ final readonly class OperationScopeMiddleware implements MiddlewareInterface
         $required = new ScopeSet();
 
         foreach (\is_array($uris) ? $uris : [] as $uri) {
-            if (! \is_string($uri)) {
-                continue;
-            }
-
-            foreach ($this->resourcesByPattern as $pattern => $scopes) {
-                // A server template binds a percent-encoded URI to its decoded value, so both forms are matched.
-                if (Matcher::matchCompiled($pattern, $uri) !== null || Matcher::matchCompiled($pattern, rawurldecode($uri)) !== null) {
-                    $required = $required->mergeWith($scopes);
-                }
+            if (\is_string($uri)) {
+                $required = $required->mergeWith($this->operationScopes->forResource($uri));
             }
         }
 
         return $required;
     }
 
-    /**
-     * @param array<int|string, ScopeSet> $scopesByName
-     */
-    private function lookUp(array $scopesByName, mixed $name): ScopeSet
+    private function resolveToolScopes(mixed $name): ScopeSet
     {
-        return \is_string($name) ? $scopesByName[$name] ?? new ScopeSet() : new ScopeSet();
+        return \is_string($name) ? $this->operationScopes->forTool($name) : new ScopeSet();
+    }
+
+    private function resolvePromptScopes(mixed $name): ScopeSet
+    {
+        return \is_string($name) ? $this->operationScopes->forPrompt($name) : new ScopeSet();
     }
 
     private function readMember(mixed $container, string $key): mixed
