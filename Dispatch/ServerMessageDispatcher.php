@@ -347,7 +347,7 @@ final readonly class ServerMessageDispatcher implements CancellableMessageDispat
                             && $signer->verify($result->requestState) === null
                         ) {
                             throw new \LogicException(\sprintf(
-                                'The handler for "%s" answered with a "requestState" that does not verify under the server\'s signer.',
+                                'The handler for "%s" answered with a "requestState" the server cannot verify.',
                                 $method,
                             ));
                         }

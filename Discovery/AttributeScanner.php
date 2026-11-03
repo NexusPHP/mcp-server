@@ -113,7 +113,7 @@ final readonly class AttributeScanner
         foreach ($attributes as $attribute) {
             if ([] !== $method->getAttributes($attribute)) {
                 throw new LogicException(\sprintf(
-                    '%s::%s() is a magic method and cannot be a #[%s] handler. Move the attribute to a regular public method.',
+                    '%s::%s() is a magic method and cannot be a #[%s] handler. Use a regular public method.',
                     $method->getDeclaringClass()->getName(),
                     $method->getName(),
                     (new \ReflectionClass($attribute))->getShortName(),
@@ -286,7 +286,7 @@ final readonly class AttributeScanner
 
         if (str_contains($attribute->uriTemplate, '{uri}')) {
             throw new LogicException(\sprintf(
-                '%s::%s() declares template variable "{uri}", which is reserved for the injected request URI. Rename the variable.',
+                '%s::%s() declares template variable "{uri}", which is reserved for the request URI. Rename it.',
                 $method->getDeclaringClass()->getName(),
                 $method->getName(),
             ));
@@ -362,7 +362,7 @@ final readonly class AttributeScanner
         foreach ($method->getParameters() as $parameter) {
             if ($parameter->isVariadic()) {
                 throw new LogicException(\sprintf(
-                    '%s::%s() declares a variadic parameter "$%s". Variadic parameters are supported only on #[AsTool] methods.',
+                    '%s::%s() declares variadic parameter "$%s", which only #[AsTool] methods support.',
                     $method->getDeclaringClass()->getName(),
                     $method->getName(),
                     $parameter->getName(),

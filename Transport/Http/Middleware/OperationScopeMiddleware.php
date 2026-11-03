@@ -93,7 +93,7 @@ final readonly class OperationScopeMiddleware implements MiddlewareInterface
 
         if (! $token instanceof VerifiedAccessToken) {
             throw new LogicException(\sprintf(
-                'Operation scopes need the validated token an authentication middleware stores on the "%s" request attribute, and none was found.',
+                'Operation scopes need the validated token that authentication stores on the "%s" request attribute.',
                 VerifiedAccessToken::REQUEST_ATTRIBUTE,
             ));
         }

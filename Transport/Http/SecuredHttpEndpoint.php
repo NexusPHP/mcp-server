@@ -73,7 +73,7 @@ final readonly class SecuredHttpEndpoint implements RequestHandlerInterface
         if (null !== $operationScopes) {
             if (null === $authentication) {
                 throw new LogicException(
-                    'SecuredHttpEndpoint was given "operationScopes" with no "authentication" to validate the token they are checked against.',
+                    'SecuredHttpEndpoint was given "operationScopes" without "authentication" to validate the token.',
                 );
             }
 

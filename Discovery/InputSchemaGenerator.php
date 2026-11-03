@@ -159,7 +159,7 @@ final readonly class InputSchemaGenerator
     {
         if (\in_array($class, $ancestors, true)) {
             throw new LogicException(\sprintf(
-                'Cannot generate the input schema for %s because it contains itself. Add #[InputSchema(...)] to describe it explicitly.',
+                'Cannot generate the input schema for %s because it contains itself. Add #[InputSchema(...)].',
                 $class,
             ));
         }
@@ -252,7 +252,7 @@ final readonly class InputSchemaGenerator
             $class = $function instanceof \ReflectionMethod ? $function->getDeclaringClass()->getName() : '{closure}';
 
             throw new LogicException(\sprintf(
-                'Cannot generate the input schema for parameter "$%s" of %s::%s(). %s Add #[InputSchema(...)] to describe it explicitly.',
+                'Cannot generate the input schema for parameter "$%s" of %s::%s(). %s Add #[InputSchema(...)].',
                 $parameter->getName(),
                 $class,
                 $function->getName(),

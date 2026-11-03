@@ -664,7 +664,7 @@ final class ServerBuilder
             if (null !== $metadata) {
                 if (null !== $this->serverMetadata) {
                     throw new LogicException(\sprintf(
-                        'A class-level #[AsServer] is already declared by an earlier registered source. "%s" must not declare another.',
+                        'A class-level #[AsServer] is already declared, so "%s" must not declare another.',
                         $source::class,
                     ));
                 }
@@ -775,7 +775,7 @@ final class ServerBuilder
 
             if (! $contributed) {
                 throw new LogicException(\sprintf(
-                    'The registered source "%s" declares no #[AsServer] and no #[AsTool], #[AsPrompt], #[AsResource], or #[AsResourceTemplate] method.',
+                    'Source "%s" declares no #[AsServer] and no #[As*] feature method.',
                     $source::class,
                 ));
             }

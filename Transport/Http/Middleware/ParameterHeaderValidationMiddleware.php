@@ -133,7 +133,7 @@ final class ParameterHeaderValidationMiddleware implements MiddlewareInterface
 
                 if (! $result->valid) {
                     $this->logger->warning(
-                        'Tool {tool} declares an invalid "x-mcp-header", so only its {checked} valid declarations are checked.',
+                        'Tool {tool} declares an invalid "x-mcp-header", so only {checked} valid ones are checked.',
                         ['tool' => $tool->name, 'reason' => $result->reason, 'checked' => \count($result->bindings)],
                     );
                 }

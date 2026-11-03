@@ -198,7 +198,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
 
             if (CancelledNotification::getMethod() === ($envelope['method'] ?? null)) {
                 $this->logger->debug(
-                    'Streamable HTTP server transport ignored a client cancellation notification: the response stream is the signal on this transport.',
+                    'Streamable HTTP transport ignored a cancellation notification: the response stream signals it.',
                 );
 
                 return $this->responseFactory->createResponse(HttpStatus::Accepted->value);
@@ -569,7 +569,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
 
         if (null !== $failure) {
             $this->logger->error(
-                'Streamable HTTP server transport replaced a response JSON cannot encode with an internal error: {reason}.',
+                'Streamable HTTP server transport replaced an unencodable response with an internal error: {reason}.',
                 ['reason' => $failure->getMessage()],
             );
         }
@@ -692,7 +692,7 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
             function (bool $overflowed) use ($internalId): void {
                 if ($overflowed) {
                     $this->logger->warning(
-                        'Streamable HTTP server transport abandoned a stream whose reader fell at least {limit} bytes behind.',
+                        'Streamable HTTP transport abandoned a stream whose reader fell {limit} bytes behind.',
                         ['limit' => $this->maxBufferedBytes],
                     );
                 }
