@@ -326,22 +326,22 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     {
         foreach ($this->entries as $entry) {
             $honoured = $entry->honoured;
-            $wanted = match ($kind) {
-                'tools' => true === $honoured->toolsListChanged,
-                'prompts' => true === $honoured->promptsListChanged,
-                default => true === $honoured->resourcesListChanged,
-            };
+            $params = new EmptyNotificationParams(new NotificationMetaObject(subscriptionId: $entry->subscriptionId));
 
-            if (! $wanted) {
-                continue;
+            if ('tools' === $kind) {
+                $wanted = true === $honoured->toolsListChanged;
+                $notification = new ToolListChangedNotification(params: $params);
+            } elseif ('prompts' === $kind) {
+                $wanted = true === $honoured->promptsListChanged;
+                $notification = new PromptListChangedNotification(params: $params);
+            } else {
+                $wanted = true === $honoured->resourcesListChanged;
+                $notification = new ResourceListChangedNotification(params: $params);
             }
 
-            $params = new EmptyNotificationParams(new NotificationMetaObject(subscriptionId: $entry->subscriptionId));
-            $this->pushTo($entry, match ($kind) {
-                'tools' => new ToolListChangedNotification(params: $params),
-                'prompts' => new PromptListChangedNotification(params: $params),
-                default => new ResourceListChangedNotification(params: $params),
-            });
+            if ($wanted) {
+                $this->pushTo($entry, $notification);
+            }
         }
     }
 
