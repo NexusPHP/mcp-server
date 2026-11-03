@@ -15,8 +15,10 @@ namespace Nexus\Mcp\Server\Handler\Request;
 
 use Nexus\Mcp\Core\Handler\AbstractContext;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
+use Nexus\Mcp\Core\Schema\ClientCapabilities;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\Result;
+use Nexus\Mcp\Server\Exception\MissingRequiredClientCapabilityException;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
@@ -43,10 +45,33 @@ final readonly class ExtensionGateRequestHandler implements RequestHandlerInterf
     {
         \assert($context instanceof ServerContext);
 
-        if (! ExtensionDeclarationGate::declares($context, $this->identifier)) {
-            throw ExtensionDeclarationGate::refuse($context, $this->identifier);
+        if (! self::declares($context, $this->identifier)) {
+            throw self::refuse($context, $this->identifier);
         }
 
         return $this->handler->handle($request, $context);
+    }
+
+    /**
+     * Whether the request's per-request client capabilities declared the extension.
+     *
+     * @param non-empty-string $identifier
+     */
+    public static function declares(ServerContext $context, string $identifier): bool
+    {
+        $declared = $context->meta->clientCapabilities->extensions;
+
+        return null !== $declared && \array_key_exists($identifier, $declared);
+    }
+
+    /**
+     * @param non-empty-string $identifier
+     */
+    public static function refuse(ServerContext $context, string $identifier): MissingRequiredClientCapabilityException
+    {
+        return new MissingRequiredClientCapabilityException(
+            new ClientCapabilities(extensions: [$identifier => []]),
+            $context->requestId,
+        );
     }
 }
