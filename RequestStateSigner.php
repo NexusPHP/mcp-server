@@ -74,7 +74,9 @@ final readonly class RequestStateSigner
             hash_hmac_algos(),
             \sprintf('The request-state signing algorithm "%s" is not available.', $algorithm),
         );
-        Assert::that($ttlSeconds)->isPositiveInt('The request-state TTL must be a positive number of seconds, {value} given.');
+        Assert::that($ttlSeconds)->isPositiveInt(
+            'The request-state TTL must be a positive number of seconds, {value} given.',
+        );
     }
 
     /**
@@ -97,11 +99,15 @@ final readonly class RequestStateSigner
     public static function deriveBinding(JsonRpcRequest $request, ReceiveContext $receiveContext): string
     {
         $params = $request->params;
-        [$target, $arguments] = match (true) {
-            $params instanceof CallToolRequestParams, $params instanceof GetPromptRequestParams => [$params->name, $params->arguments],
-            $params instanceof ResourceRequestParams => [$params->uri, null],
-            default => ['', null],
-        };
+        $target = '';
+        $arguments = null;
+
+        if ($params instanceof CallToolRequestParams || $params instanceof GetPromptRequestParams) {
+            $target = $params->name;
+            $arguments = $params->arguments;
+        } elseif ($params instanceof ResourceRequestParams) {
+            $target = $params->uri;
+        }
 
         return json_encode([
             $receiveContext->authInfo->subject ?? null,
@@ -212,6 +218,11 @@ final readonly class RequestStateSigner
     {
         $body = $payload.self::SEPARATOR.$expires;
 
-        return $body.self::SEPARATOR.hash_hmac($this->algorithm, \strlen($binding).self::SEPARATOR.$binding.$body, $secret);
+        return \sprintf(
+            '%s%s%s',
+            $body,
+            self::SEPARATOR,
+            hash_hmac($this->algorithm, \strlen($binding).self::SEPARATOR.$binding.$body, $secret),
+        );
     }
 }

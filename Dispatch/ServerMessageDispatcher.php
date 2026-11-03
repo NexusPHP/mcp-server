@@ -130,7 +130,10 @@ final readonly class ServerMessageDispatcher implements CancellableMessageDispat
     #[\Override]
     public function dispatch(array $envelope, TransportInterface $transport, ReceiveContext $context): void
     {
-        if (! \array_key_exists('method', $envelope) && (\array_key_exists('result', $envelope) || \array_key_exists('error', $envelope))) {
+        if (
+            ! \array_key_exists('method', $envelope)
+            && (\array_key_exists('result', $envelope) || \array_key_exists('error', $envelope))
+        ) {
             $this->discardResponseEnvelope();
 
             return;
@@ -146,7 +149,8 @@ final readonly class ServerMessageDispatcher implements CancellableMessageDispat
                 ['exception' => $e],
             );
 
-            // §4.1 splits notification from request on the envelope's id, not on the method it names, and §5 obliges a reply echoing that id.
+            // §4.1 splits notification from request on the envelope's id, not on the method it names,
+            // and §5 obliges a reply echoing that id.
             if ($isNotification) {
                 return;
             }
@@ -225,16 +229,21 @@ final readonly class ServerMessageDispatcher implements CancellableMessageDispat
     private function dispatchRequest(JsonRpcRequest $request, TransportInterface $transport, ReceiveContext $context): void
     {
         $method = $request::getMethod();
-        $holdsOpen = SubscriptionsListenRequest::getMethod() === $method && $this->requestHandlers->get($method) !== null;
+        $holdsOpen = SubscriptionsListenRequest::getMethod() === $method
+            && $this->requestHandlers->get($method) !== null;
 
         if ($holdsOpen ? $this->isListenSaturated() : $this->isSaturated()) {
-            $this->responseSender->send($transport, new JsonRpcErrorResponse(
-                id: $request->id,
-                error: new UnknownProtocolError(
-                    code: SdkErrorCode::Overloaded->value,
-                    message: 'Server overloaded',
+            $this->responseSender->send(
+                $transport,
+                new JsonRpcErrorResponse(
+                    id: $request->id,
+                    error: new UnknownProtocolError(
+                        code: SdkErrorCode::Overloaded->value,
+                        message: 'Server overloaded',
+                    ),
                 ),
-            ), $method);
+                $method,
+            );
 
             return;
         }
@@ -243,7 +252,11 @@ final readonly class ServerMessageDispatcher implements CancellableMessageDispat
 
         if (null === $cancellation) {
             $exception = new DuplicateInboundRequestIdException($request->id);
-            $this->responseSender->send($transport, ResponseSender::buildErrorResponse($exception, $request->id), $method);
+            $this->responseSender->send(
+                $transport,
+                ResponseSender::buildErrorResponse($exception, $request->id),
+                $method,
+            );
 
             return;
         }
@@ -256,133 +269,153 @@ final readonly class ServerMessageDispatcher implements CancellableMessageDispat
             $this->unstartedListens->track($started->getFuture());
         }
 
-        $this->coroutines->track(async(function () use ($request, $transport, $method, $context, $cancellation, $started): void {
-            $started?->complete();
+        $this->coroutines->track(
+            async(function () use ($request, $transport, $method, $context, $cancellation, $started): void {
+                $started?->complete();
 
-            try {
                 try {
-                    if (! $request instanceof ClientRequest) {
-                        throw new MethodNotFoundException($method, $request->id);
-                    }
+                    try {
+                        if (! $request instanceof ClientRequest) {
+                            throw new MethodNotFoundException($method, $request->id);
+                        }
 
-                    if (! $request->params instanceof RequestParams) {
-                        throw new InvalidRequestException($request->id, '"params" must be an object carrying the lifecycle "_meta" fields.');
-                    }
+                        if (! $request->params instanceof RequestParams) {
+                            throw new InvalidRequestException(
+                                $request->id,
+                                '"params" must be an object carrying the lifecycle "_meta" fields.',
+                            );
+                        }
 
-                    $requestedVersion = $request->params->meta->protocolVersion->version;
+                        $requestedVersion = $request->params->meta->protocolVersion->version;
 
-                    if (! \in_array($requestedVersion, ProtocolVersion::SUPPORTED_VERSIONS, true)) {
-                        $this->responseSender->send($transport, new JsonRpcErrorResponse(
-                            id: $request->id,
-                            error: new UnsupportedProtocolVersionError(
-                                requested: SafeDisplay::sanitise($requestedVersion),
-                                supported: ProtocolVersion::SUPPORTED_VERSIONS,
-                            ),
-                        ), $method);
+                        if (! \in_array($requestedVersion, ProtocolVersion::SUPPORTED_VERSIONS, true)) {
+                            $this->responseSender->send(
+                                $transport,
+                                new JsonRpcErrorResponse(
+                                    id: $request->id,
+                                    error: new UnsupportedProtocolVersionError(
+                                        requested: SafeDisplay::sanitise($requestedVersion),
+                                        supported: ProtocolVersion::SUPPORTED_VERSIONS,
+                                    ),
+                                ),
+                                $method,
+                            );
+
+                            return;
+                        }
+
+                        $handler = $this->requestHandlers->get($method)
+                            ?? throw new MethodNotFoundException($method, $request->id);
+
+                        $sender = new RequestBoundSender($transport, $request->id);
+                        $params = $request->params;
+                        $carrier = $params instanceof InputResponseCarrierInterface ? $params : null;
+                        $requestState = $carrier?->getRequestState();
+                        $signer = null === $carrier ? null : $this->requestStateSigner?->bindFor($request, $context);
+                        $payload = null;
+
+                        if (null !== $signer && null !== $requestState) {
+                            $payload = $signer->verify($requestState);
+
+                            if (null === $payload) {
+                                $this->logger->warning(
+                                    'Rejected the "requestState" echoed on {method}.',
+                                    ['method' => $method],
+                                );
+
+                                throw new InvalidParamsException($request->id, 'Invalid or expired "requestState".');
+                            }
+                        }
+
+                        $serverContext = new ServerContext(
+                            $request->id,
+                            $cancellation,
+                            $params->meta,
+                            $sender,
+                            $context,
+                            $carrier?->getInputResponses(),
+                            $requestState,
+                            $signer,
+                            $payload,
+                        );
+                        $result = $handler->handle($request, $serverContext);
+
+                        if (
+                            null !== $signer
+                            && $result instanceof InputRequiredResult
+                            && null !== $result->requestState
+                            && $signer->verify($result->requestState) === null
+                        ) {
+                            throw new \LogicException(\sprintf(
+                                'The handler for "%s" answered with a "requestState" that does not verify under the server\'s signer.',
+                                $method,
+                            ));
+                        }
+
+                        if (null !== $this->serverInfo && ! $result->meta->declaresServerInfo()) {
+                            $result = $result->rebuildWithMeta(new GenericResultMetaObject(
+                                serverInfo: $this->serverInfo,
+                                extras: $result->meta->extras,
+                            ));
+                        }
+
+                        $response = ResultResponseFactory::wrap($request, $result);
+                    } catch (TransportAlreadyClosedException $e) {
+                        $this->responseSender->logSkippedDelivery($method, $e);
 
                         return;
-                    }
+                    } catch (MethodNotFoundException $e) {
+                        $this->responseSender->send(
+                            $transport,
+                            ResponseSender::buildErrorResponse($e, $request->id),
+                            $method,
+                        );
 
-                    $handler = $this->requestHandlers->get($method)
-                        ?? throw new MethodNotFoundException($method, $request->id);
+                        return;
+                    } catch (AbstractJsonRpcProtocolException $e) {
+                        $this->sendUnlessCancelled(
+                            $cancellation,
+                            $transport,
+                            ResponseSender::buildErrorResponse($e, $request->id),
+                            $method,
+                            new SendContext(fromHandler: true),
+                        );
 
-                    $sender = new RequestBoundSender($transport, $request->id);
-                    $params = $request->params;
-                    $carrier = $params instanceof InputResponseCarrierInterface ? $params : null;
-                    $requestState = $carrier?->getRequestState();
-                    $signer = null === $carrier ? null : $this->requestStateSigner?->bindFor($request, $context);
-                    $payload = null;
+                        return;
+                    } catch (\Throwable $e) {
+                        if ($cancellation->isRequested()) {
+                            $this->logger->debug(
+                                'Dropping the response to a request whose handler the cancellation interrupted.',
+                                ['method' => $method],
+                            );
 
-                    if (null !== $signer && null !== $requestState) {
-                        $payload = $signer->verify($requestState);
-
-                        if (null === $payload) {
-                            $this->logger->warning('Rejected the "requestState" echoed on {method}.', ['method' => $method]);
-
-                            throw new InvalidParamsException($request->id, 'Invalid or expired "requestState".');
+                            return;
                         }
-                    }
 
-                    $serverContext = new ServerContext(
-                        $request->id,
-                        $cancellation,
-                        $params->meta,
-                        $sender,
-                        $context,
-                        $carrier?->getInputResponses(),
-                        $requestState,
-                        $signer,
-                        $payload,
-                    );
-                    $result = $handler->handle($request, $serverContext);
-
-                    if (
-                        null !== $signer
-                        && $result instanceof InputRequiredResult
-                        && null !== $result->requestState
-                        && $signer->verify($result->requestState) === null
-                    ) {
-                        throw new \LogicException(\sprintf('The handler for "%s" answered with a "requestState" that does not verify under the server\'s signer.', $method));
-                    }
-
-                    if (null !== $this->serverInfo && ! $result->meta->declaresServerInfo()) {
-                        $result = $result->rebuildWithMeta(new GenericResultMetaObject(
-                            serverInfo: $this->serverInfo,
-                            extras: $result->meta->extras,
-                        ));
-                    }
-
-                    $response = ResultResponseFactory::wrap($request, $result);
-                } catch (TransportAlreadyClosedException $e) {
-                    $this->responseSender->logSkippedDelivery($method, $e);
-
-                    return;
-                } catch (MethodNotFoundException $e) {
-                    $this->responseSender->send($transport, ResponseSender::buildErrorResponse($e, $request->id), $method);
-
-                    return;
-                } catch (AbstractJsonRpcProtocolException $e) {
-                    $this->sendUnlessCancelled(
-                        $cancellation,
-                        $transport,
-                        ResponseSender::buildErrorResponse($e, $request->id),
-                        $method,
-                        new SendContext(fromHandler: true),
-                    );
-
-                    return;
-                } catch (\Throwable $e) {
-                    if ($cancellation->isRequested()) {
-                        $this->logger->debug(
-                            'Dropping the response to a request whose handler the cancellation interrupted.',
-                            ['method' => $method],
+                        $this->logger->error(
+                            'Uncaught request handler exception.',
+                            ['method' => $method, 'exception' => $e],
+                        );
+                        $this->responseSender->send(
+                            $transport,
+                            new JsonRpcErrorResponse(
+                                id: $request->id,
+                                error: new InternalError(message: InternalError::DEFAULT_MESSAGE),
+                            ),
+                            $method,
+                            new SendContext(fromHandler: true),
                         );
 
                         return;
                     }
 
-                    $this->logger->error(
-                        'Uncaught request handler exception.',
-                        ['method' => $method, 'exception' => $e],
-                    );
-                    $this->responseSender->send(
-                        $transport,
-                        new JsonRpcErrorResponse(
-                            id: $request->id,
-                            error: new InternalError(message: InternalError::DEFAULT_MESSAGE),
-                        ),
-                        $method,
-                        new SendContext(fromHandler: true),
-                    );
-
-                    return;
+                    $this->sendUnlessCancelled($cancellation, $transport, $response, $method);
+                } finally {
+                    $this->inboundRequests->release($request->id);
                 }
-
-                $this->sendUnlessCancelled($cancellation, $transport, $response, $method);
-            } finally {
-                $this->inboundRequests->release($request->id);
-            }
-        }), occupiesSlot: ! $holdsOpen);
+            }),
+            occupiesSlot: ! $holdsOpen,
+        );
     }
 
     /**

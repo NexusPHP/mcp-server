@@ -57,7 +57,11 @@ final class RelayedStdinStream implements \IteratorAggregate, ReadableStream
      */
     public function __construct(mixed $stdin)
     {
-        $relay = proc_open([\PHP_BINARY, '-n', '-d', 'display_errors=stderr', '-r', self::RELAY], [0 => $stdin, 1 => ['socket'], 2 => \STDERR], $pipes);
+        $relay = proc_open(
+            [\PHP_BINARY, '-n', '-d', 'display_errors=stderr', '-r', self::RELAY],
+            [0 => $stdin, 1 => ['socket'], 2 => \STDERR],
+            $pipes,
+        );
         Assert::that($relay)->isResource('The STDIN relay subprocess failed to start.');
 
         $this->relay = $relay;

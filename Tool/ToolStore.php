@@ -65,12 +65,8 @@ final class ToolStore implements MutableToolStoreInterface
             );
         }
 
-        Assert::that($pageSize)
-            ->isPositiveInt('Tool store page size must be a positive integer, {value} given.')
-        ;
-        Assert::that($ttlMs)
-            ->isNaturalInt('Tool store TTL must be a non-negative integer, {value} given.')
-        ;
+        Assert::that($pageSize)->isPositiveInt('Tool store page size must be a positive integer, {value} given.');
+        Assert::that($ttlMs)->isNaturalInt('Tool store TTL must be a non-negative integer, {value} given.');
 
         $this->paginator = new CursorPaginator($pageSize);
     }
@@ -136,14 +132,14 @@ final class ToolStore implements MutableToolStoreInterface
         $inputErrors = $this->validator->validate($inputData, (array) $encoded['inputSchema']);
 
         if ([] !== $inputErrors) {
+            $violations = implode(' ', array_map(
+                static fn(SchemaViolation $violation): string => $violation->message,
+                $inputErrors,
+            ));
+
             throw new InvalidParamsException(
                 $context->requestId,
-                SafeDisplay::sanitiseCause(
-                    \sprintf('Invalid arguments for tool "%s": %s', $name, implode(' ', array_map(
-                        static fn(SchemaViolation $violation): string => $violation->message,
-                        $inputErrors,
-                    ))),
-                ),
+                SafeDisplay::sanitiseCause(\sprintf('Invalid arguments for tool "%s": %s', $name, $violations)),
                 errorData: ['validation_errors' => $this->describeViolations($inputErrors)],
             );
         }

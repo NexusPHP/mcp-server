@@ -53,7 +53,8 @@ final readonly class CallToolRequestHandler implements RequestHandlerInterface
                 return $result;
             }
 
-            // Spec, "Structured Content": a tool returning structured content SHOULD also return the serialized JSON in a TextContent block.
+            // Spec, "Structured Content": a tool returning structured content SHOULD also
+            // return the serialized JSON in a TextContent block.
             if (null !== $result->structuredContent && [] === $result->content) {
                 return new CallToolResult(
                     content: [new TextContent(text: json_encode(

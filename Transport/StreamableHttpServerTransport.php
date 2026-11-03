@@ -121,7 +121,10 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         private readonly int $maxBufferedBytes = self::DEFAULT_MAX_BUFFERED_BYTES,
     ) {
         if ($this->keepAliveInterval <= 0.0) {
-            throw new \InvalidArgumentException(\sprintf('The SSE keep-alive interval must be positive, %s given.', $this->keepAliveInterval));
+            throw new \InvalidArgumentException(\sprintf(
+                'The SSE keep-alive interval must be positive, %s given.',
+                $this->keepAliveInterval,
+            ));
         }
 
         Assert::that($this->maxBufferedBytes)->isPositiveInt('The SSE buffer cap must be positive, {value} given.');
@@ -134,7 +137,10 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         if ($request->getMethod() !== 'POST') {
-            return $this->responseFactory->createResponse(HttpStatus::MethodNotAllowed->value)->withHeader('Allow', 'POST');
+            return $this->responseFactory
+                ->createResponse(HttpStatus::MethodNotAllowed->value)
+                ->withHeader('Allow', 'POST')
+            ;
         }
 
         if (TransportState::Running !== $this->state) {
@@ -154,7 +160,10 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
             try {
                 $envelope = json_decode((string) $request->getBody(), associative: true, flags: \JSON_THROW_ON_ERROR);
             } catch (\JsonException $e) {
-                $this->logger->warning('Streamable HTTP server transport rejected a malformed JSON body.', ['exception' => $e]);
+                $this->logger->warning(
+                    'Streamable HTTP server transport rejected a malformed JSON body.',
+                    ['exception' => $e],
+                );
                 $this->events->emitError($e);
 
                 return $this->buildErrorResponse(new ParseError(message: ParseError::DEFAULT_MESSAGE));
@@ -164,19 +173,27 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         try {
             Assert::that($envelope)->isMap('JSON-RPC envelope must be a JSON object, {type} given.');
         } catch (\InvalidArgumentException $e) {
-            $this->logger->warning('Streamable HTTP server transport rejected a non-object envelope.', ['exception' => $e]);
+            $this->logger->warning(
+                'Streamable HTTP server transport rejected a non-object envelope.',
+                ['exception' => $e],
+            );
             $this->events->emitError($e);
 
             return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
         }
 
-        if (! \array_key_exists('method', $envelope) && (\array_key_exists('result', $envelope) || \array_key_exists('error', $envelope))) {
+        if (
+            ! \array_key_exists('method', $envelope)
+            && (\array_key_exists('result', $envelope) || \array_key_exists('error', $envelope))
+        ) {
             return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
         }
 
         if (! \array_key_exists('id', $envelope)) {
             if (! $this->isAcceptableNotification($envelope)) {
-                return $this->buildErrorResponse(new InvalidRequestError(message: InvalidRequestError::DEFAULT_MESSAGE));
+                return $this->buildErrorResponse(new InvalidRequestError(
+                    message: InvalidRequestError::DEFAULT_MESSAGE,
+                ));
             }
 
             if (CancelledNotification::getMethod() === ($envelope['method'] ?? null)) {
@@ -332,7 +349,8 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     {
         $ranges = $this->parseAcceptableMediaRanges($request->getHeaderLine('Accept'));
 
-        return $this->matchesMediaRange($ranges, 'application/json') && $this->matchesMediaRange($ranges, 'text/event-stream');
+        return $this->matchesMediaRange($ranges, 'application/json')
+            && $this->matchesMediaRange($ranges, 'text/event-stream');
     }
 
     /**
@@ -398,8 +416,11 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      * @param array<string, mixed> $envelope
      * @param int|non-empty-string $clientId
      */
-    private function dispatchBuffered(array $envelope, int|string $clientId, ServerRequestInterface $request): ResponseInterface
-    {
+    private function dispatchBuffered(
+        array $envelope,
+        int|string $clientId,
+        ServerRequestInterface $request,
+    ): ResponseInterface {
         /** @var DeferredFuture<ResponseInterface> $deferred */
         $deferred = new DeferredFuture();
 
@@ -418,8 +439,11 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      * @param array<string, mixed> $envelope
      * @param int|non-empty-string $clientId
      */
-    private function dispatchStreaming(array $envelope, int|string $clientId, ServerRequestInterface $request): ResponseInterface
-    {
+    private function dispatchStreaming(
+        array $envelope,
+        int|string $clientId,
+        ServerRequestInterface $request,
+    ): ResponseInterface {
         /** @var DeferredFuture<ResponseInterface> $unused */
         $unused = new DeferredFuture();
         $internalId = ++$this->lastRequestId;
@@ -492,8 +516,10 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      *
      * @param null|int|non-empty-string $clientId
      */
-    private function buildReceiveContext(ServerRequestInterface $request, null|int|string $clientId = null): ReceiveContext
-    {
+    private function buildReceiveContext(
+        ServerRequestInterface $request,
+        null|int|string $clientId = null,
+    ): ReceiveContext {
         $token = $request->getAttribute(VerifiedAccessToken::REQUEST_ATTRIBUTE);
 
         return new ReceiveContext(
@@ -508,7 +534,9 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $id = $message->id;
 
         if (! $id instanceof RequestId) {
-            $this->logger->warning('Streamable HTTP server transport discarded a response that carries no id to correlate.');
+            $this->logger->warning(
+                'Streamable HTTP server transport discarded a response that carries no id to correlate.',
+            );
 
             return;
         }
@@ -516,7 +544,9 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $internalId = $id->id;
 
         if (! \is_int($internalId) || ! \array_key_exists($internalId, $this->sinks)) {
-            $this->logger->warning('Streamable HTTP server transport discarded an orphan response with no in-flight request.');
+            $this->logger->warning(
+                'Streamable HTTP server transport discarded an orphan response with no in-flight request.',
+            );
 
             return;
         }
@@ -538,7 +568,10 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $this->deliver($sink, $internalId, $payload, $status);
 
         if (null !== $failure) {
-            $this->logger->error('Streamable HTTP server transport replaced a response JSON cannot encode with an internal error: {reason}.', ['reason' => $failure->getMessage()]);
+            $this->logger->error(
+                'Streamable HTTP server transport replaced a response JSON cannot encode with an internal error: {reason}.',
+                ['reason' => $failure->getMessage()],
+            );
         }
     }
 
@@ -592,7 +625,9 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $related = $context?->relatedRequestId;
 
         if (! $related instanceof RequestId) {
-            $this->logger->debug('Streamable HTTP server transport dropped a notification with no related request to stream it to.');
+            $this->logger->debug(
+                'Streamable HTTP server transport dropped a notification with no related request to stream it to.',
+            );
 
             return;
         }
@@ -600,7 +635,9 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         $internalId = $related->id;
 
         if (! \is_int($internalId) || ! \array_key_exists($internalId, $this->sinks)) {
-            $this->logger->debug('Streamable HTTP server transport dropped a notification for a request that is no longer in flight.');
+            $this->logger->debug(
+                'Streamable HTTP server transport dropped a notification for a request that is no longer in flight.',
+            );
 
             return;
         }
@@ -613,7 +650,9 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
         } elseif (ResponseMode::Auto === $this->responseMode) {
             $this->upgradeToStream($internalId, $sink['clientId'], $sink['buffered'], $notification->jsonSerialize());
         } else {
-            $this->logger->debug('Streamable HTTP server transport dropped a notification: the JSON response mode cannot stream it.');
+            $this->logger->debug(
+                'Streamable HTTP server transport dropped a notification: the JSON response mode cannot stream it.',
+            );
         }
     }
 
@@ -625,8 +664,12 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
      * @param DeferredFuture<ResponseInterface> $buffered
      * @param array<string, mixed>              $envelope
      */
-    private function upgradeToStream(int $internalId, int|string $clientId, DeferredFuture $buffered, array $envelope): void
-    {
+    private function upgradeToStream(
+        int $internalId,
+        int|string $clientId,
+        DeferredFuture $buffered,
+        array $envelope,
+    ): void {
         $frame = $this->frame($this->encode($envelope));
         $stream = $this->buildStream($internalId);
         $response = $this->buildSseResponse($stream);

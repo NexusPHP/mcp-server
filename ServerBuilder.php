@@ -270,7 +270,9 @@ final class ServerBuilder
     {
         $this->assertNotBuilt();
 
-        Assert::that($max)->nullOr()->isPositiveInt('Maximum in-flight dispatches must be a positive integer or null, {value} given.');
+        Assert::that($max)->nullOr()->isPositiveInt(
+            'Maximum in-flight dispatches must be a positive integer or null, {value} given.',
+        );
 
         $this->maxInFlight = $max;
 
@@ -290,10 +292,9 @@ final class ServerBuilder
     {
         $this->assertNotBuilt();
 
-        Assert::that($instructions)
-            ->nullOr()
-            ->isNonEmptyString('Server instructions must be a non-empty string or null.')
-        ;
+        Assert::that($instructions)->nullOr()->isNonEmptyString(
+            'Server instructions must be a non-empty string or null.',
+        );
 
         $this->instructions = $instructions;
 
@@ -429,8 +430,10 @@ final class ServerBuilder
     /**
      * @param (\Closure(non-empty-string, array<string, string>, ServerContext): (InputRequiredResult|ReadResourceResult))|TemplatedResourceReaderInterface $reader
      */
-    public function addResourceTemplate(ResourceTemplate $template, \Closure|TemplatedResourceReaderInterface $reader): self
-    {
+    public function addResourceTemplate(
+        ResourceTemplate $template,
+        \Closure|TemplatedResourceReaderInterface $reader,
+    ): self {
         $this->assertNotBuilt();
 
         IdentifierNameValidator::validate($template->name, 'resource template "name"');
@@ -589,8 +592,11 @@ final class ServerBuilder
     /**
      * @param (\Closure(string, ?array<array-key, string>, ServerContext): CompleteResult)|CompletionProviderInterface $provider
      */
-    public function addPromptCompletion(string $prompt, string $argument, \Closure|CompletionProviderInterface $provider): self
-    {
+    public function addPromptCompletion(
+        string $prompt,
+        string $argument,
+        \Closure|CompletionProviderInterface $provider,
+    ): self {
         $this->assertNotBuilt();
 
         Assert::that($prompt)->isNonEmptyString('Completion prompt name must be a non-empty string.');
@@ -606,8 +612,11 @@ final class ServerBuilder
     /**
      * @param (\Closure(string, ?array<array-key, string>, ServerContext): CompleteResult)|CompletionProviderInterface $provider
      */
-    public function addResourceTemplateCompletion(string $uriTemplate, string $argument, \Closure|CompletionProviderInterface $provider): self
-    {
+    public function addResourceTemplateCompletion(
+        string $uriTemplate,
+        string $argument,
+        \Closure|CompletionProviderInterface $provider,
+    ): self {
         $this->assertNotBuilt();
 
         Assert::that($uriTemplate)->isNonEmptyString('Completion URI template must be a non-empty string.');
@@ -669,7 +678,12 @@ final class ServerBuilder
 
                 if ($entry instanceof ToolEntry) {
                     if (\array_key_exists($entry->tool->name, $this->discoveredFeatures['tools'])) {
-                        $this->refuseDuplicateEntry('tool', $entry->tool->name, $source::class, $this->discoveredFeatures['tools'][$entry->tool->name]);
+                        $this->refuseDuplicateEntry(
+                            'tool',
+                            $entry->tool->name,
+                            $source::class,
+                            $this->discoveredFeatures['tools'][$entry->tool->name],
+                        );
                     }
 
                     $this->discoveredFeatures['tools'][$entry->tool->name] = $source::class;
@@ -680,7 +694,12 @@ final class ServerBuilder
 
                 if ($entry instanceof PromptEntry) {
                     if (\array_key_exists($entry->prompt->name, $this->discoveredFeatures['prompts'])) {
-                        $this->refuseDuplicateEntry('prompt', $entry->prompt->name, $source::class, $this->discoveredFeatures['prompts'][$entry->prompt->name]);
+                        $this->refuseDuplicateEntry(
+                            'prompt',
+                            $entry->prompt->name,
+                            $source::class,
+                            $this->discoveredFeatures['prompts'][$entry->prompt->name],
+                        );
                     }
 
                     $this->discoveredFeatures['prompts'][$entry->prompt->name] = $source::class;
@@ -691,7 +710,12 @@ final class ServerBuilder
 
                 if ($entry instanceof ResourceEntry) {
                     if (\array_key_exists($entry->resource->uri, $this->discoveredFeatures['resources'])) {
-                        $this->refuseDuplicateEntry('resource', $entry->resource->uri, $source::class, $this->discoveredFeatures['resources'][$entry->resource->uri]);
+                        $this->refuseDuplicateEntry(
+                            'resource',
+                            $entry->resource->uri,
+                            $source::class,
+                            $this->discoveredFeatures['resources'][$entry->resource->uri],
+                        );
                     }
 
                     $this->discoveredFeatures['resources'][$entry->resource->uri] = $source::class;
@@ -702,7 +726,12 @@ final class ServerBuilder
 
                 if ($entry instanceof ResourceTemplateEntry) {
                     if (\array_key_exists($entry->template->uriTemplate, $this->discoveredFeatures['resource-templates'])) {
-                        $this->refuseDuplicateEntry('resource template', $entry->template->uriTemplate, $source::class, $this->discoveredFeatures['resource-templates'][$entry->template->uriTemplate]);
+                        $this->refuseDuplicateEntry(
+                            'resource template',
+                            $entry->template->uriTemplate,
+                            $source::class,
+                            $this->discoveredFeatures['resource-templates'][$entry->template->uriTemplate],
+                        );
                     }
 
                     $this->discoveredFeatures['resource-templates'][$entry->template->uriTemplate] = $source::class;
@@ -715,7 +744,12 @@ final class ServerBuilder
                     $promptKey = \sprintf('%s:%s', $entry->prompt, $entry->argument);
 
                     if (\array_key_exists($promptKey, $this->discoveredFeatures['completions-prompt'])) {
-                        $this->refuseDuplicateEntry('prompt completion', $promptKey, $source::class, $this->discoveredFeatures['completions-prompt'][$promptKey]);
+                        $this->refuseDuplicateEntry(
+                            'prompt completion',
+                            $promptKey,
+                            $source::class,
+                            $this->discoveredFeatures['completions-prompt'][$promptKey],
+                        );
                     }
 
                     $this->discoveredFeatures['completions-prompt'][$promptKey] = $source::class;
@@ -727,7 +761,12 @@ final class ServerBuilder
                 $completionKey = \sprintf('%s:%s', $entry->uriTemplate, $entry->argument);
 
                 if (\array_key_exists($completionKey, $this->discoveredFeatures['completions-template'])) {
-                    $this->refuseDuplicateEntry('resource template completion', $completionKey, $source::class, $this->discoveredFeatures['completions-template'][$completionKey]);
+                    $this->refuseDuplicateEntry(
+                        'resource template completion',
+                        $completionKey,
+                        $source::class,
+                        $this->discoveredFeatures['completions-template'][$completionKey],
+                    );
                 }
 
                 $this->discoveredFeatures['completions-template'][$completionKey] = $source::class;
@@ -793,11 +832,14 @@ final class ServerBuilder
 
         $this->extensions->assertNotOwned($method);
 
-        Assert::that($request)->isSubclassOf(ClientRequest::class, \sprintf(
-            'Request class "%s" must implement "%s" for the server to dispatch it.',
-            $request,
+        Assert::that($request)->isSubclassOf(
             ClientRequest::class,
-        ));
+            \sprintf(
+                'Request class "%s" must implement "%s" for the server to dispatch it.',
+                $request,
+                ClientRequest::class,
+            ),
+        );
 
         $this->customRequestHandlers[$method] = $handler;
         $this->customRequestClasses[$method] = $request;
@@ -1009,10 +1051,9 @@ final class ServerBuilder
     {
         $instructions = $this->instructions ?? $this->serverMetadata?->instructions;
 
-        Assert::that($instructions)
-            ->nullOr()
-            ->isNonEmptyString('Server instructions must be a non-empty string or null.')
-        ;
+        Assert::that($instructions)->nullOr()->isNonEmptyString(
+            'Server instructions must be a non-empty string or null.',
+        );
 
         return $instructions;
     }
@@ -1030,7 +1071,9 @@ final class ServerBuilder
     private function assertNotBuilt(): void
     {
         if ($this->built) {
-            throw new LogicException('This builder has already been built. Construct a new ServerBuilder for another server.');
+            throw new LogicException(
+                'This builder has already been built. Construct a new ServerBuilder for another server.',
+            );
         }
     }
 
@@ -1042,11 +1085,17 @@ final class ServerBuilder
             completions: $this->hasCompletionsCapability() ? [] : null,
             extensions: $this->extensions->buildCapabilitySlot(),
             prompts: $this->hasPromptsCapability()
-                ? $this->listChangedFlag($this->getPromptStore() instanceof ListChangeSourceInterface, $honoured?->promptsListChanged)
+                ? $this->listChangedFlag(
+                    $this->getPromptStore() instanceof ListChangeSourceInterface,
+                    $honoured?->promptsListChanged,
+                )
                 : null,
             resources: $this->buildResourcesCapability($honoured),
             tools: $this->hasToolsCapability()
-                ? $this->listChangedFlag($this->getToolStore() instanceof ListChangeSourceInterface, $honoured?->toolsListChanged)
+                ? $this->listChangedFlag(
+                    $this->getToolStore() instanceof ListChangeSourceInterface,
+                    $honoured?->toolsListChanged,
+                )
                 : null,
         );
     }
@@ -1178,16 +1227,18 @@ final class ServerBuilder
         $resourceTemplateStore = $this->getResourceTemplateStore();
 
         if (null !== $resourceTemplateStore) {
-            $defaults[ListResourceTemplatesRequest::getMethod()] = new ListResourceTemplatesRequestHandler($resourceTemplateStore);
+            $defaults[ListResourceTemplatesRequest::getMethod()] = new ListResourceTemplatesRequestHandler(
+                $resourceTemplateStore,
+            );
         }
 
         $resourceStore = $this->getResourceStore();
 
         if (null !== $resourceStore) {
             $defaults[ListResourcesRequest::getMethod()] = new ListResourcesRequestHandler($resourceStore);
-            $defaults[ReadResourceRequest::getMethod()] = new ReadResourceRequestHandler(
-                null !== $resourceTemplateStore ? new CompositeResourceStore($resourceStore, $resourceTemplateStore) : $resourceStore,
-            );
+            $defaults[ReadResourceRequest::getMethod()] = new ReadResourceRequestHandler(null !== $resourceTemplateStore
+                ? new CompositeResourceStore($resourceStore, $resourceTemplateStore)
+                : $resourceStore);
         }
 
         $completionStore = $this->getCompletionStore();
@@ -1203,7 +1254,11 @@ final class ServerBuilder
             );
         }
 
-        return $this->applyRequestDecorators([...$defaults, ...$this->buildExtensionRequestHandlers(), ...$this->customRequestHandlers]);
+        return $this->applyRequestDecorators([
+            ...$defaults,
+            ...$this->buildExtensionRequestHandlers(),
+            ...$this->customRequestHandlers,
+        ]);
     }
 
     /**
@@ -1241,18 +1296,24 @@ final class ServerBuilder
 
         foreach ($groups as $identifier => $decorators) {
             foreach ($decorators as $method => $decorate) {
-                Assert::that($handlers)->hasOffset($method, \sprintf(
-                    'Extension "%s" decorates "%s", but no handler serves that method.',
-                    $identifier,
+                Assert::that($handlers)->hasOffset(
                     $method,
-                ));
+                    \sprintf(
+                        'Extension "%s" decorates "%s", but no handler serves that method.',
+                        $identifier,
+                        $method,
+                    ),
+                );
 
                 $decorated = $decorate($handlers[$method]);
-                Assert::that($decorated)->isInstanceOf(RequestHandlerInterface::class, \sprintf(
-                    'Extension "%s" decorator for "%s" must return a request handler, {type} given.',
-                    $identifier,
-                    $method,
-                ));
+                Assert::that($decorated)->isInstanceOf(
+                    RequestHandlerInterface::class,
+                    \sprintf(
+                        'Extension "%s" decorator for "%s" must return a request handler, {type} given.',
+                        $identifier,
+                        $method,
+                    ),
+                );
 
                 $handlers[$method] = $decorated;
             }
@@ -1263,7 +1324,13 @@ final class ServerBuilder
 
     private function refuseDuplicateEntry(string $kind, string $key, string $source, string $owner): never
     {
-        throw new LogicException(\sprintf('"%s" declares %s "%s", which "%s" already declares.', $source, $kind, $key, $owner));
+        throw new LogicException(\sprintf(
+            '"%s" declares %s "%s", which "%s" already declares.',
+            $source,
+            $kind,
+            $key,
+            $owner,
+        ));
     }
 
     private function refuseReservedMethod(string $method, bool $isNotification): never

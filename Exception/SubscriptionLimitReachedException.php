@@ -36,7 +36,10 @@ final class SubscriptionLimitReachedException extends AbstractJsonRpcProtocolExc
         parent::__construct(
             $requestId,
             $perStream
-                ? \sprintf('Subscription limit reached: this server watches at most %d resource URIs per stream.', $limit)
+                ? \sprintf(
+                    'Subscription limit reached: this server watches at most %d resource URIs per stream.',
+                    $limit,
+                )
                 : \sprintf(
                     'Subscription limit reached: this server holds at most %d open streams%s.',
                     $limit,

@@ -59,12 +59,8 @@ final class PromptStore implements MutablePromptStoreInterface
             );
         }
 
-        Assert::that($pageSize)
-            ->isPositiveInt('Prompt store page size must be a positive integer, {value} given.')
-        ;
-        Assert::that($ttlMs)
-            ->isNaturalInt('Prompt store TTL must be a non-negative integer, {value} given.')
-        ;
+        Assert::that($pageSize)->isPositiveInt('Prompt store page size must be a positive integer, {value} given.');
+        Assert::that($ttlMs)->isNaturalInt('Prompt store TTL must be a non-negative integer, {value} given.');
 
         $this->paginator = new CursorPaginator($pageSize);
     }

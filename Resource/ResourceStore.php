@@ -49,18 +49,16 @@ final class ResourceStore implements MutableResourceStoreInterface
         private readonly int $ttlMs = 0,
         private readonly CacheScope $cacheScope = CacheScope::Private,
     ) {
-        Assert::that($entries)
-            ->keys()
-            ->isNonEmptyString('Resource store entry key must be a non-empty string.')
-        ;
+        Assert::that($entries)->keys()->isNonEmptyString('Resource store entry key must be a non-empty string.');
 
         foreach ($entries as $key => $entry) {
             IdentifierNameValidator::validate($entry->resource->name, 'resource "name"');
             IconSrcValidator::validate($entry->resource->icons, 'resource');
 
-            Assert::that($entry->resource->uri)
-                ->isIdentical($key, 'Resource store entry key "{other}" must match its resource URI "{value}".')
-            ;
+            Assert::that($entry->resource->uri)->isIdentical(
+                $key,
+                'Resource store entry key "{other}" must match its resource URI "{value}".',
+            );
         }
 
         Assert::that($pageSize)->isPositiveInt('Resource store page size must be a positive integer, {value} given.');

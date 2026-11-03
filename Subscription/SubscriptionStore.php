@@ -106,12 +106,20 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     }
 
     #[\Override]
-    public function open(RequestId $subscriptionId, SubscriptionFilter $requested, SenderInterface $sender, ?string $peer = null): SubscriptionEntry
-    {
+    public function open(
+        RequestId $subscriptionId,
+        SubscriptionFilter $requested,
+        SenderInterface $sender,
+        ?string $peer = null,
+    ): SubscriptionEntry {
         $honoured = $this->honour($requested);
 
         if ($this->maxResourceSubscriptionsPerStream < \count($honoured->resourceSubscriptions ?? [])) {
-            throw new SubscriptionLimitReachedException($this->maxResourceSubscriptionsPerStream, $subscriptionId, perStream: true);
+            throw new SubscriptionLimitReachedException(
+                $this->maxResourceSubscriptionsPerStream,
+                $subscriptionId,
+                perStream: true,
+            );
         }
 
         if ($this->maxSubscriptions <= \count($this->entries) + $this->pendingOpens) {
@@ -122,7 +130,11 @@ final class SubscriptionStore implements SubscriptionStoreInterface
             $held = $this->peerHeld[$peer] ?? 0;
 
             if ($this->maxSubscriptionsPerPeer <= $held) {
-                throw new SubscriptionLimitReachedException($this->maxSubscriptionsPerPeer, $subscriptionId, perPeer: true);
+                throw new SubscriptionLimitReachedException(
+                    $this->maxSubscriptionsPerPeer,
+                    $subscriptionId,
+                    perPeer: true,
+                );
             }
 
             $this->peerHeld[$peer] = $held + 1;
@@ -136,12 +148,11 @@ final class SubscriptionStore implements SubscriptionStoreInterface
         ++$this->pendingOpens;
 
         try {
-            $sender->sendNotification(new SubscriptionsAcknowledgedNotification(
-                params: new SubscriptionsAcknowledgedNotificationParams(
-                    notifications: $honoured,
-                    meta: new NotificationMetaObject(subscriptionId: $subscriptionId),
-                ),
-            ));
+            $acknowledgement = new SubscriptionsAcknowledgedNotificationParams(
+                notifications: $honoured,
+                meta: new NotificationMetaObject(subscriptionId: $subscriptionId),
+            );
+            $sender->sendNotification(new SubscriptionsAcknowledgedNotification(params: $acknowledgement));
         } catch (\Throwable $e) {
             if (null !== $peer) {
                 $this->releasePeer($peer);
@@ -185,12 +196,13 @@ final class SubscriptionStore implements SubscriptionStoreInterface
 
         $this->discard($entry);
 
-        $this->pushTo($entry, new CancelledNotification(
-            params: new CancelledNotificationParams(
+        $this->pushTo(
+            $entry,
+            new CancelledNotification(params: new CancelledNotificationParams(
                 requestId: $entry->subscriptionId,
                 meta: new NotificationMetaObject(subscriptionId: $entry->subscriptionId),
-            ),
-        ));
+            )),
+        );
 
         $entry->closed->complete();
     }
@@ -268,7 +280,9 @@ final class SubscriptionStore implements SubscriptionStoreInterface
         return new SubscriptionFilter(
             toolsListChanged: $this->toolsListChanged && true === $requested->toolsListChanged ? true : null,
             promptsListChanged: $this->promptsListChanged && true === $requested->promptsListChanged ? true : null,
-            resourcesListChanged: $this->resourcesListChanged && true === $requested->resourcesListChanged ? true : null,
+            resourcesListChanged: $this->resourcesListChanged && true === $requested->resourcesListChanged
+                ? true
+                : null,
             resourceSubscriptions: $this->resourceSubscriptions ? $requested->resourceSubscriptions : null,
         );
     }
@@ -337,12 +351,13 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     private function broadcastResourceUpdate(string $uri): void
     {
         foreach ($this->uriWatchers[$uri] ?? [] as $entry) {
-            $this->pushTo($entry, new ResourceUpdatedNotification(
-                params: new ResourceUpdatedNotificationParams(
+            $this->pushTo(
+                $entry,
+                new ResourceUpdatedNotification(params: new ResourceUpdatedNotificationParams(
                     uri: $uri,
                     meta: new NotificationMetaObject(subscriptionId: $entry->subscriptionId),
-                ),
-            ));
+                )),
+            );
         }
     }
 

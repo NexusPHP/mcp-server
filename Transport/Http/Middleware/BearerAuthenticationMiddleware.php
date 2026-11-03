@@ -55,7 +55,9 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
         private int $expiryLeewaySeconds = 0,
         private Clock $clock = new SystemClock(),
     ) {
-        Assert::that($expiryLeewaySeconds)->isNaturalInt('Expiry leeway must be a non-negative integer, {value} given.');
+        Assert::that($expiryLeewaySeconds)->isNaturalInt(
+            'Expiry leeway must be a non-negative integer, {value} given.',
+        );
 
         $this->resource = new ResourceIdentifier($resource);
         $this->requiredScopes = new ScopeSet($requiredScopes);
@@ -102,7 +104,11 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
     {
         return $this->responseFactory->createResponse($status->value)->withHeader(
             'WWW-Authenticate',
-            WwwAuthenticateChallenge::buildForResource($this->resourceMetadataUrl, $error, $this->requiredScopes)->toHeaderValue(),
+            WwwAuthenticateChallenge::buildForResource(
+                $this->resourceMetadataUrl,
+                $error,
+                $this->requiredScopes,
+            )->toHeaderValue(),
         );
     }
 
@@ -130,7 +136,8 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
      */
     private function readBearerToken(array $headers): ?string
     {
-        // RFC 7235 permits exactly one, and several joined into one string could smuggle a credential past a lenient validator.
+        // RFC 7235 permits exactly one, and several joined into one string could smuggle
+        // a credential past a lenient validator.
         if (\count($headers) !== 1) {
             return null;
         }

@@ -39,7 +39,9 @@ final readonly class RequestBodySizeLimitMiddleware implements MiddlewareInterfa
         private ResponseFactoryInterface $responseFactory,
         private StreamFactoryInterface $streamFactory,
     ) {
-        Assert::that($maxBytes)->isNaturalInt('The maximum request body size must be a non-negative integer, {value} given.');
+        Assert::that($maxBytes)->isNaturalInt(
+            'The maximum request body size must be a non-negative integer, {value} given.',
+        );
     }
 
     #[\Override]

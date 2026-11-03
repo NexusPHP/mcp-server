@@ -59,25 +59,29 @@ final class ResourceTemplateStore implements MutableResourceTemplateStoreInterfa
         private readonly int $ttlMs = 0,
         private readonly CacheScope $cacheScope = CacheScope::Private,
     ) {
-        Assert::that($entries)
-            ->keys()
-            ->isNonEmptyString('Resource template store entry key must be a non-empty string.')
-        ;
+        Assert::that($entries)->keys()->isNonEmptyString(
+            'Resource template store entry key must be a non-empty string.',
+        );
 
         foreach ($entries as $entry) {
             IdentifierNameValidator::validate($entry->template->name, 'resource template "name"');
             IconSrcValidator::validate($entry->template->icons, 'resource template');
         }
 
-        Assert::that($pageSize)->isPositiveInt('Resource template store page size must be a positive integer, {value} given.');
-        Assert::that($ttlMs)->isNaturalInt('Resource template store TTL must be a non-negative integer, {value} given.');
+        Assert::that($pageSize)->isPositiveInt(
+            'Resource template store page size must be a positive integer, {value} given.',
+        );
+        Assert::that($ttlMs)->isNaturalInt(
+            'Resource template store TTL must be a non-negative integer, {value} given.',
+        );
 
         $this->paginator = new CursorPaginator($pageSize);
 
         foreach ($entries as $key => $entry) {
-            Assert::that($entry->template->uriTemplate)
-                ->isIdentical($key, 'Resource template store entry key "{other}" must match its template URI "{value}".')
-            ;
+            Assert::that($entry->template->uriTemplate)->isIdentical(
+                $key,
+                'Resource template store entry key "{other}" must match its template URI "{value}".',
+            );
 
             $this->indexTemplate($key, $entry);
         }
@@ -147,7 +151,11 @@ final class ResourceTemplateStore implements MutableResourceTemplateStoreInterfa
                 } catch (InvalidParamsException $e) {
                     throw new InvalidParamsException(
                         $context->requestId,
-                        SafeDisplay::sanitiseCause(\sprintf('Invalid arguments for resource "%s": %s', $uri, $e->getMessage())),
+                        SafeDisplay::sanitiseCause(\sprintf(
+                            'Invalid arguments for resource "%s": %s',
+                            $uri,
+                            $e->getMessage(),
+                        )),
                     );
                 }
             }

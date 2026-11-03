@@ -106,7 +106,10 @@ final class StdioServerTransport implements TransportInterface
     {
         stream_set_blocking(\STDIN, false);
 
-        // Windows refuses non-blocking mode on an anonymous pipe, and a read from an empty blocking pipe stalls the loop.
-        return stream_get_meta_data(\STDIN)['blocked'] ? new RelayedStdinStream(\STDIN) : new ReadableResourceStream(\STDIN);
+        // Windows refuses non-blocking mode on an anonymous pipe,
+        // and a read from an empty blocking pipe stalls the loop.
+        $blocked = stream_get_meta_data(\STDIN)['blocked'];
+
+        return $blocked ? new RelayedStdinStream(\STDIN) : new ReadableResourceStream(\STDIN);
     }
 }

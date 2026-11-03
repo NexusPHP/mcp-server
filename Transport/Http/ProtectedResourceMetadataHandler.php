@@ -72,20 +72,25 @@ final readonly class ProtectedResourceMetadataHandler implements RequestHandlerI
     #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        // The document describes one MCP server, so it belongs only at the well-known paths derived by RFC 9728 from that server's URL.
+        // The document describes one MCP server, so it belongs only at the well-known paths
+        // derived by RFC 9728 from that server's URL.
         if (! \in_array($request->getUri()->getPath(), $this->paths, true)) {
             return $this->responseFactory->createResponse(HttpStatus::NotFound->value);
         }
 
         if ($request->getMethod() !== 'GET') {
-            return $this->responseFactory->createResponse(HttpStatus::MethodNotAllowed->value)->withHeader('Allow', 'GET');
+            return $this->responseFactory
+                ->createResponse(HttpStatus::MethodNotAllowed->value)
+                ->withHeader('Allow', 'GET')
+            ;
         }
 
         return $this->responseFactory->createResponse(HttpStatus::Ok->value)
             ->withHeader('Content-Type', 'application/json')
-            ->withBody($this->streamFactory->createStream(
-                json_encode($this->document->toArray(), \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES),
-            ))
+            ->withBody($this->streamFactory->createStream(json_encode(
+                $this->document->toArray(),
+                \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES,
+            )))
         ;
     }
 }

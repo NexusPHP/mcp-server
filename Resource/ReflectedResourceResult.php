@@ -30,8 +30,11 @@ final class ReflectedResourceResult
     /**
      * @param non-empty-string $uri
      */
-    public static function adapt(mixed $result, string $uri, \ReflectionMethod $method): InputRequiredResult|ReadResourceResult
-    {
+    public static function adapt(
+        mixed $result,
+        string $uri,
+        \ReflectionMethod $method,
+    ): InputRequiredResult|ReadResourceResult {
         if ($result instanceof ReadResourceResult || $result instanceof InputRequiredResult) {
             return $result;
         }
@@ -68,8 +71,10 @@ final class ReflectedResourceResult
         return $contents;
     }
 
-    private static function buildUnsupportedError(\ReflectionMethod $method, mixed $result): UnsupportedReturnValueException
-    {
+    private static function buildUnsupportedError(
+        \ReflectionMethod $method,
+        mixed $result,
+    ): UnsupportedReturnValueException {
         return new UnsupportedReturnValueException(
             $method->getDeclaringClass()->getName(),
             $method->getName(),

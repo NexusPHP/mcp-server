@@ -72,14 +72,21 @@ final readonly class SecuredHttpEndpoint implements RequestHandlerInterface
 
         if (null !== $operationScopes) {
             if (null === $authentication) {
-                throw new LogicException('SecuredHttpEndpoint was given "operationScopes" with no "authentication" to validate the token they are checked against.');
+                throw new LogicException(
+                    'SecuredHttpEndpoint was given "operationScopes" with no "authentication" to validate the token they are checked against.',
+                );
             }
 
             $middleware[] = $operationScopes;
         }
 
         if (null !== $toolStore) {
-            $middleware[] = new ParameterHeaderValidationMiddleware($toolStore, $responseFactory, $streamFactory, $logger);
+            $middleware[] = new ParameterHeaderValidationMiddleware(
+                $toolStore,
+                $responseFactory,
+                $streamFactory,
+                $logger,
+            );
         }
 
         $this->pipeline = new MiddlewarePipeline($handler, ...$middleware);

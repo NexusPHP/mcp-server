@@ -31,7 +31,12 @@ interface SubscriptionStoreInterface
      *
      * @throws SubscriptionLimitReachedException
      */
-    public function open(RequestId $subscriptionId, SubscriptionFilter $requested, SenderInterface $sender, ?string $peer = null): SubscriptionEntry;
+    public function open(
+        RequestId $subscriptionId,
+        SubscriptionFilter $requested,
+        SenderInterface $sender,
+        ?string $peer = null,
+    ): SubscriptionEntry;
 
     /**
      * Narrows `$requested` to the notification types delivered by this store, omitting rather than

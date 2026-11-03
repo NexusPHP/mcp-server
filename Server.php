@@ -42,7 +42,8 @@ final readonly class Server
      * Runs the server on the transport, blocking until it closes, for a long-lived
      * transport that owns its read loop (stdio).
      *
-     * A requested `$cancellation` closes the transport, and on a `CancellableMessageDispatcherInterface` also cancels every request in flight.
+     * A requested `$cancellation` closes the transport, and on a `CancellableMessageDispatcherInterface`
+     * also cancels every request in flight.
      */
     public function run(TransportInterface $transport, Cancellation $cancellation = new NullCancellation()): void
     {
@@ -50,7 +51,8 @@ final readonly class Server
 
         $deferred = new DeferredFuture();
 
-        // Registered ahead of the flushing drain listener, so a request started from an already-read line is cancelled before the wait.
+        // Registered ahead of the flushing drain listener, so a request started from an already-read line is cancelled
+        // before the wait.
         $transport->onDrain(function () use ($cancellation): void {
             if ($cancellation->isRequested()) {
                 $this->cancelInFlight();

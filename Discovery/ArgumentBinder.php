@@ -147,7 +147,11 @@ final class ArgumentBinder
             } elseif ($parameter->isDefaultValueAvailable()) {
                 $arguments[] = $parameter->getDefaultValue();
             } else {
-                throw new \InvalidArgumentException(\sprintf('"%s" is missing the required "%s" key.', $argument, $name));
+                throw new \InvalidArgumentException(\sprintf(
+                    '"%s" is missing the required "%s" key.',
+                    $argument,
+                    $name,
+                ));
             }
         }
 
@@ -270,13 +274,23 @@ final class ArgumentBinder
 
     private function isArrayLike(TypeNode $node): bool
     {
-        return match (true) {
-            $node instanceof ArrayTypeNode, $node instanceof ArrayShapeNode, $node instanceof ObjectShapeNode => true,
-            $node instanceof GenericTypeNode => \in_array((string) $node->type, TypeNodeSchemaMapper::ARRAY_BASES, true),
-            $node instanceof IdentifierTypeNode => 'object' === $node->name
-                || \in_array($node->name, TypeNodeSchemaMapper::ARRAY_BASES, true),
-            default => false,
-        };
+        if (
+            $node instanceof ArrayTypeNode
+            || $node instanceof ArrayShapeNode
+            || $node instanceof ObjectShapeNode
+        ) {
+            return true;
+        }
+
+        if ($node instanceof GenericTypeNode) {
+            return \in_array((string) $node->type, TypeNodeSchemaMapper::ARRAY_BASES, true);
+        }
+
+        if ($node instanceof IdentifierTypeNode) {
+            return 'object' === $node->name || \in_array($node->name, TypeNodeSchemaMapper::ARRAY_BASES, true);
+        }
+
+        return false;
     }
 
     private function hydrateGeneric(GenericTypeNode $node, mixed $value, string $label): mixed

@@ -78,7 +78,10 @@ final readonly class OperationScopes
 
         foreach ($this->resourcesByPattern as $pattern => $scopes) {
             // A server template binds a percent-encoded URI to its decoded value, so both forms are matched.
-            if (Matcher::matchCompiled($pattern, $uri) !== null || Matcher::matchCompiled($pattern, rawurldecode($uri)) !== null) {
+            if (
+                Matcher::matchCompiled($pattern, $uri) !== null
+                || Matcher::matchCompiled($pattern, rawurldecode($uri)) !== null
+            ) {
                 $required = $required->mergeWith($scopes);
             }
         }
@@ -93,14 +96,12 @@ final readonly class OperationScopes
      */
     private function buildScopeSets(array $scopesByName, string $kind): array
     {
-        Assert::that($scopesByName)->keys()->isIntOrNonEmptyString(\sprintf(
-            'each operation scope %s key must be an int or non-empty string, {value} given.',
-            $kind,
-        ));
-        Assert::that($scopesByName)->values()->isList(\sprintf(
-            'each operation scope %s entry must be a list of scopes, {type} given.',
-            $kind,
-        ));
+        Assert::that($scopesByName)->keys()->isIntOrNonEmptyString(
+            \sprintf('each operation scope %s key must be an int or non-empty string, {value} given.', $kind),
+        );
+        Assert::that($scopesByName)->values()->isList(
+            \sprintf('each operation scope %s entry must be a list of scopes, {type} given.', $kind),
+        );
 
         return array_map($this->buildScopeSet(...), $scopesByName);
     }

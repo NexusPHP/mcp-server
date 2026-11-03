@@ -52,13 +52,19 @@ final readonly class SubscriptionsListenRequestHandler implements RequestHandler
         $subscriptionId = $context->receiveContext->peerRequestId ?? $context->requestId;
         $authInfo = $context->receiveContext->authInfo;
         $peer = $authInfo->clientId ?? $authInfo?->subject;
-        $entry = $this->store->open($subscriptionId, $this->narrow($request->params->notifications), $context->sender, $peer);
+        $entry = $this->store->open(
+            $subscriptionId,
+            $this->narrow($request->params->notifications),
+            $context->sender,
+            $peer,
+        );
 
         if ($this->deliversAnything($entry->honoured)) {
             try {
                 $entry->closed->getFuture()->await($context->cancellation);
             } catch (CancelledException) {
-                // The client abandoned the stream, so the dispatcher drops the response, which is the spec's abrupt close.
+                // The client abandoned the stream, so the dispatcher drops the response,
+                // which is the spec's abrupt close.
             }
         }
 
@@ -88,7 +94,9 @@ final readonly class SubscriptionsListenRequestHandler implements RequestHandler
         return new SubscriptionFilter(
             toolsListChanged: true === $this->deliverable->toolsListChanged ? $requested->toolsListChanged : null,
             promptsListChanged: true === $this->deliverable->promptsListChanged ? $requested->promptsListChanged : null,
-            resourcesListChanged: true === $this->deliverable->resourcesListChanged ? $requested->resourcesListChanged : null,
+            resourcesListChanged: true === $this->deliverable->resourcesListChanged
+                ? $requested->resourcesListChanged
+                : null,
             resourceSubscriptions: $requested->resourceSubscriptions,
         );
     }

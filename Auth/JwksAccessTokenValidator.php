@@ -38,7 +38,9 @@ final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInt
         string $resource,
     ) {
         SuggestedDependencyGuard::verify(self::class, JWT::class, 'firebase/php-jwt', '^7.0');
-        Assert::that($expectedIssuer)->isNonEmptyString('JWKS validator expected issuer must be a non-empty string, {type} given.');
+        Assert::that($expectedIssuer)->isNonEmptyString(
+            'JWKS validator expected issuer must be a non-empty string, {type} given.',
+        );
 
         $this->resource = new ResourceIdentifier($resource);
     }

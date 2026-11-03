@@ -43,14 +43,12 @@ final readonly class CompletionStore implements CompletionStoreInterface
      */
     public function __construct(array $promptCompletions = [], array $templateCompletions = [])
     {
-        Assert::that($promptCompletions)
-            ->keys()
-            ->isIntOrNonEmptyString('Completion store prompt key must be a non-empty string.')
-        ;
-        Assert::that($templateCompletions)
-            ->keys()
-            ->isIntOrNonEmptyString('Completion store template key must be a non-empty string.')
-        ;
+        Assert::that($promptCompletions)->keys()->isIntOrNonEmptyString(
+            'Completion store prompt key must be a non-empty string.',
+        );
+        Assert::that($templateCompletions)->keys()->isIntOrNonEmptyString(
+            'Completion store template key must be a non-empty string.',
+        );
 
         $this->promptCompletions = $this->normalize($promptCompletions);
         $this->templateCompletions = $this->normalize($templateCompletions);
@@ -87,10 +85,9 @@ final readonly class CompletionStore implements CompletionStoreInterface
         $normalized = [];
 
         foreach ($completions as $key => $providers) {
-            Assert::that($providers)
-                ->keys()
-                ->isIntOrNonEmptyString('Completion store argument key must be a non-empty string.')
-            ;
+            Assert::that($providers)->keys()->isIntOrNonEmptyString(
+                'Completion store argument key must be a non-empty string.',
+            );
 
             foreach ($providers as $argument => $provider) {
                 if (! $provider instanceof CompletionProviderInterface) {

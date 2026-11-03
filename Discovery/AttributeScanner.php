@@ -102,7 +102,15 @@ final readonly class AttributeScanner
      */
     private function rejectDiscoveryAttributes(\ReflectionMethod $method): void
     {
-        foreach ([AsTool::class, AsPrompt::class, AsResource::class, AsResourceTemplate::class, AsCompletion::class] as $attribute) {
+        $attributes = [
+            AsTool::class,
+            AsPrompt::class,
+            AsResource::class,
+            AsResourceTemplate::class,
+            AsCompletion::class,
+        ];
+
+        foreach ($attributes as $attribute) {
             if ([] !== $method->getAttributes($attribute)) {
                 throw new LogicException(\sprintf(
                     '%s::%s() is a magic method and cannot be a #[%s] handler. Move the attribute to a regular public method.',
@@ -132,7 +140,11 @@ final readonly class AttributeScanner
         $uriTemplate = $attribute->uriTemplate;
 
         if (null !== $prompt && null !== $uriTemplate) {
-            $this->refuseCompletionAttribute($class, $name, 'it must name either a "prompt" or a "uriTemplate", not both');
+            $this->refuseCompletionAttribute(
+                $class,
+                $name,
+                'it must name either a "prompt" or a "uriTemplate", not both',
+            );
         }
 
         if ('' === $argument) {
@@ -163,7 +175,8 @@ final readonly class AttributeScanner
         foreach ($method->getParameters() as $parameter) {
             $type = $parameter->getType();
 
-            if (InputSchemaGenerator::isInjectedContext($parameter)
+            if (
+                InputSchemaGenerator::isInjectedContext($parameter)
                 || ($type instanceof \ReflectionNamedType && $type->getName() === 'array')
                 || $this->acceptsRawStringArgument($type)
             ) {
@@ -297,7 +310,10 @@ final readonly class AttributeScanner
     private function rejectUnsupportedParameterType(\ReflectionMethod $method): void
     {
         foreach ($method->getParameters() as $parameter) {
-            if (InputSchemaGenerator::isInjectedContext($parameter) || $this->acceptsStringArgument($parameter->getType())) {
+            if (
+                InputSchemaGenerator::isInjectedContext($parameter)
+                || $this->acceptsStringArgument($parameter->getType())
+            ) {
                 continue;
             }
 
@@ -357,7 +373,12 @@ final readonly class AttributeScanner
 
     private function refuseCompletionAttribute(string $class, string $method, string $reason): never
     {
-        throw new LogicException(\sprintf('%s::%s() declares an invalid #[AsCompletion] attribute: %s.', $class, $method, $reason));
+        throw new LogicException(\sprintf(
+            '%s::%s() declares an invalid #[AsCompletion] attribute: %s.',
+            $class,
+            $method,
+            $reason,
+        ));
     }
 
     private function refuseParameterType(string $class, string $method, string $parameter, string $type): never

@@ -63,7 +63,9 @@ final readonly class OperationScopeMiddleware implements MiddlewareInterface
         ?OperationScopes $operationScopes = null,
     ) {
         if (null !== $operationScopes && ([] !== $tools || [] !== $prompts || [] !== $resources)) {
-            throw new LogicException('Pass operation scopes either as $operationScopes or as $tools, $prompts and $resources, not both.');
+            throw new LogicException(
+                'Pass operation scopes either as $operationScopes or as $tools, $prompts and $resources, not both.',
+            );
         }
 
         $this->endpointScopes = $this->buildScopeSet($endpointScopes);
@@ -104,7 +106,11 @@ final readonly class OperationScopeMiddleware implements MiddlewareInterface
 
         return $this->responseFactory->createResponse(HttpStatus::Forbidden->value)->withHeader(
             'WWW-Authenticate',
-            WwwAuthenticateChallenge::buildForResource($this->resourceMetadataUrl, 'insufficient_scope', $required)->toHeaderValue(),
+            WwwAuthenticateChallenge::buildForResource(
+                $this->resourceMetadataUrl,
+                'insufficient_scope',
+                $required,
+            )->toHeaderValue(),
         );
     }
 
@@ -130,9 +136,10 @@ final readonly class OperationScopeMiddleware implements MiddlewareInterface
             GetPromptRequest::getMethod() => $this->resolvePromptScopes($this->readMember($params, 'name')),
             ReadResourceRequest::getMethod() => $this->resolveResourceScopes([$this->readMember($params, 'uri')]),
             CompleteRequest::getMethod() => $this->resolveReferenceScopes($this->readMember($params, 'ref')),
-            SubscriptionsListenRequest::getMethod() => $this->resolveResourceScopes(
-                $this->readMember($this->readMember($params, 'notifications'), 'resourceSubscriptions'),
-            ),
+            SubscriptionsListenRequest::getMethod() => $this->resolveResourceScopes($this->readMember(
+                $this->readMember($params, 'notifications'),
+                'resourceSubscriptions',
+            )),
             default => new ScopeSet(),
         };
     }

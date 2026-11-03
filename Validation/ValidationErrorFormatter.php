@@ -89,7 +89,13 @@ final class ValidationErrorFormatter
                 return [\sprintf(
                     '%smust be %s, %s given.',
                     null === $label ? '' : \sprintf('"%s" ', $label),
-                    implode(' or ', array_map($this->describeJsonType(...), \is_array($expected) ? $expected : [$expected])),
+                    implode(
+                        ' or ',
+                        array_map(
+                            $this->describeJsonType(...),
+                            \is_array($expected) ? $expected : [$expected],
+                        ),
+                    ),
                     $this->describePhpType($actual),
                 )];
 
