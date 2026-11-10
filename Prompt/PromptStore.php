@@ -116,8 +116,19 @@ final class PromptStore implements MutablePromptStoreInterface
             throw new PromptNotFoundException($name, $context->requestId);
         }
 
+        $entry = $this->entries[$name];
+
         try {
-            return $this->entries[$name]->renderer->render($arguments, $context);
+            foreach ($entry->prompt->arguments ?? [] as $argument) {
+                if (true === $argument->required && ! \array_key_exists($argument->name, $arguments ?? [])) {
+                    throw new InvalidParamsException(
+                        $context->requestId,
+                        \sprintf('missing the required "%s" key.', $argument->name),
+                    );
+                }
+            }
+
+            return $entry->renderer->render($arguments, $context);
         } catch (InvalidParamsException $e) {
             throw new InvalidParamsException(
                 $context->requestId,
