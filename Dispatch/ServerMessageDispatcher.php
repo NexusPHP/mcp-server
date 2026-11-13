@@ -34,6 +34,8 @@ use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
 use Nexus\Mcp\Core\JsonRpc\JsonRpcMessageParser;
 use Nexus\Mcp\Core\JsonRpc\ResultResponseFactory;
 use Nexus\Mcp\Core\SafeDisplay;
+use Nexus\Mcp\Core\Schema\ClientCapabilities;
+use Nexus\Mcp\Core\Schema\Elicitation\ElicitRequest;
 use Nexus\Mcp\Core\Schema\Enum\SdkErrorCode;
 use Nexus\Mcp\Core\Schema\Error\InternalError;
 use Nexus\Mcp\Core\Schema\Error\UnknownProtocolError;
@@ -57,6 +59,7 @@ use Nexus\Mcp\Core\Schema\Result\InputRequiredResult;
 use Nexus\Mcp\Core\Transport\ReceiveContext;
 use Nexus\Mcp\Core\Transport\SendContext;
 use Nexus\Mcp\Core\Transport\TransportInterface;
+use Nexus\Mcp\Server\Exception\MissingRequiredClientCapabilityException;
 use Nexus\Mcp\Server\RequestStateSigner;
 use Nexus\Mcp\Server\ServerContext;
 use Psr\Log\LoggerInterface;
@@ -340,6 +343,10 @@ final readonly class ServerMessageDispatcher implements CancellableMessageDispat
                         );
                         $result = $handler->handle($request, $serverContext);
 
+                        if ($result instanceof InputRequiredResult) {
+                            $this->assertInputRequestsSupported($result, $serverContext);
+                        }
+
                         if (
                             null !== $signer
                             && $result instanceof InputRequiredResult
@@ -416,6 +423,36 @@ final readonly class ServerMessageDispatcher implements CancellableMessageDispat
             }),
             occupiesSlot: ! $holdsOpen,
         );
+    }
+
+    /**
+     * An empty `elicitation` capability declares form mode only.
+     *
+     * @throws MissingRequiredClientCapabilityException
+     */
+    private function assertInputRequestsSupported(InputRequiredResult $result, ServerContext $context): void
+    {
+        $declared = $context->meta->clientCapabilities->elicitation;
+        $missing = [];
+
+        foreach ($result->inputRequests ?? [] as $inputRequest) {
+            \assert($inputRequest instanceof ElicitRequest);
+
+            $mode = $inputRequest->params->mode;
+            $supported = null !== $declared
+                && (\array_key_exists($mode, $declared) || ('form' === $mode && [] === $declared));
+
+            if (! $supported) {
+                $missing[$mode] = [];
+            }
+        }
+
+        if ([] !== $missing) {
+            throw new MissingRequiredClientCapabilityException(
+                new ClientCapabilities(elicitation: $missing),
+                $context->requestId,
+            );
+        }
     }
 
     /**
