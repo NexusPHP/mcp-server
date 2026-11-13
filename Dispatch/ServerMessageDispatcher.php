@@ -38,6 +38,7 @@ use Nexus\Mcp\Core\Schema\ClientCapabilities;
 use Nexus\Mcp\Core\Schema\Elicitation\ElicitRequest;
 use Nexus\Mcp\Core\Schema\Enum\SdkErrorCode;
 use Nexus\Mcp\Core\Schema\Error\InternalError;
+use Nexus\Mcp\Core\Schema\Error\MethodNotFoundError;
 use Nexus\Mcp\Core\Schema\Error\UnknownProtocolError;
 use Nexus\Mcp\Core\Schema\Error\UnsupportedProtocolVersionError;
 use Nexus\Mcp\Core\Schema\Implementation;
@@ -167,6 +168,22 @@ final readonly class ServerMessageDispatcher implements CancellableMessageDispat
                     'Dropping malformed notification (JSON-RPC 2.0 §4.1 forbids responses to notifications).',
                     ['exception' => $e],
                 );
+
+                return;
+            }
+
+            // Versioning: a modern-only server SHOULD name its supported versions in any error to `initialize`.
+            if ($e instanceof MethodNotFoundException && 'initialize' === ($envelope['method'] ?? null)) {
+                $this->responseSender->send($transport, new JsonRpcErrorResponse(
+                    id: $e->requestId,
+                    error: new MethodNotFoundError(
+                        \sprintf(
+                            'This server does not support the "initialize" handshake. Supported protocol versions: %s.',
+                            implode(', ', ProtocolVersion::SUPPORTED_VERSIONS),
+                        ),
+                        ['supported' => ProtocolVersion::SUPPORTED_VERSIONS],
+                    ),
+                ), 'initialize');
 
                 return;
             }
