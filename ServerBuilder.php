@@ -66,6 +66,7 @@ use Nexus\Mcp\Server\Completion\PromptCompletionEntry;
 use Nexus\Mcp\Server\Discovery\AttributeScanner;
 use Nexus\Mcp\Server\Dispatch\ServerMessageDispatcher;
 use Nexus\Mcp\Server\Extension\OptionalClientDeclarationInterface;
+use Nexus\Mcp\Server\Extension\RegistrationValidatorInterface;
 use Nexus\Mcp\Server\Extension\RequestHandlerDecoratorInterface;
 use Nexus\Mcp\Server\Extension\ServerExtensionInterface;
 use Nexus\Mcp\Server\Handler\Request\CallToolRequestHandler;
@@ -225,6 +226,15 @@ final class ServerBuilder
      * @var array<non-empty-string, OptionalClientDeclarationInterface>
      */
     private array $optionalClientDeclarations = [];
+
+    /**
+     * @var list<RegistrationValidatorInterface>
+     */
+    private array $registrationValidators = [];
+
+    private bool $hasCustomToolStore = false;
+    private bool $hasCustomResourceStore = false;
+    private bool $hasCustomResourceTemplateStore = false;
 
     public function __construct()
     {
@@ -455,6 +465,7 @@ final class ServerBuilder
         $this->assertNotBuilt();
 
         $this->toolStore = $store;
+        $this->hasCustomToolStore = true;
 
         return $this;
     }
@@ -514,6 +525,7 @@ final class ServerBuilder
         $this->assertNotBuilt();
 
         $this->resourceStore = $store;
+        $this->hasCustomResourceStore = true;
 
         return $this;
     }
@@ -545,6 +557,7 @@ final class ServerBuilder
         $this->assertNotBuilt();
 
         $this->resourceTemplateStore = $store;
+        $this->hasCustomResourceTemplateStore = true;
 
         return $this;
     }
@@ -810,6 +823,10 @@ final class ServerBuilder
             $this->optionalClientDeclarations[$extension->getIdentifier()] = $extension;
         }
 
+        if ($extension instanceof RegistrationValidatorInterface) {
+            $this->registrationValidators[] = $extension;
+        }
+
         return $this;
     }
 
@@ -933,6 +950,8 @@ final class ServerBuilder
             'Server information must be set before build() via setServerInfo() or a class-level #[AsServer].',
         );
 
+        $this->validateRegistrations();
+
         $capabilities = $this->deriveCapabilities();
 
         $requestHandlers = $this->buildRequestHandlers(
@@ -965,6 +984,32 @@ final class ServerBuilder
             $this->logger,
             $this->subscriptionStore,
         );
+    }
+
+    /**
+     * @throws LogicException
+     */
+    private function validateRegistrations(): void
+    {
+        $tools = [];
+        $resources = [];
+        $templates = [];
+
+        foreach ($this->hasCustomToolStore ? [] : $this->tools as $entry) {
+            $tools[] = $entry->tool;
+        }
+
+        foreach ($this->hasCustomResourceStore ? [] : $this->resources as $entry) {
+            $resources[] = $entry->resource;
+        }
+
+        foreach ($this->hasCustomResourceTemplateStore ? [] : $this->resourceTemplates as $entry) {
+            $templates[] = $entry->template;
+        }
+
+        foreach ($this->registrationValidators as $validator) {
+            $validator->validateRegistrations($tools, $resources, $templates);
+        }
     }
 
     private function routeListChanges(): void
