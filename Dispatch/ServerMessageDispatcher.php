@@ -327,7 +327,7 @@ final readonly class ServerMessageDispatcher implements CancellableMessageDispat
                         $handler = $this->requestHandlers->get($method)
                             ?? throw new MethodNotFoundException($method, $request->id);
 
-                        $sender = new RequestBoundSender($transport, $request->id);
+                        $sender = new RequestBoundSender($transport, $request->id, $cancellation);
                         $params = $request->params;
                         $carrier = $params instanceof InputResponseCarrierInterface ? $params : null;
                         $requestState = $carrier?->getRequestState();
