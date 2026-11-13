@@ -26,12 +26,13 @@ use Nexus\Mcp\Core\Validation\IconSrcValidator;
 use Nexus\Mcp\Core\Validation\IdentifierNameValidator;
 use Nexus\Mcp\Server\CursorPaginator;
 use Nexus\Mcp\Server\Exception\PromptNotFoundException;
+use Nexus\Mcp\Server\RegistrationLookupInterface;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
  * In-memory implementation of `MutablePromptStoreInterface`.
  */
-final class PromptStore implements MutablePromptStoreInterface
+final class PromptStore implements MutablePromptStoreInterface, RegistrationLookupInterface
 {
     private readonly CursorPaginator $paginator;
 
@@ -80,6 +81,12 @@ final class PromptStore implements MutablePromptStoreInterface
         $this->entries[$prompt->name] = new PromptEntry($prompt, $renderer);
 
         $this->announceListChange();
+    }
+
+    #[\Override]
+    public function isRegistered(string $key): bool
+    {
+        return \array_key_exists($key, $this->entries);
     }
 
     #[\Override]

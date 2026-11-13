@@ -26,12 +26,13 @@ use Nexus\Mcp\Core\Validation\IconSrcValidator;
 use Nexus\Mcp\Core\Validation\IdentifierNameValidator;
 use Nexus\Mcp\Server\CursorPaginator;
 use Nexus\Mcp\Server\Exception\ResourceNotRegisteredException;
+use Nexus\Mcp\Server\RegistrationLookupInterface;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
  * In-memory implementation of `MutableResourceStoreInterface`.
  */
-final class ResourceStore implements MutableResourceStoreInterface
+final class ResourceStore implements MutableResourceStoreInterface, RegistrationLookupInterface
 {
     private readonly CursorPaginator $paginator;
 
@@ -82,6 +83,12 @@ final class ResourceStore implements MutableResourceStoreInterface
         $this->entries[$resource->uri] = new ResourceEntry($resource, $reader);
 
         $this->announceListChange();
+    }
+
+    #[\Override]
+    public function isRegistered(string $key): bool
+    {
+        return \array_key_exists($key, $this->entries);
     }
 
     #[\Override]

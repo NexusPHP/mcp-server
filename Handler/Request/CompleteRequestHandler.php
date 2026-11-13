@@ -13,10 +13,14 @@ declare(strict_types=1);
 
 namespace Nexus\Mcp\Server\Handler\Request;
 
+use Nexus\Mcp\Core\Exception\InvalidParamsException;
 use Nexus\Mcp\Core\Handler\AbstractContext;
 use Nexus\Mcp\Core\Handler\RequestHandlerInterface;
+use Nexus\Mcp\Core\SafeDisplay;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
+use Nexus\Mcp\Core\Schema\Prompt\PromptReference;
 use Nexus\Mcp\Core\Schema\Request\CompleteRequest;
+use Nexus\Mcp\Core\Schema\Resource\ResourceTemplateReference;
 use Nexus\Mcp\Core\Schema\Result\CompleteResult;
 use Nexus\Mcp\Server\Completion\CompletionStoreInterface;
 use Nexus\Mcp\Server\ServerContext;
@@ -33,8 +37,13 @@ final readonly class CompleteRequestHandler implements RequestHandlerInterface
      */
     private const int MAX_VALUES = 100;
 
-    public function __construct(private CompletionStoreInterface $store)
-    {
+    /**
+     * @param null|(\Closure(PromptReference|ResourceTemplateReference): bool) $isRegistered Whether the ref names a registered prompt, resource or template, or null to complete any ref
+     */
+    public function __construct(
+        private CompletionStoreInterface $store,
+        private ?\Closure $isRegistered = null,
+    ) {
     }
 
     #[\Override]
@@ -44,9 +53,17 @@ final readonly class CompleteRequestHandler implements RequestHandlerInterface
         \assert($context instanceof ServerContext);
 
         $params = $request->params;
+        $ref = $params->ref;
+
+        // Completion: servers SHOULD answer an invalid prompt name with -32602.
+        if (null !== $this->isRegistered && ! ($this->isRegistered)($ref)) {
+            throw new InvalidParamsException($request->id, $ref instanceof PromptReference
+                ? \sprintf('Prompt "%s" not found.', SafeDisplay::sanitise($ref->name))
+                : \sprintf('Resource template "%s" not found.', SafeDisplay::sanitise($ref->uri)));
+        }
 
         $result = $this->store->complete(
-            $params->ref,
+            $ref,
             $params->argument['name'],
             $params->argument['value'],
             $params->context['arguments'] ?? null,

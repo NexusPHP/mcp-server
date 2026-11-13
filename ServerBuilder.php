@@ -30,6 +30,7 @@ use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcNotification;
 use Nexus\Mcp\Core\Schema\JsonRpc\JsonRpcRequest;
 use Nexus\Mcp\Core\Schema\Notification\CancelledNotification;
 use Nexus\Mcp\Core\Schema\Prompt\Prompt;
+use Nexus\Mcp\Core\Schema\Prompt\PromptReference;
 use Nexus\Mcp\Core\Schema\Request\CallToolRequest;
 use Nexus\Mcp\Core\Schema\Request\ClientRequest;
 use Nexus\Mcp\Core\Schema\Request\CompleteRequest;
@@ -43,6 +44,7 @@ use Nexus\Mcp\Core\Schema\Request\ReadResourceRequest;
 use Nexus\Mcp\Core\Schema\Request\SubscriptionsListenRequest;
 use Nexus\Mcp\Core\Schema\Resource\Resource;
 use Nexus\Mcp\Core\Schema\Resource\ResourceTemplate;
+use Nexus\Mcp\Core\Schema\Resource\ResourceTemplateReference;
 use Nexus\Mcp\Core\Schema\Result;
 use Nexus\Mcp\Core\Schema\Result\CallToolResult;
 use Nexus\Mcp\Core\Schema\Result\CompleteResult;
@@ -1244,7 +1246,10 @@ final class ServerBuilder
         $completionStore = $this->getCompletionStore();
 
         if (null !== $completionStore) {
-            $defaults[CompleteRequest::getMethod()] = new CompleteRequestHandler($completionStore);
+            $defaults[CompleteRequest::getMethod()] = new CompleteRequestHandler(
+                $completionStore,
+                $this->buildCompletionRefLookup(),
+            );
         }
 
         if (null !== $this->subscriptionStore) {
@@ -1259,6 +1264,24 @@ final class ServerBuilder
             ...$this->buildExtensionRequestHandlers(),
             ...$this->customRequestHandlers,
         ]);
+    }
+
+    /**
+     * A store that cannot answer a lookup counts every key as registered, and an absent store counts none.
+     *
+     * @return \Closure(PromptReference|ResourceTemplateReference): bool
+     */
+    private function buildCompletionRefLookup(): \Closure
+    {
+        $prompts = $this->getPromptStore();
+        $resources = $this->getResourceStore();
+        $templates = $this->getResourceTemplateStore();
+        $lookUp = static fn(?object $store, string $key): bool => null !== $store
+            && (! $store instanceof RegistrationLookupInterface || $store->isRegistered($key));
+
+        return static fn(PromptReference|ResourceTemplateReference $ref): bool => $ref instanceof PromptReference
+            ? $lookUp($prompts, $ref->name)
+            : $lookUp($templates, $ref->uri) || $lookUp($resources, $ref->uri);
     }
 
     /**

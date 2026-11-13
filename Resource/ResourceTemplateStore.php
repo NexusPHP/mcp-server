@@ -28,12 +28,13 @@ use Nexus\Mcp\Core\Validation\IconSrcValidator;
 use Nexus\Mcp\Core\Validation\IdentifierNameValidator;
 use Nexus\Mcp\Server\CursorPaginator;
 use Nexus\Mcp\Server\Exception\ResourceNotFoundException;
+use Nexus\Mcp\Server\RegistrationLookupInterface;
 use Nexus\Mcp\Server\ServerContext;
 
 /**
  * In-memory implementation of `MutableResourceTemplateStoreInterface`.
  */
-final class ResourceTemplateStore implements MutableResourceTemplateStoreInterface
+final class ResourceTemplateStore implements MutableResourceTemplateStoreInterface, RegistrationLookupInterface
 {
     private readonly CursorPaginator $paginator;
 
@@ -107,6 +108,18 @@ final class ResourceTemplateStore implements MutableResourceTemplateStoreInterfa
         $this->entries[$uriTemplate] = $entry;
 
         $this->announceListChange();
+    }
+
+    #[\Override]
+    public function isRegistered(string $key): bool
+    {
+        foreach ($this->compiled as ['pattern' => $pattern]) {
+            if (Matcher::matchCompiled($pattern, $key) !== null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     #[\Override]
