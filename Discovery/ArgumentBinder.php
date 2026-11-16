@@ -196,6 +196,11 @@ final class ArgumentBinder
 
         $name = $type->getName();
 
+        // JSON Schema's `integer` admits integral floats beyond what an `int` can hold.
+        if ('int' === $name && \is_float($value)) {
+            return $this->hydrateInteger($value, $label);
+        }
+
         if (\in_array(strtolower($name), ['object', 'stdclass'], true)) {
             if (\is_object($value)) {
                 return $value;
@@ -213,6 +218,18 @@ final class ArgumentBinder
         return \in_array($name, ['array', 'iterable'], true)
             ? $this->hydrateDocumented($parameter, $value, $label)
             : $value;
+    }
+
+    private function hydrateInteger(float $value, string $label): int
+    {
+        if ($value >= \PHP_INT_MIN && $value < \PHP_INT_MAX) {
+            return (int) $value;
+        }
+
+        throw new \InvalidArgumentException(\sprintf(
+            '"%s" must be an integer between PHP_INT_MIN and PHP_INT_MAX, float given.',
+            $label,
+        ));
     }
 
     /**
