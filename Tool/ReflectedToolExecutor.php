@@ -68,7 +68,7 @@ final readonly class ReflectedToolExecutor implements ToolExecutorInterface
      */
     private function resolveStructuredOrContent(array $result, \ReflectionMethod $method): CallToolResult
     {
-        if (array_is_list($result) && [] !== $result) {
+        if ([] !== $result && [] === array_filter(array_keys($result), \is_string(...))) {
             $blocks = [];
 
             foreach ($result as $item) {

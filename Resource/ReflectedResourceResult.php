@@ -68,7 +68,10 @@ final class ReflectedResourceResult
             }
         }
 
-        if (! array_is_list($result) || [] === $result || \count($contents) !== \count($result)) {
+        if ([] === $result
+            || [] !== array_filter(array_keys($result), \is_string(...))
+            || \count($contents) !== \count($result)
+        ) {
             throw self::buildUnsupportedError($method, $result);
         }
 

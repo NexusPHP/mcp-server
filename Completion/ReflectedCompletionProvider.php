@@ -55,7 +55,7 @@ final readonly class ReflectedCompletionProvider implements CompletionProviderIn
             return $result;
         }
 
-        if (\is_array($result) && array_is_list($result)) {
+        if (\is_array($result) && [] === array_filter(array_keys($result), \is_string(...))) {
             $values = [];
 
             foreach ($result as $entry) {
