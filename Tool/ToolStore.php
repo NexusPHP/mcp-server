@@ -16,6 +16,7 @@ namespace Nexus\Mcp\Server\Tool;
 use Nexus\Assert\Assert;
 use Nexus\Mcp\Core\Exception\InvalidParamsException;
 use Nexus\Mcp\Core\SafeDisplay;
+use Nexus\Mcp\Core\Schema\ContentBlock\TextContent;
 use Nexus\Mcp\Core\Schema\Cursor;
 use Nexus\Mcp\Core\Schema\Enum\CacheScope;
 use Nexus\Mcp\Core\Schema\Result\CallToolResult;
@@ -37,8 +38,6 @@ use Nexus\Mcp\Server\Validation\SchemaViolation;
  */
 final class ToolStore implements MutableToolStoreInterface
 {
-    private const int MAX_REPORTED_VIOLATIONS = 8;
-
     private readonly CursorPaginator $paginator;
 
     /**
@@ -137,20 +136,13 @@ final class ToolStore implements MutableToolStoreInterface
                 $inputErrors,
             ));
 
-            throw new InvalidParamsException(
-                $context->requestId,
-                SafeDisplay::sanitiseCause(\sprintf('Invalid arguments for tool "%s": %s', $name, $violations)),
-                errorData: ['validation_errors' => $this->describeViolations($inputErrors)],
-            );
+            return $this->refuseArguments($name, $violations);
         }
 
         try {
             $result = $entry->executor->execute($arguments, $context);
         } catch (InvalidParamsException $e) {
-            throw new InvalidParamsException(
-                $context->requestId,
-                SafeDisplay::sanitiseCause(\sprintf('Invalid arguments for tool "%s": %s', $name, $e->getMessage())),
-            );
+            return $this->refuseArguments($name, $e->getMessage());
         }
 
         if ($result instanceof InputRequiredResult) {
@@ -178,23 +170,14 @@ final class ToolStore implements MutableToolStoreInterface
         return $result;
     }
 
-    /**
-     * @param non-empty-list<SchemaViolation> $violations
-     *
-     * @return non-empty-list<array{pointer: string, message: string}>
-     */
-    private function describeViolations(array $violations): array
+    private function refuseArguments(string $name, string $cause): CallToolResult
     {
-        $described = [];
-
-        foreach (\array_slice($violations, 0, self::MAX_REPORTED_VIOLATIONS) as $violation) {
-            $described[] = [
-                'pointer' => SafeDisplay::sanitiseCause($violation->pointer),
-                'message' => SafeDisplay::sanitiseCause($violation->message),
-            ];
-        }
-
-        return $described;
+        return new CallToolResult(
+            content: [new TextContent(
+                text: SafeDisplay::sanitiseCause(\sprintf('Invalid arguments for tool "%s": %s', $name, $cause)),
+            )],
+            isError: true,
+        );
     }
 
     /**
