@@ -267,7 +267,11 @@ final class TypeNodeSchemaMapper
             'negative-int' => ['type' => 'integer', 'maximum' => -1],
             'non-negative-int' => ['type' => 'integer', 'minimum' => 0],
             'non-positive-int' => ['type' => 'integer', 'maximum' => 0],
-            'float', 'double' => ['type' => 'number'],
+            'float', 'double', 'finite-float' => ['type' => 'number'],
+            'positive-float' => ['type' => 'number', 'exclusiveMinimum' => 0],
+            'negative-float' => ['type' => 'number', 'exclusiveMaximum' => 0],
+            'non-negative-float' => ['type' => 'number', 'minimum' => 0],
+            'non-positive-float' => ['type' => 'number', 'maximum' => 0],
             'bool', 'boolean' => ['type' => 'boolean'],
             'true' => ['type' => 'boolean', 'enum' => [true]],
             'false' => ['type' => 'boolean', 'enum' => [false]],
@@ -416,7 +420,11 @@ final class TypeNodeSchemaMapper
         \assert($base instanceof IdentifierTypeNode);
 
         if ('int' === $base->name) {
-            return $this->mapIntRange($node);
+            return $this->mapRange($node, 'integer');
+        }
+
+        if ('float' === $base->name) {
+            return $this->mapRange($node, 'number');
         }
 
         if (! \in_array($base->name, self::ARRAY_BASES, true)) {
@@ -444,9 +452,11 @@ final class TypeNodeSchemaMapper
     }
 
     /**
+     * @param 'integer'|'number' $type
+     *
      * @return array<string, mixed>
      */
-    private function mapIntRange(GenericTypeNode $node): array
+    private function mapRange(GenericTypeNode $node, string $type): array
     {
         $arguments = $node->genericTypes;
         $minimumNode = $arguments[0] ?? null;
@@ -456,15 +466,15 @@ final class TypeNodeSchemaMapper
             throw new UnsupportedSchemaTypeException((string) $node);
         }
 
-        $schema = ['type' => 'integer'];
+        $schema = ['type' => $type];
 
-        $minimum = $this->readIntBound($minimumNode, 'min', (string) $node);
+        $minimum = $this->readBound($minimumNode, 'min', $type, (string) $node);
 
         if (null !== $minimum) {
             $schema['minimum'] = $minimum;
         }
 
-        $maximum = $this->readIntBound($maximumNode, 'max', (string) $node);
+        $maximum = $this->readBound($maximumNode, 'max', $type, (string) $node);
 
         if (null !== $maximum) {
             $schema['maximum'] = $maximum;
@@ -473,10 +483,27 @@ final class TypeNodeSchemaMapper
         return $schema;
     }
 
-    private function readIntBound(TypeNode $node, string $sentinel, string $label): ?int
+    /**
+     * @param 'integer'|'number' $type
+     */
+    private function readBound(TypeNode $node, string $sentinel, string $type, string $label): null|float|int
     {
         if ($node instanceof ConstTypeNode && $node->constExpr instanceof ConstExprIntegerNode) {
-            return (int) $node->constExpr->value;
+            $bound = (int) $node->constExpr->value;
+
+            // An integer literal beyond the `int` range saturates when cast.
+            return 'number' === $type && (float) $bound !== (float) $node->constExpr->value
+                ? (float) $node->constExpr->value
+                : $bound;
+        }
+
+        if (
+            'number' === $type
+            && $node instanceof ConstTypeNode
+            && $node->constExpr instanceof ConstExprFloatNode
+            && is_finite((float) $node->constExpr->value)
+        ) {
+            return (float) $node->constExpr->value;
         }
 
         if ($node instanceof IdentifierTypeNode && $node->name === $sentinel) {
