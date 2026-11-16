@@ -72,7 +72,7 @@ final readonly class ReflectedPromptRenderer implements PromptRendererInterface
      */
     private function buildMessageList(array $result): array
     {
-        if ([] === $result || [] !== array_filter(array_keys($result), \is_string(...))) {
+        if ([] === $result || array_filter(array_keys($result), \is_string(...)) !== []) {
             throw $this->buildUnsupportedError($this->method, $result);
         }
 

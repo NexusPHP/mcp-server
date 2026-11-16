@@ -69,7 +69,7 @@ final class ReflectedResourceResult
         }
 
         if ([] === $result
-            || [] !== array_filter(array_keys($result), \is_string(...))
+            || array_filter(array_keys($result), \is_string(...)) !== []
             || \count($contents) !== \count($result)
         ) {
             throw self::buildUnsupportedError($method, $result);

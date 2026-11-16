@@ -115,7 +115,7 @@ final readonly class AttributeScanner
         ];
 
         foreach ($attributes as $attribute) {
-            if ([] !== $method->getAttributes($attribute)) {
+            if ($method->getAttributes($attribute) !== []) {
                 throw new LogicException(\sprintf(
                     '%s::%s() is a magic method and cannot be a #[%s] handler. Use a regular public method.',
                     $method->getDeclaringClass()->getName(),
