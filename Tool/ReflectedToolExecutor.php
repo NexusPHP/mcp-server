@@ -103,7 +103,7 @@ final readonly class ReflectedToolExecutor implements ToolExecutorInterface
         return new UnsupportedReturnValueException(
             $method->getDeclaringClass()->getName(),
             $method->getName(),
-            \sprintf('a %s, a string, content blocks, or an array', CallToolResult::class),
+            \sprintf('a %s, a string, a content block, a list of content blocks, or a string-keyed array', CallToolResult::class),
             $result,
         );
     }
