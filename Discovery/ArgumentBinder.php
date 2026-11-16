@@ -380,6 +380,16 @@ final class ArgumentBinder
     {
         /** @var non-empty-list<int|string> $values */
         $values = array_column($enum::cases(), 'value');
+
+        // JSON Schema's `enum` matches `1.0` against `1`, so the schema has already admitted an integral float.
+        if (\is_float($value)) {
+            foreach ($values as $candidate) {
+                if (\is_int($candidate) && (float) $candidate === $value) {
+                    $value = $candidate;
+                }
+            }
+        }
+
         Assert::that($value)->isOneOf($values, \sprintf('%s must be one of {choices}, {value} given.', $context));
 
         return $enum::from($value);
