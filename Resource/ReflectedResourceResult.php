@@ -40,7 +40,9 @@ final class ReflectedResourceResult
         }
 
         $contents = match (true) {
-            \is_string($result) => [new TextResourceContents(uri: $uri, text: $result)],
+            \is_string($result) => [preg_match('//u', $result) === 1
+                ? new TextResourceContents(uri: $uri, text: $result)
+                : new BlobResourceContents(uri: $uri, blob: base64_encode($result))],
             $result instanceof BlobResourceContents || $result instanceof TextResourceContents => [$result],
             \is_array($result) => self::buildContentsList($result, $method),
             default => throw self::buildUnsupportedError($method, $result),
