@@ -19,12 +19,18 @@ use Nexus\Assert\Assert;
 use Nexus\Mcp\Core\Auth\ResourceIdentifier;
 use Nexus\Mcp\Core\Auth\VerifiedAccessToken;
 use Nexus\Mcp\Core\Validation\SuggestedDependencyGuard;
+use Nexus\Mcp\Server\Exception\AccessTokenValidationUnavailableException;
 
 /**
  * JWT bearer token validator over a key set, needing the suggested `firebase/php-jwt` package.
  */
 final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInterface
 {
+    /**
+     * @var array<string, Key>|GuardedKeySet
+     */
+    private array|GuardedKeySet $keys;
+
     private ResourceIdentifier $resource;
 
     /**
@@ -33,7 +39,7 @@ final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInt
      * @param string                                       $resource       Canonical URI of this MCP server, which a token's audience must name
      */
     public function __construct(
-        private array|\ArrayAccess $keys,
+        array|\ArrayAccess $keys,
         private string $expectedIssuer,
         string $resource,
     ) {
@@ -42,6 +48,7 @@ final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInt
             'JWKS validator expected issuer must be a non-empty string, {type} given.',
         );
 
+        $this->keys = \is_array($keys) ? $keys : new GuardedKeySet($keys);
         $this->resource = new ResourceIdentifier($resource);
     }
 
@@ -95,8 +102,10 @@ final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInt
     {
         try {
             return (array) JWT::decode($token, $this->keys);
+        } catch (AccessTokenValidationUnavailableException $e) {
+            throw $e;
         } catch (\Exception|\TypeError) {
-            // `JWT::getKey()` throws a TypeError for a listed key that `JWK::parseKey()` cannot read.
+            // php-jwt throws a TypeError for a header of the wrong shape or a listed key it cannot read.
             return null;
         }
     }

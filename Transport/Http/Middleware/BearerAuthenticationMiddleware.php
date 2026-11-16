@@ -22,6 +22,7 @@ use Nexus\Mcp\Core\Auth\VerifiedAccessToken;
 use Nexus\Mcp\Core\Auth\WwwAuthenticateChallenge;
 use Nexus\Mcp\Core\Http\HttpStatus;
 use Nexus\Mcp\Server\Auth\AccessTokenValidatorInterface;
+use Nexus\Mcp\Server\Exception\AccessTokenValidationUnavailableException;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -37,6 +38,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 final readonly class BearerAuthenticationMiddleware implements MiddlewareInterface
 {
     private const string BEARER_PREFIX = WwwAuthenticateChallenge::BEARER_SCHEME.' ';
+    private const int RETRY_AFTER_SECONDS = 10;
 
     private ResourceIdentifier $resource;
     private ScopeSet $requiredScopes;
@@ -79,7 +81,13 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
             return $this->challenge(HttpStatus::BadRequest, 'invalid_request');
         }
 
-        $token = $this->validator->validate($presented);
+        try {
+            $token = $this->validator->validate($presented);
+        } catch (AccessTokenValidationUnavailableException) {
+            return $this->responseFactory->createResponse(HttpStatus::ServiceUnavailable->value)
+                ->withHeader('Retry-After', (string) self::RETRY_AFTER_SECONDS)
+            ;
+        }
 
         if (null === $token) {
             return $this->challenge(HttpStatus::Unauthorized, 'invalid_token');

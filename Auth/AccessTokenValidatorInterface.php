@@ -14,14 +14,18 @@ declare(strict_types=1);
 namespace Nexus\Mcp\Server\Auth;
 
 use Nexus\Mcp\Core\Auth\VerifiedAccessToken;
+use Nexus\Mcp\Server\Exception\AccessTokenValidationUnavailableException;
 
 /**
- * Turns a bearer token into what it grants, owning the whole of validation and returning `null` for anything
- * it cannot verify, a token carrying no expiry or naming another resource included.
+ * Turns a bearer token into what it grants, owning the whole of validation and returning `null` for any token
+ * it refuses, a token carrying no expiry or naming another resource included.
  *
  * @see https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization#token-handling
  */
 interface AccessTokenValidatorInterface
 {
+    /**
+     * @throws AccessTokenValidationUnavailableException
+     */
     public function validate(string $token): ?VerifiedAccessToken;
 }
