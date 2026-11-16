@@ -95,7 +95,8 @@ final readonly class JwksAccessTokenValidator implements AccessTokenValidatorInt
     {
         try {
             return (array) JWT::decode($token, $this->keys);
-        } catch (\Exception) {
+        } catch (\Exception|\TypeError) {
+            // `JWT::getKey()` throws a TypeError for a listed key that `JWK::parseKey()` cannot read.
             return null;
         }
     }
