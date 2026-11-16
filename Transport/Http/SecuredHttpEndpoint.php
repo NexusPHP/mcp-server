@@ -40,7 +40,7 @@ final readonly class SecuredHttpEndpoint implements RequestHandlerInterface
     /**
      * @param list<non-empty-string>   $allowedOrigins  Origins permitted to reach the endpoint, or `['*']` to allow any
      * @param list<non-empty-string>   $allowedHosts    Hosts permitted to reach the endpoint (empty disables `Host` validation), or `['*']` to allow any
-     * @param null|int<0, max>         $maxBodyBytes    Request body bytes past which the request is refused, or `null` for no cap
+     * @param null|non-negative-int    $maxBodyBytes    Request body bytes past which the request is refused, or `null` for no cap
      * @param null|ToolStoreInterface  $toolStore       The served tool store, enabling `Mcp-Param-{Name}` validation
      * @param null|MiddlewareInterface $authentication  Bearer token enforcement, making the endpoint an OAuth resource server
      * @param null|MiddlewareInterface $operationScopes Per-operation scope enforcement, run once the body is within its cap

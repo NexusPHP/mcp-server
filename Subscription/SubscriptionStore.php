@@ -80,9 +80,9 @@ final class SubscriptionStore implements SubscriptionStoreInterface
     private array $pendingResourceUpdates = [];
 
     /**
-     * @param int<1, max> $maxSubscriptions
-     * @param int<1, max> $maxSubscriptionsPerPeer
-     * @param int<1, max> $maxResourceSubscriptionsPerStream
+     * @param positive-int $maxSubscriptions
+     * @param positive-int $maxSubscriptionsPerPeer
+     * @param positive-int $maxResourceSubscriptionsPerStream
      */
     public function __construct(
         private readonly bool $toolsListChanged = false,

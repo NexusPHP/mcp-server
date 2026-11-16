@@ -90,7 +90,7 @@ final readonly class ServerMessageDispatcher implements CancellableMessageDispat
      * @param HandlerRegistry<RequestHandlerInterface<non-empty-string, Result, ServerContext>> $requestHandlers
      * @param HandlerRegistry<NotificationHandlerInterface<non-empty-string>>                   $notificationHandlers
      * @param null|Implementation                                                               $serverInfo           Identity stamped on every outgoing result, or null to disclose none
-     * @param null|int<1, max>                                                                  $maxInFlight          Messages processed at once before further ones are shed, or null for no cap
+     * @param null|positive-int                                                                 $maxInFlight          Messages processed at once before further ones are shed, or null for no cap
      * @param null|RequestStateSigner                                                           $requestStateSigner   Verifies every echoed `requestState` before its handler runs, or null to pass it through
      */
     public function __construct(

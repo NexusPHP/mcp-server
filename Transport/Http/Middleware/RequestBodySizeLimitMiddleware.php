@@ -32,7 +32,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 final readonly class RequestBodySizeLimitMiddleware implements MiddlewareInterface
 {
     /**
-     * @param int<0, max> $maxBytes Maximum permitted request body size in bytes
+     * @param non-negative-int $maxBytes Maximum permitted request body size in bytes
      */
     public function __construct(
         private int $maxBytes,
@@ -66,7 +66,7 @@ final readonly class RequestBodySizeLimitMiddleware implements MiddlewareInterfa
     /**
      * Reads at most one byte past `$maxBytes`, so an oversized stream is detected without buffering it.
      *
-     * @param int<0, max> $maxBytes
+     * @param non-negative-int $maxBytes
      */
     private function readPastCap(StreamInterface $body, int $maxBytes): string
     {

@@ -47,7 +47,7 @@ final readonly class RequestStateSigner
 
     /**
      * @param non-empty-list<non-empty-string>|non-empty-string                       $secret     The signing key, or a key ring whose first key signs and whose every key verifies
-     * @param int<1, max>                                                             $ttlSeconds How long a minted state verifies
+     * @param positive-int                                                            $ttlSeconds How long a minted state verifies
      * @param string                                                                  $binding    The binding applied when `sign()` and `verify()` are given none
      * @param null|\Closure(JsonRpcRequest<non-empty-string>, ReceiveContext): string $policy     Derives the binding for a request in `bindFor()`, the authenticated subject and client, method and target when null
      */
@@ -83,7 +83,7 @@ final readonly class RequestStateSigner
      * A signing key drawn from the system's random source, for a server that mints no state
      * beyond the lifetime of its own process.
      *
-     * @param int<1, max> $ttlSeconds
+     * @param positive-int $ttlSeconds
      */
     public static function generate(int $ttlSeconds = self::DEFAULT_TTL_SECONDS): self
     {

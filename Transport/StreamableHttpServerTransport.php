@@ -110,7 +110,8 @@ final class StreamableHttpServerTransport implements CancellableTransportInterfa
     private array $cancelListeners = [];
 
     /**
-     * @param int<1, max> $maxBufferedBytes Unread SSE bytes past which a further frame abandons the stream
+     * @param positive-float $keepAliveInterval
+     * @param positive-int   $maxBufferedBytes  Unread SSE bytes past which a further frame abandons the stream
      */
     public function __construct(
         private readonly ResponseFactoryInterface $responseFactory,

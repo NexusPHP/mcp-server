@@ -38,8 +38,8 @@ final class SseResponseStream implements StreamInterface
     private ?DeferredFuture $reader = null;
 
     /**
-     * @param float                $keepAliveInterval Seconds an idle read waits before yielding a keep-alive frame
-     * @param int<1, max>          $maxBufferedBytes  Unread bytes past which a further push abandons the stream
+     * @param positive-float       $keepAliveInterval Seconds an idle read waits before yielding a keep-alive frame
+     * @param positive-int         $maxBufferedBytes  Unread bytes past which a further push abandons the stream
      * @param \Closure(bool): void $onClose           Runs when the body closes, with whether the buffer overflowed
      */
     public function __construct(

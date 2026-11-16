@@ -42,7 +42,7 @@ final class ResourceTemplateStore implements MutableResourceTemplateStoreInterfa
      * Keyed by entry key so a removal drops the pattern with its entry, ordered by descending literal
      * length so the most specific template answers first.
      *
-     * @var array<non-empty-string, array{pattern: non-empty-string, literals: int<0, max>, entry: ResourceTemplateEntry}>
+     * @var array<non-empty-string, array{pattern: non-empty-string, literals: non-negative-int, entry: ResourceTemplateEntry}>
      */
     private array $compiled = [];
 

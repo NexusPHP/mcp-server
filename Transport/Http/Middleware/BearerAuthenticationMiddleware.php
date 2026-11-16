@@ -46,7 +46,7 @@ final readonly class BearerAuthenticationMiddleware implements MiddlewareInterfa
     /**
      * @param string                 $resource            Canonical URI of this MCP server, which a token's audience must name
      * @param list<non-empty-string> $requiredScopes
-     * @param int<0, max>            $expiryLeewaySeconds
+     * @param non-negative-int       $expiryLeewaySeconds
      */
     public function __construct(
         private AccessTokenValidatorInterface $validator,
