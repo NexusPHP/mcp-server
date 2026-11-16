@@ -23,10 +23,14 @@ use Nexus\Mcp\Server\ServerContext;
  */
 final readonly class ReflectedTemplatedResourceReader implements TemplatedResourceReaderInterface
 {
+    /**
+     * @param null|non-empty-string $mimeType
+     */
     public function __construct(
         private object $handler,
         private \ReflectionMethod $method,
         private ArgumentBinder $binder = new ArgumentBinder(),
+        private ?string $mimeType = null,
     ) {
     }
 
@@ -35,6 +39,11 @@ final readonly class ReflectedTemplatedResourceReader implements TemplatedResour
     {
         $bound = $this->binder->bind($this->method, ['uri' => $uri, ...$bindings], $context);
 
-        return ReflectedResourceResult::adapt($this->method->invokeArgs($this->handler, $bound), $uri, $this->method);
+        return ReflectedResourceResult::adapt(
+            $this->method->invokeArgs($this->handler, $bound),
+            $uri,
+            $this->method,
+            $this->mimeType,
+        );
     }
 }

@@ -78,16 +78,20 @@ final readonly class AttributeScanner
             }
 
             foreach ($method->getAttributes(AsResource::class) as $attribute) {
+                $resource = $this->buildResource($method, $attribute->newInstance());
+
                 yield new ResourceEntry(
-                    $this->buildResource($method, $attribute->newInstance()),
-                    new ReflectedResourceReader($source, $method),
+                    $resource,
+                    new ReflectedResourceReader($source, $method, mimeType: $resource->mimeType),
                 );
             }
 
             foreach ($method->getAttributes(AsResourceTemplate::class) as $attribute) {
+                $template = $this->buildResourceTemplate($method, $attribute->newInstance());
+
                 yield new ResourceTemplateEntry(
-                    $this->buildResourceTemplate($method, $attribute->newInstance()),
-                    new ReflectedTemplatedResourceReader($source, $method),
+                    $template,
+                    new ReflectedTemplatedResourceReader($source, $method, mimeType: $template->mimeType),
                 );
             }
 

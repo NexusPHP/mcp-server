@@ -28,12 +28,14 @@ use Nexus\Mcp\Server\Exception\UnsupportedReturnValueException;
 final class ReflectedResourceResult
 {
     /**
-     * @param non-empty-string $uri
+     * @param non-empty-string      $uri
+     * @param null|non-empty-string $mimeType
      */
     public static function adapt(
         mixed $result,
         string $uri,
         \ReflectionMethod $method,
+        ?string $mimeType,
     ): InputRequiredResult|ReadResourceResult {
         if ($result instanceof ReadResourceResult || $result instanceof InputRequiredResult) {
             return $result;
@@ -41,8 +43,8 @@ final class ReflectedResourceResult
 
         $contents = match (true) {
             \is_string($result) => [preg_match('//u', $result) === 1
-                ? new TextResourceContents(uri: $uri, text: $result)
-                : new BlobResourceContents(uri: $uri, blob: base64_encode($result))],
+                ? new TextResourceContents(uri: $uri, text: $result, mimeType: $mimeType)
+                : new BlobResourceContents(uri: $uri, blob: base64_encode($result), mimeType: $mimeType)],
             $result instanceof BlobResourceContents || $result instanceof TextResourceContents => [$result],
             \is_array($result) => self::buildContentsList($result, $method),
             default => throw self::buildUnsupportedError($method, $result),
